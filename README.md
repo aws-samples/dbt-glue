@@ -21,70 +21,7 @@ from the local client. This is the principal configured in the AWS CLI and likel
 - Service role: The IAM role that AWS Glue uses to execute your session. This is the same as AWS Glue
 ETL.
 
-In order to let the Client principal interact with Glue Interactive Session, the following policy have to be attached to
-the user or the role:
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllowStatementInASessionToAUser",
-            "Action": [
-                "glue:ListSessions",
-                "glue:GetSession",
-                "glue:ListStatements",
-                "glue:GetStatement",
-                "glue:RunStatement",
-                "glue:CancelStatement",
-                "glue:DeleteSession"
-            ],
-            "Effect": "Allow",
-            "Resource": [
-                "arn:aws:glue:<Region>:<AccountID>:session/${aws:userid}*"
-            ]
-        },
-        {
-            "Action": [
-                "glue:CreateSession"
-            ],
-            "Effect": "Allow",
-            "Resource": [
-                "*"
-            ]
-        },
-        {
-            "Action": [
-                "iam:PassRole"
-            ],
-            "Effect": "Allow",
-            "Resource": "arn:aws:iam::*:role/AWSGlueServiceRole*",
-            "Condition": {
-                "StringLike": {
-                    "iam:PassedToService": [
-                        "glue.amazonaws.com"
-                    ]
-                }
-            }
-        },
-        {
-            "Action": [
-                "iam:PassRole"
-            ],
-            "Effect": "Allow",
-            "Resource": [
-                "arn:aws:iam::*:role/service-role/AWSGlueServiceRole*"
-            ],
-            "Condition": {
-                "StringLike": {
-                    "iam:PassedToService": [
-                        "glue.amazonaws.com"
-                    ]
-                }
-            }
-        }
-    ]
-}
-```
+Read [this documentation](https://docs.aws.amazon.com/glue/latest/dg/glue-is-security.html) to configure these principals.
 
 To enjoy all features of the dbt/Glue driver, you will need to attach to the Service role the 3 AWS managed policies below:
 
@@ -93,11 +30,6 @@ To enjoy all features of the dbt/Glue driver, you will need to attach to the Ser
 | Amazon S3 | AmazonS3FullAccess |
 | AWS Glue | AWSGlueConsoleFullAccess |
 | AWS Lake formation | AWSLakeFormationDataAdmin |
-
-Now install the Glue Interactive Session package
-```bash
-$ pip3 install aws-glue-sessions
-```
 
 ### Getting started with dbt
 
