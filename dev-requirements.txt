@@ -1,5 +1,5 @@
 agate<1.6.2,>=1.6
-cffi<1.15,>=1.9
+cffi>=1.9,<1.16
 hologram>=0.0.14
 idna<2.10
 isodate<0.7,>=0.6
