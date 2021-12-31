@@ -19,5 +19,5 @@ pandas>=1.1
 decorator<6,>=5.0.7
 pytest-dbt-adapter==0.4.0
 waiter
-requests<2.24.0,>=2.18.0
+requests>=2.18.0,<2.27.0
 wheel
