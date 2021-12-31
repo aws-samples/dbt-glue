@@ -1,20 +1,45 @@
 #!/usr/bin/env python
-from setuptools import find_packages
-from setuptools import find_namespace_packages
+import os
+import sys
+import re
+
+# require python 3.7 or newer
+if sys.version_info < (3, 7):
+    print('Error: dbt does not support this version of Python.')
+    print('Please upgrade to Python 3.7 or higher.')
+    sys.exit(1)
+
+
+# require version of setuptools that supports find_namespace_packages
 from setuptools import setup
-package_name = "dbt-glue"
-package_version = "1.0.0"
+try:
+    from setuptools import find_namespace_packages
+except ImportError:
+    # the user has a downlevel version of setuptools.
+    print('Error: dbt requires setuptools v40.1.0 or higher.')
+    print('Please upgrade setuptools with "pip install --upgrade setuptools" '
+          'and try again')
+    sys.exit(1)
+
+
+# pull long description from README
+this_directory = os.path.abspath(os.path.dirname(__file__))
+with open(os.path.join(this_directory, 'README.md')) as f:
+    long_description = f.read()
+
+package_name = "aws-glue-dbt-adapter"
+package_version = "0.0.1"
 description = """Aws Glue adapter for dbt (data build tool)"""
 setup(
     name=package_name,
     version=package_version,
-    description="dbt adapter for AWS Glue",
-    long_description="Easily use Glue Spark as a target runtime for dbt",
-    author="moshir mikael,benjamin menuet, amine el mallem",
+    description=description,
+    long_description=long_description,
+    long_description_content_type='text/markdown',
+    author="moshirm,menuetb, mamallem",
     author_email="moshirm@amazon.fr, menuetb@amazon.fr, mamallem@amazon.fr",
-    url="https://aws.amazon.com/fr/glue/",
+    url='https://github.com/aws-samples/aws-glue-dbt-adapter',
     packages=find_namespace_packages(include=['dbt', 'dbt.*']),
-    #packages=find_packages(where="src"),
     package_data={
         'dbt': [
             'include/glue/macros/*.sql',
@@ -30,5 +55,20 @@ setup(
         "dbt-core",
         "waiter",
         "boto3"
-    ]
+    ],
+    zip_safe=False,
+    classifiers=[
+        "Development Status :: 4 - Beta",
+
+        'License :: OSI Approved :: Apache Software License',
+
+        'Operating System :: Microsoft :: Windows',
+        'Operating System :: MacOS :: MacOS X',
+        'Operating System :: POSIX :: Linux',
+
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+    ],
+    python_requires=">=3.7",
 )
