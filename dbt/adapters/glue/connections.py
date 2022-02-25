@@ -11,16 +11,15 @@ import dbt
 from dbt.logger import GLOBAL_LOGGER as logger
 from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
 
+class GlueSessionState:
+    OPEN = "open"
+    FAIL = "fail"
+
+class ReturnCode:
+    OK = "OK"
 
 class GlueConnectionManager(SQLConnectionManager):
     TYPE = "glue"
-
-    @contextmanager
-    def exception_handler(self, sql: str, connection_name=""):
-        try:
-            yield
-        except Exception as e:
-            raise e
 
     @classmethod
     def open(cls, connection):
@@ -32,20 +31,19 @@ class GlueConnectionManager(SQLConnectionManager):
         try:
             cls._connection: GlueConnection = GlueConnection(credentials=credentials)
             cls._connection.connect()
-            connection.state = "open"
+            connection.state = GlueSessionState.OPEN
             connection.handle = cls._connection
             return connection
         except Exception as e:
-            logger.debug(
+            logger.error(
                 f"Got an error when attempting to open a GlueSession : {e}"
             )
             connection.handle = None
-            connection.state = "fail"
-            raise FailedToConnectException(str(e))
+            connection.state = GlueSessionState.FAIL
+            raise FailedToConnectException() from e
 
     def cancel(self, connection):
         """ cancel ongoing queries """
-        logger.debug("CANCEL " * 12)
         logger.debug("Cancelling queries")
         connection.handle.cancel()
         logger.debug("Queries canceled")
@@ -56,19 +54,16 @@ class GlueConnectionManager(SQLConnectionManager):
             yield
         except Exception as e:
             logger.debug("Error running SQL: {}".format(sql))
-            logger.debug("Rolling back transaction.")
             self.release()
-            raise RuntimeException(str(e))
+            raise RuntimeException(e)
 
     def get_response(cls, cursor) -> AdapterResponse:
         """
         new to support dbt 0.19: this method replaces get_response
         """
-        return "OK"
-        rows = cursor.rowcount
+        message = ReturnCode.OK
         return AdapterResponse(
             _message=message,
-            rows_affected=0
         )
 
     @classmethod

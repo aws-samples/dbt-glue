@@ -13,6 +13,7 @@ class GlueSessionState:
     READY = "READY"
     FAILED = "FAILED"
     PROVISIONING = "PROVISIONING"
+    RUNNING = "RUNNING"
     CLOSED = "CLOSED"
 
 
@@ -28,7 +29,7 @@ class GlueConnection:
     def connect(self):
         logger.debug("GlueConnection connect called")
         if not self.credentials.session_id:
-            logger.debug("No session go to start session")
+            logger.debug("No session present, starting one")
             self._start_session()
         else:
             self._session = {
@@ -45,18 +46,14 @@ class GlueConnection:
     def _start_session(self):
         logger.debug("GlueConnection _start_session called")
 
+        args = {
+            "--enable-glue-datacatalog": "true",
+            "--spark.sql.crossJoin.enabled": "true"
+        }
+
         if (self.credentials.extra_jars is not None):
-            args = {
-                "--enable-glue-datacatalog": "true",
-                "--spark.sql.crossJoin.enabled": "true",
-                "--extra-jars": f"{self.credentials.extra_jars}"
-            }
-        else:
-            args = {
-                "--enable-glue-datacatalog": "true",
-                "--spark.sql.crossJoin.enabled": "true"
-            }
-            
+            args["--extra-jars"] = f"{self.credentials.extra_jars}"
+
         additional_args = {}
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
@@ -88,10 +85,19 @@ class GlueConnection:
         logger.debug("GlueConnection _init_session called")
         logger.debug("GlueConnection session_id : " + self.session_id)
         statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY)
-        statement.execute()
+        try:
+            statement.execute()
+        except Exception as e:
+            logger.error("Error in GlueCursor execute " + str(e))
+            raise dbterrors.ExecutableError
+
         statement = GlueStatement(client=self.client, session_id=self.session_id,
                                   code=f"spark.sql('use {self.credentials.database}')")
-        statement.execute()
+        try:
+            statement.execute()
+        except Exception as e:
+            logger.error("Error in GlueCursor execute " + str(e))
+            raise dbterrors.ExecutableError
 
     @property
     def session_id(self):
@@ -116,7 +122,7 @@ class GlueConnection:
         logger.debug("GlueConnection cancel called")
         response = self.client.get_statements(SessionId=self.session_id)
         for statement in response["Statements"]:
-            if statement["State"] in ["RUNNING"]:
+            if statement["State"] in GlueSessionState.RUNNING:
                 self.cancel_statement(statement_id=statement["Id"])
 
     def close(self):
@@ -128,9 +134,7 @@ class GlueConnection:
 
     def cursor(self, as_dict=False) -> GlueCursor:
         logger.debug("GlueConnection cursor called")
-        if not as_dict:
-            return GlueCursor(connection=self)
-        return GlueDictCursor(connection=self)
+        return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
 
     def close_session(self):
         if self.credentials.session_id:
@@ -153,36 +157,27 @@ SQLPROXY = """
 import json
 import base64
 class SqlWrapper2:
-    i=0
-    dfs={}
+    i = 0
+    dfs = {}
     @classmethod
-    def execute(cls,sql,output=True):
-        if ";" in sql:
-            response=None
-            queries = sql.split(";")
-            for q in queries:
-                if (len(q)):
-                    if q==queries[-1]:
-                        response=cls.execute(q,output=True)
-                    else:
-                        cls.execute(q,output=False)
-            return  response
-        
-        df=spark.sql(sql)
-        if not len(df.schema.fields):
+    def execute(cls,sql,output=True):       
+        df = spark.sql(sql)
+        if len(df.schema.fields) == 0:
+            dumped_empty_result = json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None})
             if output:
-                print (json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None}))
+                print (dumped_empty_result)
             else:
-                return json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None})
-        results=[]
+                return dumped_empty_result
+        results = []
         rowcount = df.count()
         for record in df.rdd.collect():
             d = {}
             for f in df.schema:
                 d[f.name] = record[f.name]
             results.append(({"type": "record", "data": d}))
+        dumped_results = json.dumps({"type": "results", "rowcount": rowcount,"results": results,"description": [{"name":f.name, "type":str(f.dataType)} for f in df.schema]})
         if output:
-            print(json.dumps({"type": "results", "rowcount": rowcount,"results": results,"description": [{"name":f.name, "type":str(f.dataType)} for f in df.schema]}))
+            print(dumped_results)
         else:
-            return json.dumps({"type": "results", "rowcount": rowcount,"results": results,"description": [{"name":f.name, "type":str(f.dataType)} for f in df.schema]})
+            return dumped_results
 """

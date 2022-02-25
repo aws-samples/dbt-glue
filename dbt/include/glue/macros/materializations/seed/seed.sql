@@ -28,7 +28,7 @@
   {% set sql = load_csv_rows(model, agate_table) %}
 
   {% call noop_statement('main', status ~ ' ' ~ num_rows) %}
-    {{ create_table_sql }};
+    {{ create_table_sql }}
     -- dbt seed --
     {{ sql }}
   {% endcall %}

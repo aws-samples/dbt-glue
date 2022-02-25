@@ -47,19 +47,21 @@ class GlueAdapter(SQLAdapter):
     def date_function(cls) -> str:
         return 'current_timestamp()'
 
+    def get_connection(self):
+        connection: GlueConnectionManager = self.connections.get_thread_connection()
+        session: GlueConnection = connection.handle
+        client = boto3.client("glue", region_name=session.credentials.region)
+        cursor = session.cursor()
+
+        return session, client, cursor
+
     def list_schemas(self, database: str) -> List[str]:
-        """
-        Schemas in SQLite are attached databases
-        """
-        logger.debug("list_schemas called")
         results = self.connections.execute("show databases", fetch=True)
         schemas = [row[0] for row in results[1]]
         return schemas
 
     def list_relations_without_caching(self, schema_relation: BaseRelation):
-        logger.debug("list_relations_without_caching called")
-        connection = self.connections.get_thread_connection()
-        client = connection.handle.client
+        session, client, cursor = self.get_connection()
         relations = []
         try:
             response = client.get_tables(
@@ -72,112 +74,154 @@ class GlueAdapter(SQLAdapter):
                     type=self.relation_type_map.get(table.get("TableType")),
                 ))
         except Exception as e:
-            logger.debug(e)
-            logger.debug("list_relations_without_caching exception")
+            logger.error(e)
+            logger.error("list_relations_without_caching exception")
 
-        logger.debug("list_relations_without_caching ended")
         return relations
 
     @classmethod
     def convert_text_type(cls, agate_table, col_idx):
-        logger.debug("convert_text_type called")
         return "string"
 
     @classmethod
     def convert_number_type(cls, agate_table, col_idx):
-        logger.debug("convert_number_type called")
         decimals = agate_table.aggregate(agate.MaxPrecision(col_idx))
         return "double" if decimals else "bigint"
 
     @classmethod
     def convert_date_type(cls, agate_table, col_idx):
-        logger.debug("convert_date_type called")
         return "date"
 
     @classmethod
     def convert_time_type(cls, agate_table, col_idx):
-        logger.debug("convert_time_type called")
         return "time"
 
     @classmethod
     def convert_datetime_type(cls, agate_table, col_idx):
-        logger.debug("convert_datetime_type called")
         return "timestamp"
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
-        logger.debug("check_schema_exists called")
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        client = boto3.client("glue", region_name=session.credentials.region)
+        session, client, cursor = self.get_connection()
         try:
             client.get_database(Name=schema)
             return True
         except:
             return False
 
+    def check_relation_exists(self, relation: BaseRelation) -> bool:
+        try:
+            self.get_relation(
+                database=relation.schema,
+                schema=relation.schema,
+                identifier=relation.identifier
+            )
+            return True
+        except:
+            return False
+
     def get_relation(self, database, schema, identifier):
-        logger.debug("get_relation called")
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        client = boto3.client("glue", region_name=session.credentials.region)
         relations = []
+        session, client, cursor = self.get_connection()
         try:
             response = client.get_table(
                 DatabaseName=schema,
                 Name=identifier
             )
-            logger.debug("debug type")
-            logger.debug(response.get("Table", {}).get("TableType", "Table"))
+            logger.debug(f"""debug type
+                             {response.get('Table', {}).get('TableType', 'Table')}
+            """)
             relations.append(self.Relation.create(
                 schema=schema,
                 identifier=identifier,
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
             ))
-            logger.debug("schema : " + schema)
-            logger.debug("identifier : " + identifier)
-            logger.debug("type : " + self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")))
+            logger.debug(f"""schema : {schema}
+                             identifier : {identifier}
+                             type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
+            """)
             return relations
         except Exception as e:
-            logger.debug(f"relation {schema}.{identifier} not found")
+            logger.error(e)
+            logger.error(f"relation {schema}.{identifier} not found")
             return None
 
     @available
     def drop_view(self, relation: BaseRelation):
-        logger.debug("drop_view called")
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
+        session, client, cursor = self.get_connection()
         code = f'''DROP VIEW IF EXISTS {relation.schema}.{relation.name}'''
-        cursor = session.cursor()
         try:
             cursor.execute(code)
         except Exception as e:
-            logger.debug(e)
-            logger.debug("drop_view exception")
-            logger.debug("relation schema : " + relation.schema)
-            logger.debug("relation identfier : " + relation.name)
+            logger.error(e)
+            logger.error("drop_view exception")
+            logger.error(f"""drop_view exception
+                             relation schema : {relation.schema}
+                             relation identfier : {relation.name}
+            """)
 
     @available
     def drop_relation(self, relation: BaseRelation):
-        logger.debug("drop_view called")
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        client = boto3.client("glue", region_name=session.credentials.region)
+        session, client, cursor = self.get_connection()
+        code = f'''DROP TABLE IF EXISTS {relation.schema}.{relation.name}'''
         try:
-            response = client.delete_table(
-                DatabaseName=relation.schema,
-                Name=relation.identifier
-            )
+            cursor.execute(code)
         except Exception as e:
-            return None
+            logger.error(e)
+            logger.error(f"""drop_relation exception
+                             relation schema : {relation.schema}
+                             relation identfier : {relation.name}
+            """)
+
+    @available
+    def create_view_as(self, relation: BaseRelation, sql: str):
+        session, client, cursor = self.get_connection()
+        if self.check_relation_exists(relation):
+            self.drop_relation(relation)
+
+        code = f'''
+        create or replace view {relation.schema}.{relation.name}
+        as
+        {sql}
+        '''
+
+        try:
+            cursor.execute(code)
+        except Exception as e:
+            logger.error(e)
+            logger.error(f"""create_view exception
+                             relation schema : {relation.schema}
+                             relation identfier : {relation.name}
+            """)
+
+        check_code = f'''select * from {relation.schema}.{relation.name} limit 1'''
+
+        return check_code
+
+    @available
+    def create_temp_view_as(self, sql: str):
+        session, client, cursor = self.get_connection()
+        code = f'''
+            create or replace view incremental_tmp_view
+            as
+            {sql}
+            '''
+
+        try:
+            cursor.execute(code)
+        except Exception as e:
+            logger.error(e)
+            logger.error("create_temp_view_as exception")
+
+        check_code = f'''select * from incremental_tmp_view limit 1'''
+
+        return check_code
 
     def rename_relation(self, from_relation, to_relation):
-        logger.debug("rename_relation called")
         logger.debug("rename " + from_relation.schema + " to " + to_relation.identifier)
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
+        session, client, cursor = self.get_connection()
         code = f'''
-        --pyspark
-        df=spark.sql("""select * from {from_relation.schema}.{from_relation.name}""")
+        custom_glue_code_for_dbt_adapter
+        df = spark.sql("""select * from {from_relation.schema}.{from_relation.name}""")
         df.registerTempTable("df")
         df = df.coalesce(1)
         table_name = '{to_relation.schema}.{to_relation.name}'
@@ -188,20 +232,16 @@ class GlueAdapter(SQLAdapter):
                     )
         writer.saveAsTable(table_name, mode="append")
         '''
-        cursor = session.cursor()
         try:
             cursor.execute(code)
         except Exception as e:
-            logger.debug(e)
-            logger.debug("rename_relation exception")
+            logger.error(e)
+            logger.error("rename_relation exception")
 
     def get_columns_in_relation(self, relation: BaseRelation):
-        logger.debug("get_columns_in_relation called")
         logger.debug(f"Command launched: describe {relation.schema}.{relation.identifier}")
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
+        session, client, cursor = self.get_connection()
         code = f'''describe {relation.schema}.{relation.identifier}'''
-        cursor = session.cursor()
         columns = []
         try:
             cursor.execute(code)
@@ -210,8 +250,8 @@ class GlueAdapter(SQLAdapter):
                     Column(column=record[0], dtype=record[1])
                 )
         except Exception as e:
-            logger.debug(e)
-            logger.debug("get_columns_in_relation exception")
+            logger.error(e)
+            logger.error("get_columns_in_relation exception")
 
         # strip hudi metadata columns.
         columns = [x for x in columns
@@ -219,37 +259,29 @@ class GlueAdapter(SQLAdapter):
 
         return columns
 
-    def drop_schema(self, relation: BaseRelation) -> None:
-        logger.debug("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
-        logger.debug("drop_schema  called :) ", relation.identifier)
-        logger.debug(self.connections)
-        connection = self.connections.get_thread_connection()
+    @available
+    def get_location(self, relation: BaseRelation):
+        session, client, cursor = self.get_connection()
+        return f"LOCATION '{session.credentials.location}/relation.name/'"
 
+    def drop_schema(self, relation: BaseRelation) -> None:
+        session, client, cursor = self.get_connection()
         if self.check_schema_exists(relation.database, relation.schema):
             try:
-                connection.handle.client.delete_database(Name=relation.schema)
+                client.delete_database(Name=relation.schema)
                 logger.debug("Successfull deleted schema ", relation.schema)
                 self.connections.cleanup_all()
                 return True
             except Exception as e:
                 self.connections.cleanup_all()
-                logger.debug(e)
-                logger.debug(" - - ")
-                logger.exception(e)
+                logger.error(e)
                 pass
         else:
             logger.debug("No schema to delete")
-            self.connections.cleanup_all()
-            logger.debug(logger.level)
-            logger.debug(logger.level_name)
             pass
 
     def create_schema(self, relation: BaseRelation):
-        logger.debug("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
-        logger.debug("create_schema  called :) ", relation.identifier)
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        client = connection.handle.client
+        session, client, cursor = self.get_connection()
         lf = boto3.client("lakeformation", region_name=session.credentials.region)
         sts = boto3.client("sts")
         identity = sts.get_caller_identity()
@@ -324,7 +356,6 @@ class GlueAdapter(SQLAdapter):
             lf.batch_grant_permissions(CatalogId=account, Entries=Entries)
 
     def get_catalog(self, manifest):
-        logger.debug("get_catalog called")
         schema_map = self._get_catalog_schemas(manifest)
         if len(schema_map) > 1:
             dbt.exceptions.raise_compiler_error(
@@ -358,7 +389,7 @@ class GlueAdapter(SQLAdapter):
             schema=list(schemas)[0]
         )
 
-        logger.debug("++++++++++++++++ Schemas : " + schema_base_relation.schema)
+        logger.debug("Schemas : " + schema_base_relation.schema)
         results = self.list_relations_without_caching(schema_base_relation)
         rows = []
 
@@ -381,12 +412,6 @@ class GlueAdapter(SQLAdapter):
                     table_row.dtype,
                     ''
                 ])
-                logger.debug("database : " + information_schema.database)
-                logger.debug("schema : " + schema_base_relation.schema)
-                logger.debug("name : " + name)
-                logger.debug("relation_type : " + relation_type)
-                logger.debug("table_row.column : " + table_row.column)
-                logger.debug("table_row.dtype : " + table_row.dtype)
 
         column_names = [
             'table_database',
@@ -407,33 +432,31 @@ class GlueAdapter(SQLAdapter):
 
     @available
     def create_csv_table(self, model, agate_table):
-        logger.debug("create_csv_table called")
+        session, client, cursor = self.get_connection()
         logger.debug(model)
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
         f = io.StringIO("")
         agate_table.to_json(f)
         code = f'''
---pyspark
-csv={f.getvalue()}
-df= spark.createDataFrame(csv)
-df.registerTempTable("df")
-df = df.coalesce(1)
+custom_glue_code_for_dbt_adapter
+csv = {f.getvalue()}
+df = spark.createDataFrame(csv)
 table_name = '{model["schema"]}.{model["name"]}'
 writer = (
-                df.write.mode("append")
-                .format("parquet")
-                .option("path", "{session.credentials.location}/{model["database"]}/{model["schema"]}/{model["name"]}")
-            )
+    df.write.mode("append")
+    .format("parquet")
+    .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")
+)
 writer.saveAsTable(table_name, mode="append")
 SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
 '''
-        cursor = session.cursor()
-        cursor.execute(code)
+        try:
+            cursor.execute(code)
+        except Exception as e:
+            logger.error(e)
+            logger.error("create_csv_table exception")
+
 
     def add_schema_to_cache(self, schema) -> str:
-        logger.debug("add_schema_to_cache called")
-        """Cache a new schema in dbt. It will show up in `list relations`."""
         if schema is None:
             name = self.nice_connection_name()
             dbt.exceptions.raise_compiler_error(
@@ -446,10 +469,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
 
     @available
     def describe_table(self, relation):
-        logger.debug("describe_table " + relation.schema)
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        client = boto3.client("glue", region_name=session.credentials.region)
+        session, client, cursor = self.get_connection()
         relations = []
         try:
             response = client.get_table(
@@ -461,18 +481,16 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
                 identifier=relation.name,
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
             ))
-            logger.debug("table_name : " + relation.name)
-            logger.debug("table type : " + self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")))
+            logger.debug(f"""table_name : {relation.name}
+                             table type {self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))}
+            """)
             return relations
-        except Exception as e:
+        except Exception:
             return None
 
     @available
     def get_table_type(self, relation):
-        logger.debug("get_table_type " + relation.schema)
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        client = boto3.client("glue", region_name=session.credentials.region)
+        session, client, cursor = self.get_connection()
         try:
             response = client.get_table(
                 DatabaseName=relation.schema,
@@ -515,14 +533,10 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
 
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key):
-        logger.debug("hudi_merge_table called")
-        logger.debug("hudi_merge_table to " + target_relation.schema + " to " + target_relation.identifier)
-        connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        glueClient = boto3.client('glue')
+        session, client, cursor = self.get_connection()
         isTableExists = False
         try:
-            glueClient.get_table(DatabaseName=target_relation.schema, Name=target_relation.name)
+            self.client.get_table(DatabaseName=target_relation.schema, Name=target_relation.name)
             isTableExists = True
             logger.debug(target_relation.schema + '.' + target_relation.name + ' exists.')
         except ClientError as e:
@@ -532,7 +546,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
                     target_relation.schema + '.' + target_relation.name + ' does not exist. Table will be created.')
 
         head_code = f'''
-        --pyspark
+custom_glue_code_for_dbt_adapter
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 spark = SparkSession.builder \
@@ -568,7 +582,6 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
 '''
         code = head_code + core_code + footer_code
 
-        cursor = session.cursor()
         cursor.execute(code)
 
 

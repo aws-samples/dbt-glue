@@ -49,9 +49,11 @@ class GlueCursor:
     @classmethod
     def remove_comments_header(cls, sql: str):
         logger.debug("GlueCursor remove_comments_header called")
-        if sql[0:2] == "/*":
-            end = sql.index("*/\n")
-            return sql[end + 3:]
+        comment_start = "/*"
+        comment_end = "*/\n"
+        if sql[0:len(comment_start)] == "/*":
+            end = sql.index(comment_end)
+            return sql[end + len(comment_end):]
         return sql
 
     def execute(self, sql, bindings=None):
@@ -63,23 +65,33 @@ class GlueCursor:
         self.sql = GlueCursor.remove_comments_header(sql)
 
         self._pre()
-        if "--pyspark" in self.sql:
-            self.code = textwrap.dedent(self.sql.replace("--pyspark", ""))
+
+        if "custom_glue_code_for_dbt_adapter" in self.sql:
+            self.code = textwrap.dedent(self.sql.replace("custom_glue_code_for_dbt_adapter", ""))
         else:
             self.code = f"SqlWrapper2.execute('''{self.sql}''')"
+
         self.statement = GlueStatement(
             client=self.connection.client,
             session_id=self.connection.session_id,
             code=self.code
         )
+
         logger.debug("client : " + self.code)
-        response = self.statement.execute()
+        try:
+            response = self.statement.execute()
+        except Exception as e:
+            logger.error("Error in GlueCursor execute " + str(e))
+            raise dbterrors.ExecutableError
+
         logger.debug(response)
         self.state = response.get("Statement", {}).get("State", GlueCursorState.WAITING)
+
         if self.state == GlueCursorState.AVAILABLE:
             self._post()
             output = response.get("Statement", {}).get("Output", {})
             status = output.get("Status")
+            logger.debug("status = " + status)
             if status == "ok":
                 try:
                     self.response = json.loads(output.get("Data", {}).get("TextPlain", None).strip())
@@ -89,27 +101,36 @@ class GlueCursor:
                         self.response = json.loads(chunks[0])
                     except Exception as ex:
                         logger.debug("Could not parse " + json.loads(chunks[0]), ex)
+                        self.state = GlueCursorState.ERROR
             else:
+                error_message=f"Glue returned `{status}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
                 if output.get('ErrorValue').find("is not a view"):
-                    logger.debug(f"Glue returned `{status}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}")
+                    self.state = GlueCursorState.ERROR
+                    logger.error(error_message)
                 else:
-                    raise dbterrors.DatabaseException(
-                        msg=f"Glue returned `{status}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}")
+                    logger.debug(error_message)
+                    raise dbterrors.DatabaseException(msg=error_message)
+
         if self.state == GlueCursorState.ERROR:
             self._post()
-            self.state = "error"
-            raise dbterrors.InternalException
+            output = response.get("Statement", {}).get("Output", {})
+            error_message=f"Glue cursor returned `{output.get('Status')}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
+            logger.debug(error_message)
+            raise dbterrors.DatabaseException(msg=error_message)
+
         if self.state in [GlueCursorState.CANCELLED, GlueCursorState.CANCELLING]:
             self._post()
             raise dbterrors.DatabaseException(
                 msg=f"Statement {self.connection.session_id}.{self.statement_id} cancelled.")
 
+        logger.debug("GlueCursor execute successfully")
         return self.response
 
     @property
     def columns(self):
         if self.response:
             return [column.get("name") for column in self.response.get("description")]
+        
 
     def fetchall(self):
         logger.debug("GlueCursor fetchall called")

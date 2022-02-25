@@ -26,7 +26,7 @@
     when not matched
      and DBT_INTERNAL_SOURCE.dbt_change_type = 'insert'
         then insert *
-    ;
+
 {% endmacro %}
 
 
@@ -61,7 +61,7 @@
         {% for column in columns %}
           `{{ column.name }}` {{ column.data_type }} {{- ',' if not loop.last -}}
         {% endfor %}
-      );
+      )
     {% endcall %}
     {% endif %}
 {% endmacro %}

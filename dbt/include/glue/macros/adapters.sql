@@ -54,10 +54,10 @@
 {%- endmacro -%}
 
 {% macro location_clause() %}
-  {%- set location_root = config.get('location_root', validator=validation.any[basestring]) -%}
+  {%- set location_root = config.get('location', validator=validation.any[basestring]) -%}
   {%- set identifier = model['alias'] -%}
   {%- if location_root is not none %}
-    location '{{ location_root }}/{{ identifier }}'
+    location '{{ location }}/{{ identifier }}'
   {%- endif %}
 {%- endmacro -%}
 
@@ -110,8 +110,7 @@
 
 {% macro create_temporary_view(relation, sql) -%}
   create or replace temporary view {{ relation.include(schema=false) }} as
-    {{ sql }};
-  select * from {{ relation.include(schema=false) }} limit 1
+    {{ sql }}
 {% endmacro %}
 
 {% macro glue__create_table_as(temporary, relation, sql) -%}
@@ -122,7 +121,7 @@
     {{ file_format_clause() }}
     {{ partition_cols(label="partitioned by") }}
     {{ clustered_cols(label="clustered by") }}
-    {{ location_clause() }}
+    {{ adapter.get_location(relation) }}
     {{ comment_clause() }}
     as
       {{ sql }}
@@ -130,11 +129,11 @@
 {%- endmacro -%}
 
 {% macro glue__create_view_as(relation, sql) -%}
-  drop table if exists {{ relation }};
-  create or replace view {{ relation }}
-  {{ comment_clause() }}
-  as
-    {{ sql }}
+    {{ adapter.create_view_as(relation, sql) }}
+{% endmacro %}
+
+{% macro glue__create_view(relation, sql) -%}
+    {{ adapter.create_view_as(relation, sql) }}
 {% endmacro %}
 
 {% macro glue__snapshot_get_time() -%}
@@ -147,9 +146,7 @@
 
 {% macro glue__make_temp_relation(base_relation, suffix) %}
     {% set tmp_identifier = base_relation.identifier ~ suffix %}
-    {% set tmp_relation = base_relation.incorporate(
-                                path={"schema": "temp", "identifier": tmp_identifier}) -%}
-
+    {% set tmp_relation = base_relation.incorporate(path={"schema": "temp", "identifier": tmp_identifier}) -%}
     {% do return(tmp_relation) %}
 {% endmacro %}
 
