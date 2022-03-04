@@ -17,9 +17,7 @@ from dbt.adapters.glue.relation import SparkRelation
 from dbt.exceptions import NotImplementedException
 from dbt.adapters.base.impl import catch_as_completed
 from botocore.exceptions import ClientError
-
 from dbt.utils import executor
-
 from dbt.logger import GLOBAL_LOGGER as logger
 
 
@@ -56,6 +54,9 @@ class GlueAdapter(SQLAdapter):
         return session, client, cursor
 
     def list_schemas(self, database: str) -> List[str]:
+        # results[1] contains the result of the query
+        # row[0] get the first column of the result
+        # here schemas contains all the databases in glue
         results = self.connections.execute("show databases", fetch=True)
         schemas = [row[0] for row in results[1]]
         return schemas
@@ -101,23 +102,32 @@ class GlueAdapter(SQLAdapter):
         return "timestamp"
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
-        session, client, cursor = self.get_connection()
+
         try:
-            client.get_database(Name=schema)
-            return True
-        except:
-            return False
+            list = list_schemas(schema)
+            if 'schema' in list:
+                return True
+            else:
+                return False
+        except Exception as e:
+            logger.error(e)
+            logger.error("check_schema_exists exception")
 
     def check_relation_exists(self, relation: BaseRelation) -> bool:
         try:
-            self.get_relation(
+            relation = self.get_relation(
                 database=relation.schema,
                 schema=relation.schema,
                 identifier=relation.identifier
             )
-            return True
-        except:
-            return False
+            if relation is None:
+                return False
+            else:
+                return True
+        except Exception as e:
+            logger.error(e)
+            logger.error("check_relation_exists exception")
+
 
     def get_relation(self, database, schema, identifier):
         relations = []
@@ -143,7 +153,6 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
             logger.error(f"relation {schema}.{identifier} not found")
-            return None
 
     @available
     def drop_view(self, relation: BaseRelation):
@@ -160,23 +169,32 @@ class GlueAdapter(SQLAdapter):
             """)
 
     @available
-    def drop_relation(self, relation: BaseRelation):
+    def drop_relation(self, relations):
         session, client, cursor = self.get_connection()
-        code = f'''DROP TABLE IF EXISTS {relation.schema}.{relation.name}'''
-        try:
-            cursor.execute(code)
-        except Exception as e:
-            logger.error(e)
-            logger.error(f"""drop_relation exception
-                             relation schema : {relation.schema}
-                             relation identfier : {relation.name}
-            """)
+        for relation in relations:
+            code = f'''DROP TABLE IF EXISTS {relation}'''
+            try:
+                cursor.execute(code)
+            except Exception as e:
+                logger.error(e)
+                logger.error(f"""drop_relation exception
+                                 relation schema : {relation.schema}
+                                 relation identfier : {relation.name}
+                """)
 
     @available
     def create_view_as(self, relation: BaseRelation, sql: str):
         session, client, cursor = self.get_connection()
         if self.check_relation_exists(relation):
-            self.drop_relation(relation)
+            code = f'''DROP TABLE IF EXISTS {relation.schema}.{relation.name}'''
+            try:
+                cursor.execute(code)
+            except Exception as e:
+                logger.error(e)
+                logger.error(f"""drop table exception
+                                 relation schema : {relation.schema}
+                                 relation identfier : {relation.name}
+                """)
 
         code = f'''
         create or replace view {relation.schema}.{relation.name}
@@ -275,10 +293,8 @@ class GlueAdapter(SQLAdapter):
             except Exception as e:
                 self.connections.cleanup_all()
                 logger.error(e)
-                pass
         else:
             logger.debug("No schema to delete")
-            pass
 
     def create_schema(self, relation: BaseRelation):
         session, client, cursor = self.get_connection()
@@ -286,74 +302,78 @@ class GlueAdapter(SQLAdapter):
         sts = boto3.client("sts")
         identity = sts.get_caller_identity()
         account = identity.get("Account")
-        try:
-            client.get_database(Name=relation.schema)
-        except Exception as e:
-            # create when database does not exist
-            logger.debug("location = ", session.credentials.location)
-            client.create_database(
-                DatabaseInput={
-                    "Name": relation.schema,
-                    'Description': 'test dbt database',
-                    'LocationUri': session.credentials.location,
-                }
-            )
-            Entries = []
-            for i, role_arn in enumerate([session.credentials.role_arn]):
-                Entries.append(
-                    {
-                        "Id": str(uuid.uuid4()),
-                        "Principal": {"DataLakePrincipalIdentifier": role_arn},
-                        "Resource": {
-                            "Database": {
-                                # 'CatalogId': AWS_ACCOUNT,
-                                "Name": relation.schema,
-                            }
-                        },
-                        "Permissions": [
-                            "Alter".upper(),
-                            "Create_table".upper(),
-                            "Drop".upper(),
-                            "Describe".upper(),
-                        ],
-                        "PermissionsWithGrantOption": [
-                            "Alter".upper(),
-                            "Create_table".upper(),
-                            "Drop".upper(),
-                            "Describe".upper(),
-                        ],
+        if self.check_schema_exists(relation.database, relation.schema):
+            logger.debug(f"Schema {relation.database} exists - nothing to do")
+        else:
+            try:
+                # create when database does not exist
+                logger.debug("location = ", session.credentials.location)
+                client.create_database(
+                    DatabaseInput={
+                        "Name": relation.schema,
+                        'Description': 'test dbt database',
+                        'LocationUri': session.credentials.location,
                     }
                 )
-                Entries.append(
-                    {
-                        "Id": str(uuid.uuid4()),
-                        "Principal": {"DataLakePrincipalIdentifier": role_arn},
-                        "Resource": {
-                            "Table": {
-                                "DatabaseName": relation.schema,
-                                "TableWildcard": {},
-                                "CatalogId": account
-                            }
-                        },
-                        "Permissions": [
-                            "Select".upper(),
-                            "Insert".upper(),
-                            "Delete".upper(),
-                            "Describe".upper(),
-                            "Alter".upper(),
-                            "Drop".upper(),
-                        ],
-                        "PermissionsWithGrantOption": [
-                            "Select".upper(),
-                            "Insert".upper(),
-                            "Delete".upper(),
-                            "Describe".upper(),
-                            "Alter".upper(),
-                            "Drop".upper(),
-                        ],
-                    }
-                )
-            lf.batch_grant_permissions(CatalogId=account, Entries=Entries)
+                Entries = []
+                for i, role_arn in enumerate([session.credentials.role_arn]):
+                    Entries.append(
+                        {
+                            "Id": str(uuid.uuid4()),
+                            "Principal": {"DataLakePrincipalIdentifier": role_arn},
+                            "Resource": {
+                                "Database": {
+                                    # 'CatalogId': AWS_ACCOUNT,
+                                    "Name": relation.schema,
+                                }
+                            },
+                            "Permissions": [
+                                "Alter".upper(),
+                                "Create_table".upper(),
+                                "Drop".upper(),
+                                "Describe".upper(),
+                            ],
+                            "PermissionsWithGrantOption": [
+                                "Alter".upper(),
+                                "Create_table".upper(),
+                                "Drop".upper(),
+                                "Describe".upper(),
+                            ],
+                        }
+                    )
+                    Entries.append(
+                        {
+                            "Id": str(uuid.uuid4()),
+                            "Principal": {"DataLakePrincipalIdentifier": role_arn},
+                            "Resource": {
+                                "Table": {
+                                    "DatabaseName": relation.schema,
+                                    "TableWildcard": {},
+                                    "CatalogId": account
+                                }
+                            },
+                            "Permissions": [
+                                "Select".upper(),
+                                "Insert".upper(),
+                                "Delete".upper(),
+                                "Describe".upper(),
+                                "Alter".upper(),
+                                "Drop".upper(),
+                            ],
+                            "PermissionsWithGrantOption": [
+                                "Select".upper(),
+                                "Insert".upper(),
+                                "Delete".upper(),
+                                "Describe".upper(),
+                                "Alter".upper(),
+                                "Drop".upper(),
+                            ],
+                        }
+                    )
+                lf.batch_grant_permissions(CatalogId=account, Entries=Entries)
+            except Exception as e:
+                logger.error(e)
+                logger.error("create_schema exception")
 
     def get_catalog(self, manifest):
         schema_map = self._get_catalog_schemas(manifest)
@@ -427,8 +447,7 @@ class GlueAdapter(SQLAdapter):
         ]
         table = agate.Table(rows, column_names)
 
-        results = self._catalog_filter_table(table, manifest)
-        return results
+        return self._catalog_filter_table(table, manifest)
 
     @available
     def create_csv_table(self, model, agate_table):
@@ -531,58 +550,84 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
 
         return sql
 
+    def hudi_write(self, write_mode, session, target_relation):
+        return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}{target_relation.schema}/{target_relation.name}/")'''
+
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key):
         session, client, cursor = self.get_connection()
         isTableExists = False
-        try:
-            self.client.get_table(DatabaseName=target_relation.schema, Name=target_relation.name)
+        if self.check_relation_exists(target_relation):
             isTableExists = True
             logger.debug(target_relation.schema + '.' + target_relation.name + ' exists.')
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'EntityNotFoundException':
-                isTableExists = False
-                logger.debug(
-                    target_relation.schema + '.' + target_relation.name + ' does not exist. Table will be created.')
+        else:
+            isTableExists = False
+            logger.debug(
+                 target_relation.schema + '.' + target_relation.name + ' does not exist. Table will be created.')
 
         head_code = f'''
-custom_glue_code_for_dbt_adapter
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import *
-spark = SparkSession.builder \
-.config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
-.getOrCreate()
-inputDf = spark.sql("""{request}""")
-outputDf = inputDf.withColumn("update_hudi_ts",current_timestamp())
-if outputDf.count() > 0:
-    if {partition_key} is not None:
-        outputDf = outputDf.withColumn(partitionKey, concat(lit(partitionKey + '='), col(partitionKey)))
-'''
+        custom_glue_code_for_dbt_adapter
+        from pyspark.sql import SparkSession
+        from pyspark.sql.functions import *
+        spark = SparkSession.builder \
+        .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+        .getOrCreate()
+        inputDf = spark.sql("""{request}""")
+        outputDf = inputDf.withColumn("update_hudi_ts",current_timestamp())
+        if outputDf.count() > 0:
+            if {partition_key} is not None:
+                outputDf = outputDf.withColumn(partitionKey, concat(lit(partitionKey + '='), col(partitionKey)))
+        '''
+
+        begin_of_hudi_setup = f'''
+                combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
+
+        hudi_partitionning = f'''
+        'hoodie.datasource.write.partitionpath.field': '{partition_key}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_key}','''
+
+        hudi_no_partition = f'''
+        'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','''
+
+        hudi_upsert = f'''
+        'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10}}'''
+
+        hudi_insert = f'''
+        'hoodie.bulkinsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'bulk_insert'}}'''
 
         if isTableExists:
+            write_mode = "Append"
             core_code = f'''
-        combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true', 'hoodie.datasource.write.partitionpath.field': '{partition_key}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_key}', 'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10}}
-        outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('Append').save("{session.credentials.location}{target_relation.schema}/{target_relation.name}/")
-    else:
-        combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator', 'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10}}
-        outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('Append').save("{session.credentials.location}{target_relation.schema}/{target_relation.name}/")
-'''
+                {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
+                {self.hudi_write(write_mode, session, target_relation)}
+            else:
+                {begin_of_hudi_setup}  {hudi_no_partition} {hudi_upsert}
+                {self.hudi_write(write_mode, session, target_relation)}
+        '''
         else:
+            write_mode = "Overwrite"
             core_code = f'''
-        combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true', 'hoodie.datasource.write.partitionpath.field': '{partition_key}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_key}', 'hoodie.bulkinsert.shuffle.parallelism': 5, 'hoodie.datasource.write.operation': 'bulk_insert'}}
-        outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('Overwrite').save("{session.credentials.location}{target_relation.schema}/{target_relation.name}/")
-    else:
-        combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator', 'hoodie.bulkinsert.shuffle.parallelism': 5, 'hoodie.datasource.write.operation': 'bulk_insert'}}
-        outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('Overwrite').save("{session.credentials.location}{target_relation.schema}/{target_relation.name}/")
-'''
+                {begin_of_hudi_setup} {hudi_partitionning} {hudi_insert}
+                {self.hudi_write(write_mode, session, target_relation)}
+            else:
+                {begin_of_hudi_setup} {hudi_no_partition} {hudi_insert}
+                {self.hudi_write(write_mode, session, target_relation)}
+        '''
 
         footer_code = f'''
-spark.sql("""REFRESH TABLE {target_relation.schema}.{target_relation.name}""")
-SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.name} LIMIT 1""")
-'''
-        code = head_code + core_code + footer_code
+        spark.sql("""REFRESH TABLE {target_relation.schema}.{target_relation.name}""")
+        SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.name} LIMIT 1""")
+        '''
 
-        cursor.execute(code)
+        code = head_code + core_code + footer_code
+        logger.debug(f"""hudi code :
+        {code}
+        """)
+
+        try:
+            cursor.execute(code)
+        except Exception as e:
+            logger.error(e)
+            logger.error("hudi_merge_table exception")
 
 
 # spark does something interesting with joins when both tables have the same
