@@ -40,7 +40,7 @@ class GlueConnectionManager(SQLConnectionManager):
             )
             connection.handle = None
             connection.state = GlueSessionState.FAIL
-            raise FailedToConnectException() from e
+            raise FailedToConnectException(str(e))
 
     def cancel(self, connection):
         """ cancel ongoing queries """
@@ -55,7 +55,7 @@ class GlueConnectionManager(SQLConnectionManager):
         except Exception as e:
             logger.debug("Error running SQL: {}".format(sql))
             self.release()
-            raise RuntimeException(e)
+            raise RuntimeException(str(e))
 
     def get_response(cls, cursor) -> AdapterResponse:
         """
