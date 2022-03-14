@@ -40,7 +40,7 @@ class GlueConnectionManager(SQLConnectionManager):
             )
             connection.handle = None
             connection.state = GlueSessionState.FAIL
-            raise FailedToConnectException(str(e))
+            raise FailedToConnectException(f"Got an error when attempting to open a GlueSessions: {e}")
 
     def cancel(self, connection):
         """ cancel ongoing queries """
@@ -53,10 +53,16 @@ class GlueConnectionManager(SQLConnectionManager):
         try:
             yield
         except Exception as e:
-            logger.debug("Error running SQL: {}".format(sql))
+            logger.debug("Unhandled error while running:\n{}".format(sql))
             self.release()
+            if isinstance(e, RuntimeException):
+                # during a sql query, an internal to dbt exception was raised.
+                # this sounds a lot like a signal handler and probably has
+                # useful information, so raise it without modification.
+                raise
             raise RuntimeException(str(e))
 
+    @classmethod
     def get_response(cls, cursor) -> AdapterResponse:
         """
         new to support dbt 0.19: this method replaces get_response
