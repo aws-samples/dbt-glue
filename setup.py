@@ -28,7 +28,7 @@ with open(os.path.join(this_directory, 'README.md')) as f:
     long_description = f.read()
 
 package_name = "aws-glue-dbt-adapter"
-package_version = "0.0.2"
+package_version = "0.0.4"
 description = """Aws Glue adapter for dbt (data build tool)"""
 setup(
     name=package_name,

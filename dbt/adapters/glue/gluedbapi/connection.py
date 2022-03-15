@@ -71,9 +71,11 @@ class GlueConnection:
                     "PythonVersion": "3"
                 },
                 **additional_args)
-        except ClientError:
-            self._state = GlueSessionState.FAILED
-            raise dbterrors.FailedToConnectException
+        except Exception as e:
+            logger.error(
+                f"Got an error when attempting to open a GlueSession : {e}"
+            )
+            raise dbterrors.FailedToConnectException(str(e))
 
         for elapsed in wait(1):
             if self.state == GlueSessionState.READY:
@@ -89,7 +91,7 @@ class GlueConnection:
             statement.execute()
         except Exception as e:
             logger.error("Error in GlueCursor execute " + str(e))
-            raise dbterrors.ExecutableError
+            raise dbterrors.ExecutableError(str(e))
 
         statement = GlueStatement(client=self.client, session_id=self.session_id,
                                   code=f"spark.sql('use {self.credentials.database}')")
@@ -97,7 +99,7 @@ class GlueConnection:
             statement.execute()
         except Exception as e:
             logger.error("Error in GlueCursor execute " + str(e))
-            raise dbterrors.ExecutableError
+            raise dbterrors.ExecutableError(str(e))
 
     @property
     def session_id(self):
