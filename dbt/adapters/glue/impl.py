@@ -280,13 +280,13 @@ class GlueAdapter(SQLAdapter):
     @available
     def get_location(self, relation: BaseRelation):
         session, client, cursor = self.get_connection()
-        return f"LOCATION '{session.credentials.location}/relation.name/'"
+        return f"LOCATION '{session.credentials.location}/{relation.name}/'"
 
     def drop_schema(self, relation: BaseRelation) -> None:
         session, client, cursor = self.get_connection()
         if self.check_schema_exists(relation.database, relation.schema):
             try:
-                client.delete_database(Name=relation.schema)
+                client.delete_database(Name=relation.schema)Ò
                 logger.debug("Successfull deleted schema ", relation.schema)
                 self.connections.cleanup_all()
                 return True
