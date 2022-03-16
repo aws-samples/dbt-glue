@@ -286,7 +286,7 @@ class GlueAdapter(SQLAdapter):
         session, client, cursor = self.get_connection()
         if self.check_schema_exists(relation.database, relation.schema):
             try:
-                client.delete_database(Name=relation.schema)Ò
+                client.delete_database(Name=relation.schema)
                 logger.debug("Successfull deleted schema ", relation.schema)
                 self.connections.cleanup_all()
                 return True
