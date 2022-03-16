@@ -100,6 +100,7 @@ Add the config as bellow in your profiles file:
         region: <AWSREGION>
         workers: <Number of Worker>
         worker_type: <Worker Type>
+        idle_timeout: <Minutes>
         schema: <Schema>
         database: <Database>
         session_provisionning_timeout_in_seconds: <Timeout>
@@ -116,6 +117,7 @@ The table below describes all the options.
 |region	|The AWS region were to run the data pipeline	|
 |workers	|The number of workers of a defined workerType that are allocated when a job runs.	|
 |worker_type	|The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	|
+|idle_timeout	|Glue Session Idle timeout in minutes (Session will terminate after being idle for specified minutes)	|
 |schema	|The schema is used to organize data stored in S3.	|
 |database	|The database in AWS Lake Formation. A databases store metadata tables in the data catalog.	|
 |session_provisionning_timeout_in_seconds	|The timeout in seconds for the Glue Interactive Session provisionning.	|
