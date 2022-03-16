@@ -57,6 +57,7 @@ class GlueConnection:
         additional_args = {}
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
+        additional_args["IdleTimeout"] = self.credentials.idle_timeout
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
