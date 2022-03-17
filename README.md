@@ -105,6 +105,9 @@ Add the config as bellow in your profiles file:
         database: <Database>
         session_provisionning_timeout_in_seconds: <Timeout>
         location: <S3 Location>
+        glue_version: <Glue Version>
+        security_configuration: <Secyrity Configuration>
+        connections: <Connections>
 ```
 The table below describes all the options.
 
@@ -117,11 +120,14 @@ The table below describes all the options.
 |region	|The AWS region were to run the data pipeline	|
 |workers	|The number of workers of a defined workerType that are allocated when a job runs.	|
 |worker_type	|The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	|
-|idle_timeout	|Glue Session Idle timeout in minutes (Session will terminate after being idle for specified minutes)	|
+|idle_timeout	|Glue Session Idle timeout in minutes (Session will terminate after being idle for specified minutes).	|
 |schema	|The schema is used to organize data stored in S3.	|
 |database	|The database in AWS Lake Formation. A databases store metadata tables in the data catalog.	|
 |session_provisionning_timeout_in_seconds	|The timeout in seconds for the Glue Interactive Session provisionning.	|
 |location	|The S3 location of your target data.|	
+|glue_version |The version of Glue to be used by this session. Currently, the only valid options are 2.0 and 3.0. The default value is 2.0.|
+|security_configuration |Define a Security Configuration to be used with this session.|
+|connections |Specify a comma separated list of connections to use in the session.|
 
 ---
 For more information on dbt:
