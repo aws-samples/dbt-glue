@@ -70,10 +70,11 @@ class GlueConnection:
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
+        session_prefix = self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
 
         try:
             self._session = self.client.create_session(
-                Id=f"dbt-glue-{session_uuidStr}",
+                Id=f"{session_prefix}-dbt-glue-{session_uuidStr}",
                 Role=self.credentials.role_arn,
                 DefaultArguments=args,
                 Command={
