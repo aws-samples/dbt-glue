@@ -58,6 +58,15 @@ class GlueConnection:
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
         additional_args["IdleTimeout"] = self.credentials.idle_timeout
+        
+        if (self.credentials.glue_version is not None):
+            additional_args["GlueVersion"] = f"{self.credentials.glue_version}"
+        
+        if (self.credentials.security_configuration is not None):
+            additional_args["SecurityConfiguration"] = f"{self.credentials.security_configuration}"
+        
+        if (self.credentials.connections is not None):
+            additional_args["Connections"] = f"{self.credentials.connections}"
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)

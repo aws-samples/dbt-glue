@@ -14,7 +14,10 @@ class GlueCredentials(Credentials):
     location: Optional[str] = None
     extra_jars: Optional[str] = None
     idle_timeout: int = 10
-
+    glue_version: Optional[str] = None
+    security_configuration: Optional[str] = None
+    connections: Optional[str] = None
+    
     @property
     def type(self):
         return "glue"
@@ -36,5 +39,8 @@ class GlueCredentials(Credentials):
             'schema',
             'location',
             'extra_jars',
-            'idle_timeout'
+            'idle_timeout',
+            'glue_version',
+            'security_configuration',
+            'connections'
         ]
