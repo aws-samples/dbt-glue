@@ -13,7 +13,7 @@ class GlueCredentials(Credentials):
     session_id: Optional[str] = None
     location: Optional[str] = None
     extra_jars: Optional[str] = None
-    idle_timeout: int = 2
+    idle_timeout: int = 10
 
     @property
     def type(self):
