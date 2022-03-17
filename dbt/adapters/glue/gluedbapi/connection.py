@@ -58,13 +58,23 @@ class GlueConnection:
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
         additional_args["IdleTimeout"] = self.credentials.idle_timeout
+        
+        if (self.credentials.glue_version is not None):
+            additional_args["GlueVersion"] = f"{self.credentials.glue_version}"
+        
+        if (self.credentials.security_configuration is not None):
+            additional_args["SecurityConfiguration"] = f"{self.credentials.security_configuration}"
+        
+        if (self.credentials.connections is not None):
+            additional_args["Connections"] = f"{self.credentials.connections}"
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
+        session_prefix = self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
 
         try:
             self._session = self.client.create_session(
-                Id=f"dbt-glue-{session_uuidStr}",
+                Id=f"{session_prefix}-dbt-glue-{session_uuidStr}",
                 Role=self.credentials.role_arn,
                 DefaultArguments=args,
                 Command={
