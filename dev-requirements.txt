@@ -2,7 +2,7 @@
 # TODO: how to automate switching from develop to version branches?
 git+https://github.com/dbt-labs/dbt.git#egg=dbt-core&subdirectory=core
 
-freezegun==1.2.0
+freezegun==1.2.1
 pytest==7.1.0
 mock>=1.3.0
 flake8>=3.5.0
