@@ -264,9 +264,10 @@ class GlueAdapter(SQLAdapter):
         try:
             cursor.execute(code)
             for record in cursor.fetchall():
-                columns.append(
-                    Column(column=record[0], dtype=record[1])
-                )
+                column = Column(column=record[0], dtype=record[1])
+                if record[0][:1] != "#":
+                    if column not in columns:
+                        columns.append(column)
         except Exception as e:
             logger.error(e)
             logger.error("get_columns_in_relation exception")

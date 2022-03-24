@@ -188,7 +188,7 @@ class SqlWrapper2:
             for f in df.schema:
                 d[f.name] = record[f.name]
             results.append(({"type": "record", "data": d}))
-        dumped_results = json.dumps({"type": "results", "rowcount": rowcount,"results": results,"description": [{"name":f.name, "type":str(f.dataType)} for f in df.schema]})
+        dumped_results = json.dumps({"type": "results", "rowcount": rowcount,"results": results,"description": [{"name":f.name, "type":str(f.dataType)} for f in df.schema]},default=str)
         if output:
             print(dumped_results)
         else:
