@@ -262,7 +262,7 @@ class GlueAdapter(SQLAdapter):
     @available
     def get_location(self, relation: BaseRelation):
         session, client, cursor = self.get_connection()
-        return f"LOCATION '{session.credentials.location}/{relation.name}/'"
+        return f"LOCATION '{session.credentials.location}/{relation.schema}/{relation.name}/'"
 
     def drop_schema(self, relation: BaseRelation) -> None:
         session, client, cursor = self.get_connection()
@@ -294,7 +294,7 @@ class GlueAdapter(SQLAdapter):
                     DatabaseInput={
                         "Name": relation.schema,
                         'Description': 'test dbt database',
-                        'LocationUri': session.credentials.location,
+                        'LocationUri': f"{session.credentials.location}/{relation.schema}/",
                     }
                 )
                 Entries = []
@@ -533,7 +533,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
         return sql
 
     def hudi_write(self, write_mode, session, target_relation):
-        return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}{target_relation.schema}/{target_relation.name}/")'''
+        return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}/{target_relation.schema}/{target_relation.name}/")'''
 
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key):
@@ -596,7 +596,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         '''
 
         code = head_code + core_code + footer_code
-        print(f"""hudi code :
+        logger.debug(f"""hudi code :
         {code}
         """)
 
