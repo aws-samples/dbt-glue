@@ -215,25 +215,6 @@ class GlueAdapter(SQLAdapter):
 
         return check_code
 
-    @available
-    def create_temp_view_as(self, sql: str):
-        session, client, cursor = self.get_connection()
-        code = f'''
-            create or replace view incremental_tmp_view
-            as
-            {sql}
-            '''
-
-        try:
-            cursor.execute(code)
-        except Exception as e:
-            logger.error(e)
-            logger.error("create_temp_view_as exception")
-
-        check_code = f'''select * from incremental_tmp_view limit 1'''
-
-        return check_code
-
     def rename_relation(self, from_relation, to_relation):
         logger.debug("rename " + from_relation.schema + " to " + to_relation.identifier)
         session, client, cursor = self.get_connection()
@@ -567,60 +548,55 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
                  target_relation.schema + '.' + target_relation.name + ' does not exist. Table will be created.')
 
         head_code = f'''
-        custom_glue_code_for_dbt_adapter
-        from pyspark.sql import SparkSession
-        from pyspark.sql.functions import *
-        spark = SparkSession.builder \
-        .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
-        .getOrCreate()
-        inputDf = spark.sql("""{request}""")
-        outputDf = inputDf.withColumn("update_hudi_ts",current_timestamp())
-        if outputDf.count() > 0:
-            if {partition_key} is not None:
-                outputDf = outputDf.withColumn(partitionKey, concat(lit(partitionKey + '='), col(partitionKey)))
+custom_glue_code_for_dbt_adapter
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+spark = SparkSession.builder \
+.config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+.getOrCreate()
+inputDf = spark.sql("""{request}""")
+outputDf = inputDf.withColumn("update_hudi_ts",current_timestamp())
+if outputDf.count() > 0:
+    if {partition_key} is not None:
+        outputDf = outputDf.withColumn(partitionKey, concat(lit(partitionKey + '='), col(partitionKey)))
         '''
 
-        begin_of_hudi_setup = f'''
-                combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
+        begin_of_hudi_setup = f'''combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
 
-        hudi_partitionning = f'''
-        'hoodie.datasource.write.partitionpath.field': '{partition_key}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_key}','''
+        hudi_partitionning = f''' 'hoodie.datasource.write.partitionpath.field': '{partition_key}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_key}','''
 
-        hudi_no_partition = f'''
-        'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','''
+        hudi_no_partition = f''' 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','''
 
-        hudi_upsert = f'''
-        'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10}}'''
+        hudi_upsert = f''' 'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10}}'''
 
-        hudi_insert = f'''
-        'hoodie.bulkinsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'bulk_insert'}}'''
+        hudi_insert = f''' 'hoodie.bulkinsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'bulk_insert'}}'''
 
         if isTableExists:
             write_mode = "Append"
             core_code = f'''
-                {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
-                {self.hudi_write(write_mode, session, target_relation)}
-            else:
-                {begin_of_hudi_setup}  {hudi_no_partition} {hudi_upsert}
-                {self.hudi_write(write_mode, session, target_relation)}
+        {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
+        {self.hudi_write(write_mode, session, target_relation)}
+    else:
+        {begin_of_hudi_setup} {hudi_no_partition} {hudi_upsert}
+        {self.hudi_write(write_mode, session, target_relation)}
         '''
         else:
             write_mode = "Overwrite"
             core_code = f'''
-                {begin_of_hudi_setup} {hudi_partitionning} {hudi_insert}
-                {self.hudi_write(write_mode, session, target_relation)}
-            else:
-                {begin_of_hudi_setup} {hudi_no_partition} {hudi_insert}
-                {self.hudi_write(write_mode, session, target_relation)}
+        {begin_of_hudi_setup} {hudi_partitionning} {hudi_insert}
+        {self.hudi_write(write_mode, session, target_relation)}
+    else:
+        {begin_of_hudi_setup} {hudi_no_partition} {hudi_insert}
+        {self.hudi_write(write_mode, session, target_relation)}
         '''
 
         footer_code = f'''
-        spark.sql("""REFRESH TABLE {target_relation.schema}.{target_relation.name}""")
-        SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.name} LIMIT 1""")
+spark.sql("""REFRESH TABLE {target_relation.schema}.{target_relation.name}""")
+SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.name} LIMIT 1""")
         '''
 
         code = head_code + core_code + footer_code
-        logger.debug(f"""hudi code :
+        print(f"""hudi code :
         {code}
         """)
 

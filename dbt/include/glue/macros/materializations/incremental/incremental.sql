@@ -19,8 +19,8 @@
   {{ run_hooks(pre_hooks) }}
 
   {% if raw_strategy == 'merge' and file_format == 'hudi' %}
-        {% do adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by) %}
-        {% set build_sql = "select 1" %}
+        {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by) }}
+        {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
   {% else %}
       {% if strategy == 'insert_overwrite' and partition_by %}
         {% call statement() %}
@@ -34,7 +34,7 @@
         {% do adapter.drop_view(target_relation) %}
         {% set build_sql = create_table_as(False, target_relation, sql) %}
       {% else %}
-        {% do run_query(create_temp_view_for_incremental(sql)) %}
+        {{ adapter.create_view_as(tmp_relation, sql) }}
         {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
       {% endif %}
   {% endif %}
@@ -43,6 +43,7 @@
      {{ build_sql }}
   {%- endcall -%}
 
+  {{ adapter.drop_view(tmp_relation) }}
   {{ run_hooks(post_hooks) }}
 
   {{ return({'relations': [target_relation]}) }}

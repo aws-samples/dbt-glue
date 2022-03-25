@@ -4,7 +4,7 @@
     {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
     insert overwrite table {{ target_relation }}
     {{ partition_cols(label="partition") }}
-    select {{dest_cols_csv}} from incremental_tmp_view
+    select {{dest_cols_csv}} from {{ source_relation }}
 
 {% endmacro %}
 
@@ -14,7 +14,7 @@
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
     {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
     insert into table {{ target_relation }}
-    select {{dest_cols_csv}} from incremental_tmp_view
+    select {{dest_cols_csv}} from {{ source_relation }}
 
 {% endmacro %}
 
@@ -64,8 +64,4 @@
     {%- do exceptions.raise_compiler_error(no_sql_for_strategy_msg) -%}
   {%- endif -%}
 
-{% endmacro %}
-
-{% macro create_temp_view_for_incremental(sql) -%}
-    {{ adapter.create_temp_view_as(sql) }}
 {% endmacro %}
