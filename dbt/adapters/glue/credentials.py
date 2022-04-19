@@ -9,7 +9,7 @@ class GlueCredentials(Credentials):
     region: str
     workers: int
     worker_type: str
-    session_provisionning_timeout_in_seconds: int = 120
+    session_provisioning_timeout_in_seconds: int = 120
     session_id: Optional[str] = None
     location: Optional[str] = None
     extra_jars: Optional[str] = None
@@ -34,7 +34,7 @@ class GlueCredentials(Credentials):
             'session_id',
             'workers',
             'worker_type',
-            'session_provisionning_timeout_in_seconds',
+            'session_provisioning_timeout_in_seconds',
             'database',
             'schema',
             'location',

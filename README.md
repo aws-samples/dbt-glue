@@ -103,7 +103,7 @@ Add the config as bellow in your profiles file:
         idle_timeout: <Minutes>
         schema: <Schema>
         database: <Database>
-        session_provisionning_timeout_in_seconds: <Timeout>
+        session_provisioning_timeout_in_seconds: <Timeout>
         location: <S3 Location>
         glue_version: <Glue Version>
         security_configuration: <Secyrity Configuration>
@@ -113,21 +113,22 @@ The table below describes all the options.
 
 |Option	|Description	| Mandatory |
 |---|---|---|
-|project_name |	The dbt project name, it has to be the same as the one configured in the dbt project	| yes |
-|type	|The driver to use.	| no |
-|query-comment	|A string to inject as a comment in each query that dbt runs. 	| yes |
-|role_arn	|The ARN of the Interactive Session role created in prerequisite.	| yes |
-|region	|The AWS region were to run the data pipeline	| yes |
-|workers	|The number of workers of a defined workerType that are allocated when a job runs.	| yes |
-|worker_type	|The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	| yes |
-|idle_timeout	|Glue Session Idle timeout in minutes (Session will terminate after being idle for specified minutes).	| no |
-|schema	|The schema is used to organize data stored in S3.	| yes |
-|database	|The database in AWS Lake Formation. A databases store metadata tables in the data catalog.	| yes |
-|session_provisionning_timeout_in_seconds	|The timeout in seconds for the Glue Interactive Session provisionning.	| yes |
-|location	|The S3 location of your target data.|	 no |
-|glue_version |The version of Glue to be used by this session. Currently, the only valid options are 2.0 and 3.0. The default value is 2.0.| no |
-|security_configuration |Define a Security Configuration to be used with this session.| no |
-|connections |Specify a comma separated list of connections to use in the session.| no |
+|project_name	|The dbt project name. This must be the same as the one configured in the dbt project.	|yes|
+|type	|The driver to use.	|yes|
+|query-comment	|A string to inject as a comment in each query that dbt runs. 	|no|
+|role_arn	|The ARN of the interactive session role created as part of the CloudFormation template.	|yes|
+|region	|The AWS Region were you run the data pipeline.	|yes|
+|workers	|The number of workers of a defined workerType that are allocated when a job runs.	|yes|
+|worker_type	|The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	|yes|
+|schema	|The schema used to organize data stored in Amazon S3.	|yes|
+|database	|The database in Lake Formation. The database stores metadata tables in the Data Catalog.	|yes|
+|session_provisioning_timeout_in_seconds |The timeout in seconds for AWS Glue interactive session provisioning.	|yes|
+|location	|The Amazon S3 location of your target data.	|yes|
+|idle_timeout	|The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time.)	|no|
+|glue_version	|The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 2.0.	|no|
+|security_configuration	|The security configuration to use with this session.	|no|
+|connections	|A comma-separated list of connections to use in the session.	|no|
+
 
 ---
 For more information on dbt:

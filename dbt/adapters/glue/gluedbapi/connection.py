@@ -91,8 +91,8 @@ class GlueConnection:
         for elapsed in wait(1):
             if self.state == GlueSessionState.READY:
                 return self._session
-            if elapsed > self.credentials.session_provisionning_timeout_in_seconds:
-                raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisionning_timeout_in_seconds} seconds to start")
+            if elapsed > self.credentials.session_provisioning_timeout_in_seconds:
+                raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to start")
 
     def _init_session(self):
         logger.debug("GlueConnection _init_session called")

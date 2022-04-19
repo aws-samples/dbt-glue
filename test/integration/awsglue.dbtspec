@@ -7,7 +7,7 @@ target:
     worker_type: G.1X
     schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
     database: dbt
-    session_provisionning_timeout_in_seconds: 40
+    session_provisioning_timeout_in_seconds: 40
     location: "s3://<BUCKET>/dbt_test_{{ var('_dbt_random_suffix') }}/"
 
 sequences:
