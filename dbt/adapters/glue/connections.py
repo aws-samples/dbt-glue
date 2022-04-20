@@ -1,6 +1,8 @@
 from contextlib import contextmanager
 import agate
 from typing import Any, List
+from dbt.adapters.sqlserver import (SparkConnectionManager,
+                                    SparkCredentials)
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import AdapterResponse
 from dbt.exceptions import (
@@ -15,10 +17,7 @@ class GlueSessionState:
     OPEN = "open"
     FAIL = "fail"
 
-class ReturnCode:
-    OK = "OK"
-
-class GlueConnectionManager(SQLConnectionManager):
+class GlueConnectionManager(SparkConnectionManager):
     TYPE = "glue"
 
     @classmethod
@@ -42,11 +41,6 @@ class GlueConnectionManager(SQLConnectionManager):
             connection.state = GlueSessionState.FAIL
             raise FailedToConnectException(f"Got an error when attempting to open a GlueSessions: {e}")
 
-    def cancel(self, connection):
-        """ cancel ongoing queries """
-        logger.debug("Cancelling queries")
-        connection.handle.cancel()
-        logger.debug("Queries canceled")
 
     @contextmanager
     def exception_handler(self, sql: str):
@@ -61,16 +55,6 @@ class GlueConnectionManager(SQLConnectionManager):
                 # useful information, so raise it without modification.
                 raise
             raise RuntimeException(str(e))
-
-    @classmethod
-    def get_response(cls, cursor) -> AdapterResponse:
-        """
-        new to support dbt 0.19: this method replaces get_response
-        """
-        message = ReturnCode.OK
-        return AdapterResponse(
-            _message=message,
-        )
 
     @classmethod
     def get_result_from_cursor(cls, cursor: GlueCursor) -> agate.Table:
