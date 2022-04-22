@@ -123,24 +123,10 @@ class GlueAdapter(SparkAdapter):
             logger.error(f"relation {schema}.{identifier} not found")
 
     @available
-    def drop_view(self, relation: BaseRelation):
-        session, client, cursor = self.get_connection()
-        code = f'''DROP VIEW IF EXISTS {relation.schema}.{relation.name}'''
-        try:
-            cursor.execute(code)
-        except Exception as e:
-            logger.error(e)
-            logger.error("drop_view exception")
-            logger.error(f"""drop_view exception
-                             relation schema : {relation.schema}
-                             relation identfier : {relation.name}
-            """)
-
-    @available
     def drop_relation(self, relations):
         session, client, cursor = self.get_connection()
         for relation in relations:
-            code = f'''DROP TABLE IF EXISTS {relation}'''
+            code = f'''DROP {relation.type} IF EXISTS {relation}'''
             try:
                 cursor.execute(code)
             except Exception as e:
