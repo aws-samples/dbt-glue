@@ -52,7 +52,7 @@ setup(
         ]
     },
     install_requires=[
-        "dbt-spark~=1.0.0"
+        "dbt-spark~=1.0.0",
         "waiter",
         "boto3"
     ],

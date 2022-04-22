@@ -13,7 +13,8 @@ from dbt.adapters.base.column import Column
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.gluedbapi import GlueConnection
-from dbt.adapters.glue.relation import SparkRelation
+from dbt.adapters.spark.relation import SparkRelation
+from dbt.adapters.spark.impl import SparkAdapter
 from dbt.exceptions import NotImplementedException
 from dbt.adapters.base.impl import catch_as_completed
 from botocore.exceptions import ClientError
@@ -21,7 +22,7 @@ from dbt.utils import executor
 from dbt.logger import GLOBAL_LOGGER as logger
 
 
-class GlueAdapter(SQLAdapter):
+class GlueAdapter(SparkAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
 
@@ -33,17 +34,6 @@ class GlueAdapter(SQLAdapter):
                          'cte': 'cte',
                          'materializedview': 'materializedview'}
 
-    HUDI_METADATA_COLUMNS = [
-        '_hoodie_commit_time',
-        '_hoodie_commit_seqno',
-        '_hoodie_record_key',
-        '_hoodie_partition_path',
-        '_hoodie_file_name'
-    ]
-
-    @classmethod
-    def date_function(cls) -> str:
-        return 'current_timestamp()'
 
     def get_connection(self):
         connection: GlueConnectionManager = self.connections.get_thread_connection()
@@ -80,27 +70,6 @@ class GlueAdapter(SQLAdapter):
 
         return relations
 
-    @classmethod
-    def convert_text_type(cls, agate_table, col_idx):
-        return "string"
-
-    @classmethod
-    def convert_number_type(cls, agate_table, col_idx):
-        decimals = agate_table.aggregate(agate.MaxPrecision(col_idx))
-        return "double" if decimals else "bigint"
-
-    @classmethod
-    def convert_date_type(cls, agate_table, col_idx):
-        return "date"
-
-    @classmethod
-    def convert_time_type(cls, agate_table, col_idx):
-        return "time"
-
-    @classmethod
-    def convert_datetime_type(cls, agate_table, col_idx):
-        return "timestamp"
-
     def check_schema_exists(self, database: str, schema: str) -> bool:
 
         try:
@@ -127,7 +96,6 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
             logger.error("check_relation_exists exception")
-
 
     def get_relation(self, database, schema, identifier):
         relations = []
@@ -504,33 +472,6 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
         except Exception as e:
             return None
 
-    def get_rows_different_sql(
-            self,
-            relation_a: BaseRelation,
-            relation_b: BaseRelation,
-            column_names: Optional[List[str]] = None,
-            except_operator: str = 'EXCEPT',
-    ) -> str:
-        """Generate SQL for a query that returns a single row with a two
-        columns: the number of rows that are different between the two
-        relations and the number of mismatched rows.
-        """
-        # This method only really exists for test reasons.
-        names: List[str]
-        if column_names is None:
-            columns = self.get_columns_in_relation(relation_a)
-            names = sorted((self.quote(c.name) for c in columns))
-        else:
-            names = sorted((self.quote(n) for n in column_names))
-        columns_csv = ', '.join(names)
-
-        sql = COLUMNS_EQUAL_SQL.format(
-            columns=columns_csv,
-            relation_a=str(relation_a),
-            relation_b=str(relation_b),
-        )
-
-        return sql
 
     def hudi_write(self, write_mode, session, target_relation):
         return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}/{target_relation.schema}/{target_relation.name}/")'''
