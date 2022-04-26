@@ -34,13 +34,100 @@ ETL.
 
 Read [this documentation](https://docs.aws.amazon.com/glue/latest/dg/glue-is-security.html) to configure these principals.
 
-To enjoy all features of **`dbt-glue`** adapter, you will need to attach to the Service role the 3 AWS managed policies below:
-
-| Service  | managed policy required  |
-|---|---|
-| Amazon S3 | AmazonS3FullAccess |
-| AWS Glue | AWSGlueConsoleFullAccess |
-| AWS Lake formation | AWSLakeFormationDataAdmin |
+You will find bellow a least privileged policy to enjoy all features of **`dbt-glue`** adapter (Don't forget to update variables between **`<>`**):
+```yaml
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "glue:SearchTables",
+                "glue:BatchCreatePartition",
+                "glue:CreatePartitionIndex",
+                "glue:DeleteDatabase",
+                "glue:GetTableVersions",
+                "glue:GetPartitions",
+                "glue:DeleteTableVersion",
+                "glue:UpdateTable",
+                "glue:DeleteTable",
+                "glue:DeletePartitionIndex",
+                "glue:GetTableVersion",
+                "glue:UpdateColumnStatisticsForTable",
+                "glue:CreatePartition",
+                "glue:UpdateDatabase",
+                "glue:CreateTable",
+                "glue:GetTables",
+                "glue:GetDatabases",
+                "glue:GetTable",
+                "glue:GetDatabase",
+                "glue:GetPartition",
+                "glue:UpdateColumnStatisticsForPartition",
+                "glue:CreateDatabase",
+                "glue:BatchDeleteTableVersion",
+                "glue:BatchDeleteTable",
+                "glue:DeletePartition"
+            ],
+            "Resource": [
+                "arn:aws:glue:<your region>:<your AWS Account>:catalog",
+                "arn:aws:glue:<your region>:<your AWS Account>:table/*/*",
+                "arn:aws:glue:<your region>:<your AWS Account>:database/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "lakeformation:UpdateResource",
+                "lakeformation:ListResources",
+                "lakeformation:BatchGrantPermissions",
+                "lakeformation:GrantPermissions",
+                "lakeformation:GetDataAccess",
+                "lakeformation:GetTableObjects",
+                "lakeformation:PutDataLakeSettings",
+                "lakeformation:RevokePermissions",
+                "lakeformation:ListPermissions",
+                "lakeformation:BatchRevokePermissions",
+                "lakeformation:UpdateTableObjects"
+            ],
+            "Resource": [
+                "*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:GetBucketLocation",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<your dbt output bucket>",
+                "arn:aws:s3:::<your dbt input bucket>"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:PutObject",
+                "s3:PutObjectAcl",
+                "s3:GetObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<your dbt output bucket>/*"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<your dbt input bucket>/*"
+            ],
+            "Effect": "Allow"
+        }
+    ]
+}
+```
 
 ### Configuration of the local environment
 

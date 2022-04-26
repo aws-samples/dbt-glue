@@ -8,8 +8,11 @@ from dbt.exceptions import (
     RuntimeException
 )
 import dbt
-from dbt.logger import GLOBAL_LOGGER as logger
 from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
+from dbt.events import AdapterLogger
+
+logger = AdapterLogger("Glue")
+
 
 class GlueSessionState:
     OPEN = "open"

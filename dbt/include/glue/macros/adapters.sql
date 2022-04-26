@@ -7,7 +7,14 @@
   {%- endif %}
 {%- endmacro -%}
 
-
+{% macro location_clause(relation) %}
+  {%- set custom_location = config.get('custom_location', validator=validation.any[basestring]) -%}
+  {%- if custom_location is not none %}
+    location '{{ custom_location }}'
+  {%- else -%}
+    {{ adapter.get_location(relation) }}
+  {%- endif %}
+{%- endmacro -%}
 
 {% macro partition_cols(label, required=false) %}
   {%- set cols = config.get('partition_by', validator=validation.any[list, basestring]) -%}
@@ -53,13 +60,6 @@
   {%- endif %}
 {%- endmacro -%}
 
-{% macro location_clause() %}
-  {%- set location_root = config.get('location', validator=validation.any[basestring]) -%}
-  {%- set identifier = model['alias'] -%}
-  {%- if location_root is not none %}
-    location '{{ location }}/{{ identifier }}'
-  {%- endif %}
-{%- endmacro -%}
 
 {% macro options_clause() -%}
   {%- set options = config.get('options') -%}
@@ -85,7 +85,7 @@
 
 {% macro glue__check_schema_exists(database, schema) -%}
     {{ return(adapter.dispatch('schema_exists')(database, schema)) }}
-{% endmacro %}
+{% endmacro %}@
 
 {% macro glue__schema_exists(database, schema) -%}
     {{ return(adapter.dispatch('schema_exists')(database, schema)) }}
@@ -121,7 +121,7 @@
     {{ file_format_clause() }}
     {{ partition_cols(label="partitioned by") }}
     {{ clustered_cols(label="clustered by") }}
-    {{ adapter.get_location(relation) }}
+    {{ location_clause(relation) }}
     {{ comment_clause() }}
     as
       {{ sql }}

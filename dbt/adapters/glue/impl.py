@@ -18,8 +18,9 @@ from dbt.exceptions import NotImplementedException
 from dbt.adapters.base.impl import catch_as_completed
 from botocore.exceptions import ClientError
 from dbt.utils import executor
-from dbt.logger import GLOBAL_LOGGER as logger
+from dbt.events import AdapterLogger
 
+logger = AdapterLogger("Glue")
 
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
@@ -532,11 +533,15 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
 
         return sql
 
-    def hudi_write(self, write_mode, session, target_relation):
-        return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}/{target_relation.schema}/{target_relation.name}/")'''
+    def hudi_write(self, write_mode, session, target_relation, custom_location):
+        if custom_location == "empty":
+            return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}/{target_relation.schema}/{target_relation.name}/")'''
+        else:
+            return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
+
 
     @available
-    def hudi_merge_table(self, target_relation, request, primary_key, partition_key):
+    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client, cursor = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
@@ -575,19 +580,19 @@ if outputDf.count() > 0:
             write_mode = "Append"
             core_code = f'''
         {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
-        {self.hudi_write(write_mode, session, target_relation)}
+        {self.hudi_write(write_mode, session, target_relation, custom_location)}
     else:
         {begin_of_hudi_setup} {hudi_no_partition} {hudi_upsert}
-        {self.hudi_write(write_mode, session, target_relation)}
+        {self.hudi_write(write_mode, session, target_relation, custom_location)}
         '''
         else:
             write_mode = "Overwrite"
             core_code = f'''
         {begin_of_hudi_setup} {hudi_partitionning} {hudi_insert}
-        {self.hudi_write(write_mode, session, target_relation)}
+        {self.hudi_write(write_mode, session, target_relation, custom_location)}
     else:
         {begin_of_hudi_setup} {hudi_no_partition} {hudi_insert}
-        {self.hudi_write(write_mode, session, target_relation)}
+        {self.hudi_write(write_mode, session, target_relation, custom_location)}
         '''
 
         footer_code = f'''
