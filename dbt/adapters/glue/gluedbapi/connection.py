@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from dbt import exceptions as dbterrors
-from dbt.logger import GLOBAL_LOGGER as logger
 import boto3
 from botocore.exceptions import ClientError
 from waiter import wait
@@ -8,6 +7,10 @@ from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 import uuid
+from dbt.events import AdapterLogger
+
+logger = AdapterLogger("Glue")
+
 
 class GlueSessionState:
     READY = "READY"

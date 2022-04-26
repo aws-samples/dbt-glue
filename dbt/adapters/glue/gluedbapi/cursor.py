@@ -4,8 +4,9 @@ import json
 from dbt.contracts.connection import AdapterResponse
 from dbt import exceptions as dbterrors
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
-from dbt.logger import GLOBAL_LOGGER as logger
+from dbt.events import AdapterLogger
 
+logger = AdapterLogger("Glue")
 
 class GlueCursorState:
     WAITING = "WAITING"
