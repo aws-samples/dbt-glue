@@ -8,7 +8,7 @@ class GlueStatement:
     CANCELLED = "CANCELLED"
     ERROR = "ERROR"
 
-    def __init__(self, client, session_id, code, timeout=300):
+    def __init__(self, client, session_id, code, timeout):
         self.client = client
         self.code = code
         self.session_id = session_id

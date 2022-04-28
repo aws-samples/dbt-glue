@@ -187,7 +187,7 @@ class GlueAdapter(SQLAdapter):
     def create_view_as(self, relation: BaseRelation, sql: str):
         session, client, cursor = self.get_connection()
         if self.check_relation_exists(relation):
-            code = f'''DROP TABLE IF EXISTS {relation.schema}.{relation.name}'''
+            code = f'''DROP VIEW IF EXISTS {relation.schema}.{relation.name}'''
             try:
                 cursor.execute(code)
             except Exception as e:

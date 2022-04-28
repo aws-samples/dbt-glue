@@ -14,6 +14,7 @@ class GlueCredentials(Credentials):
     location: Optional[str] = None
     extra_jars: Optional[str] = None
     idle_timeout: int = 10
+    query_timeout_in_secondes: int = 300
     glue_version: Optional[str] = "2.0"
     security_configuration: Optional[str] = None
     connections: Optional[str] = None
@@ -40,6 +41,7 @@ class GlueCredentials(Credentials):
             'location',
             'extra_jars',
             'idle_timeout',
+            'query_timeout_in_secondes',
             'glue_version',
             'security_configuration',
             'connections'

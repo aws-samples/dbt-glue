@@ -100,7 +100,7 @@ class GlueConnection:
     def _init_session(self):
         logger.debug("GlueConnection _init_session called")
         logger.debug("GlueConnection session_id : " + self.session_id)
-        statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY)
+        statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY, timeout=self.credentials.query_timeout_in_secondes)
         try:
             statement.execute()
         except Exception as e:
@@ -108,7 +108,7 @@ class GlueConnection:
             raise dbterrors.ExecutableError(str(e))
 
         statement = GlueStatement(client=self.client, session_id=self.session_id,
-                                  code=f"spark.sql('use {self.credentials.database}')")
+                                  code=f"spark.sql('use {self.credentials.database}')", timeout=self.credentials.query_timeout_in_secondes)
         try:
             statement.execute()
         except Exception as e:
@@ -150,7 +150,7 @@ class GlueConnection:
 
     def cursor(self, as_dict=False) -> GlueCursor:
         logger.debug("GlueConnection cursor called")
-        return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
+        return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self, credentials=self.credentials)
 
     def close_session(self):
         if self.credentials.session_id:
