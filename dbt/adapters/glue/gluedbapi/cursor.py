@@ -14,11 +14,12 @@ class GlueCursorState:
     AVAILABLE = "AVAILABLE"
     CANCELLING = "CANCELLING"
     CANCELLED = "CANCELLED"
+    TIMEOUT = "TIMEOUT"
     ERROR = "ERROR"
 
 
 class GlueCursor:
-    def __init__(self, connection, credentials):
+    def __init__(self, connection):
         self.name = str(uuid.uuid4())
         self._connection = connection
         self.state = None
@@ -28,8 +29,6 @@ class GlueCursor:
         self.sql = None
         self.response = None
         self._closed = False
-        self.credentials = credentials
-
 
     @property
     def connection(self):
@@ -77,8 +76,7 @@ class GlueCursor:
         self.statement = GlueStatement(
             client=self.connection.client,
             session_id=self.connection.session_id,
-            code=self.code,
-            timeout=self.credentials.query_timeout_in_secondes
+            code=self.code
         )
 
         logger.debug("client : " + self.code)
