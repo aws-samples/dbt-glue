@@ -34,12 +34,25 @@ ETL.
 
 Read [this documentation](https://docs.aws.amazon.com/glue/latest/dg/glue-is-security.html) to configure these principals.
 
-You will find bellow a least privileged policy to enjoy all features of **`dbt-glue`** adapter (Don't forget to update variables between **`<>`**):
+You will find bellow a least privileged policy to enjoy all features of **`dbt-glue`** adapter.
+
+Please to update variables between **`<>`**, here are explanations of these arguments:
+
+|Args	|Description	| 
+|---|---|
+|region|The region where you're Glue database is stored |
+|AWS Account|The AWS account where you run your pipeline|
+|dbt output database|The database updated by dbt (this is the database configured in the profile.yml of your dbt environment)|
+|dbt source database|All databases used as source|
+|dbt output bucket|The bucket name where the data will be generate dbt (the location configured in the profile.yml of your dbt environment)|
+|dbt source bucket|The bucket name of source databases (if they are not managed by Lake Formation)|
+
 ```yaml
 {
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "Read_and_write_databases",
             "Action": [
                 "glue:SearchTables",
                 "glue:BatchCreatePartition",
@@ -65,46 +78,55 @@ You will find bellow a least privileged policy to enjoy all features of **`dbt-g
                 "glue:CreateDatabase",
                 "glue:BatchDeleteTableVersion",
                 "glue:BatchDeleteTable",
-                "glue:DeletePartition"
-            ],
-            "Resource": [
-                "arn:aws:glue:<your region>:<your AWS Account>:catalog",
-                "arn:aws:glue:<your region>:<your AWS Account>:table/*/*",
-                "arn:aws:glue:<your region>:<your AWS Account>:database/*"
-            ],
-            "Effect": "Allow"
-        },
-        {
-            "Action": [
-                "lakeformation:UpdateResource",
+                "glue:DeletePartition",
                 "lakeformation:ListResources",
                 "lakeformation:BatchGrantPermissions",
-                "lakeformation:GrantPermissions",
-                "lakeformation:GetDataAccess",
-                "lakeformation:GetTableObjects",
-                "lakeformation:PutDataLakeSettings",
-                "lakeformation:RevokePermissions",
-                "lakeformation:ListPermissions",
-                "lakeformation:BatchRevokePermissions",
-                "lakeformation:UpdateTableObjects"
+                "lakeformation:ListPermissions"
             ],
             "Resource": [
-                "*"
+                "arn:aws:glue:<region>:<AWS Account>:catalog",
+                "arn:aws:glue:<region>:<AWS Account>:table/<dbt output database>/*",
+                "arn:aws:glue:<region>:<AWS Account>:database/<dbt output database>"
             ],
             "Effect": "Allow"
         },
         {
+            "Sid": "Read_only_databases",
+            "Action": [
+                "glue:SearchTables",
+                "glue:GetTableVersions",
+                "glue:GetPartitions",
+                "glue:GetTableVersion",
+                "glue:GetTables",
+                "glue:GetDatabases",
+                "glue:GetTable",
+                "glue:GetDatabase",
+                "glue:GetPartition",
+                "lakeformation:ListResources",
+                "lakeformation:ListPermissions"
+            ],
+            "Resource": [
+                "arn:aws:glue:<region>:<AWS Account>:table/<dbt source database>/*",
+                "arn:aws:glue:<region>:<AWS Account>:database/<dbt source database>",
+                "arn:aws:glue:<region>:<AWS Account>:database/default",
+                "arn:aws:glue:<region>:<AWS Account>:database/global_temp"
+            ],
+            "Effect": "Allow"
+        },
+        {
+            "Sid": "Storage_all_buckets",
             "Action": [
                 "s3:GetBucketLocation",
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:aws:s3:::<your dbt output bucket>",
-                "arn:aws:s3:::<your dbt input bucket>"
+                "arn:aws:s3:::<dbt output bucket>",
+                "arn:aws:s3:::<dbt source bucket>"
             ],
             "Effect": "Allow"
         },
         {
+            "Sid": "Read_and_write_buckets",
             "Action": [
                 "s3:PutObject",
                 "s3:PutObjectAcl",
@@ -112,16 +134,17 @@ You will find bellow a least privileged policy to enjoy all features of **`dbt-g
                 "s3:DeleteObject"
             ],
             "Resource": [
-                "arn:aws:s3:::<your dbt output bucket>/*"
+                "arn:aws:s3:::<dbt output bucket>"
             ],
             "Effect": "Allow"
         },
         {
+            "Sid": "Read_only_buckets",
             "Action": [
                 "s3:GetObject"
             ],
             "Resource": [
-                "arn:aws:s3:::<your dbt input bucket>/*"
+                "arn:aws:s3:::<dbt source bucket>"
             ],
             "Effect": "Allow"
         }
@@ -141,7 +164,6 @@ Configure a Python virtual environment to isolate package version and code depen
 
 ```bash
 $ sudo yum install git
-$ python3 -m pip install --upgrade pip
 $ python3 -m venv dbt_venv
 $ source dbt_venv/bin/activate
 $ python3 -m pip install --upgrade pip
@@ -193,8 +215,9 @@ The table below describes all the options.
 |worker_type	|The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	|yes|
 |schema	|The schema used to organize data stored in Amazon S3.	|yes|
 |database	|The database in Lake Formation. The database stores metadata tables in the Data Catalog.	|yes|
-|session_provisioning_timeout_in_seconds |The timeout in seconds for AWS Glue interactive session provisioning.	|yes|
+|session_provisioning_timeout_in_seconds |The timeout in seconds forT AWS Glue interactive session provisioning.	|yes|
 |location	|The Amazon S3 location of your target data.	|yes|
+|query_timeout_in_secondes	|The timeout in seconds for	a signle query. Default is 300|no|
 |idle_timeout	|The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time.)	|no|
 |glue_version	|The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 2.0.	|no|
 |security_configuration	|The security configuration to use with this session.	|no|
@@ -212,6 +235,7 @@ When materializing a model as `table`, you may include several optional configs 
 | partition_by  | Partition the created table by the specified columns. A directory is created for each partition. | Optional                | `date_day`              |
 | clustered_by  | Each partition in the created table will be split into a fixed number of buckets by the specified columns. | Optional               | `country_code`              |
 | buckets  | The number of buckets to create while clustering | Required if `clustered_by` is specified                | `8`              |
+| custom_location  | By default, the adapter will store your data in the following path: `location path`/`database`/`table`. If you don't want to follow that default behaviour, you can use this parameter to set your own custom location on S3 | No | `s3://mycustombucket/mycustompath`              |
 
 ## Incremental models
 
