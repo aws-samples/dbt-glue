@@ -61,6 +61,8 @@ class GlueConnection:
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
         additional_args["IdleTimeout"] = self.credentials.idle_timeout
+        additional_args["Timeout"] = self.credentials.query_timeout_in_seconds
+
         
         if (self.credentials.glue_version is not None):
             additional_args["GlueVersion"] = f"{self.credentials.glue_version}"
@@ -100,7 +102,7 @@ class GlueConnection:
     def _init_session(self):
         logger.debug("GlueConnection _init_session called")
         logger.debug("GlueConnection session_id : " + self.session_id)
-        statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY, timeout=self.credentials.query_timeout_in_secondes)
+        statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY)
         try:
             statement.execute()
         except Exception as e:
@@ -108,7 +110,7 @@ class GlueConnection:
             raise dbterrors.ExecutableError(str(e))
 
         statement = GlueStatement(client=self.client, session_id=self.session_id,
-                                  code=f"spark.sql('use {self.credentials.database}')", timeout=self.credentials.query_timeout_in_secondes)
+                                  code=f"spark.sql('use {self.credentials.database}')")
         try:
             statement.execute()
         except Exception as e:
@@ -150,7 +152,7 @@ class GlueConnection:
 
     def cursor(self, as_dict=False) -> GlueCursor:
         logger.debug("GlueConnection cursor called")
-        return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self, credentials=self.credentials)
+        return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
 
     def close_session(self):
         if self.credentials.session_id:
