@@ -1,5 +1,7 @@
 import io
 import uuid
+from dataclasses import dataclass
+
 import boto3
 from typing import List, Optional
 
@@ -9,7 +11,6 @@ from concurrent.futures import Future
 
 from dbt.adapters.base import available
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.base.column import Column
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.gluedbapi import GlueConnection
@@ -21,6 +22,13 @@ from dbt.utils import executor
 from dbt.events import AdapterLogger
 
 logger = AdapterLogger("Glue")
+
+@dataclass
+class Column:
+    column: str
+    dtype: str
+    comment: str
+
 
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
@@ -238,15 +246,16 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
             logger.error("rename_relation exception")
 
-    def get_columns_in_relation(self, relation: BaseRelation):
+    def get_columns_in_relation(self, relation: BaseRelation) -> [Column]:
         logger.debug(f"Command launched: describe {relation.schema}.{relation.identifier}")
         session, client, cursor = self.get_connection()
+        # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
         code = f'''describe {relation.schema}.{relation.identifier}'''
         columns = []
         try:
             cursor.execute(code)
             for record in cursor.fetchall():
-                column = Column(column=record[0], dtype=record[1])
+                column = Column(column=record[0], dtype=record[1], comment=record[2])
                 if record[0][:1] != "#":
                     if column not in columns:
                         columns.append(column)
@@ -413,7 +422,7 @@ class GlueAdapter(SQLAdapter):
                     table_row.column,
                     '0',
                     table_row.dtype,
-                    ''
+                    table_row.comment
                 ])
 
         column_names = [
