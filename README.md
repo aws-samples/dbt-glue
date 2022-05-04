@@ -415,6 +415,26 @@ use or set `database` as a node config or in the target profile when running dbt
 If you want to control the schema/database in which dbt will materialize models,
 use the `schema` config and `generate_schema_name` macro _only_.
 
+## Tests
+
+To perform a functional test:
+1. Install dev requirements:
+```bash
+$ pip install -r dev_requirements.txt
+```
+
+2. Install dev locally
+```bash
+$ python setup.py build && python setup.py install_lib
+```
+
+3. Run the test
+```bash
+$ python3 -m pytest tests/functional
+```
+
+For more information, check the dbt documentation about [testing a new adapter](https://docs.getdbt.com/docs/contributing/testing-a-new-adapter).
+
 ## Caveats
 
 ### Supported Functionality

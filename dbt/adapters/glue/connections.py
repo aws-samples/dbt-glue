@@ -47,9 +47,7 @@ class GlueConnectionManager(SQLConnectionManager):
 
     def cancel(self, connection):
         """ cancel ongoing queries """
-        logger.debug("Cancelling queries")
         connection.handle.cancel()
-        logger.debug("Queries canceled")
 
     @contextmanager
     def exception_handler(self, sql: str):
@@ -109,4 +107,3 @@ class GlueConnectionManager(SQLConnectionManager):
             self._connection.close_session()
         except:
             logger.debug("connection not yet initialized")
-

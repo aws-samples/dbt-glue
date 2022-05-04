@@ -15,7 +15,7 @@
 
   {% set target_relation = this %}
   {% set existing_relation_type = adapter.get_table_type(this)  %}
-  {% set tmp_relation = glue__make_temp_relation(this) %}
+  {% set tmp_relation = make_temp_relation(this) %}
 
   {{ run_hooks(pre_hooks) }}
 
@@ -32,7 +32,7 @@
       {% if existing_relation_type is none %}
         {% set build_sql = create_table_as(False, target_relation, sql) %}
       {% elif existing_relation_type == 'view' or full_refresh_mode %}
-        {% do adapter.drop_view(target_relation) %}
+        {{ drop_relation(target_relation) }}
         {% set build_sql = create_table_as(False, target_relation, sql) %}
       {% else %}
         {{ adapter.create_view_as(tmp_relation, sql) }}
@@ -44,7 +44,7 @@
      {{ build_sql }}
   {%- endcall -%}
 
-  {{ adapter.drop_view(tmp_relation) }}
+  {{ drop_relation(tmp_relation) }}
   {{ run_hooks(post_hooks) }}
 
   {{ return({'relations': [target_relation]}) }}

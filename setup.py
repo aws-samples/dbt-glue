@@ -29,6 +29,7 @@ with open(os.path.join(this_directory, 'README.md')) as f:
 
 package_name = "dbt-glue"
 package_version = "0.1.4"
+dbt_version = "1.1.0"
 description = """dbt (data build tool) adapter for Aws Glue"""
 setup(
     name=package_name,
@@ -39,7 +40,7 @@ setup(
     author="moshirm,menuetb,mamallem,segnina",
     author_email="moshirm@amazon.fr, menuetb@amazon.fr, mamallem@amazon.fr, segnina@amazon.fr ",
     url='https://github.com/aws-samples/dbt-glue',
-    packages=find_namespace_packages(include=['dbt', 'dbt.*']),
+    packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     package_data={
         'dbt': [
             'include/glue/macros/*.sql',
@@ -52,7 +53,8 @@ setup(
         ]
     },
     install_requires=[
-        "dbt-core",
+        "dbt-core~={}".format(dbt_version),
+        "dbt-spark~={}".format(dbt_version),
         "waiter",
         "boto3"
     ],

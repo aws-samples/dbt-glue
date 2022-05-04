@@ -1,5 +1,5 @@
 
-name: dbt_mock
+name: dbt_glue
 version: 1.0
 config-version: 2
 

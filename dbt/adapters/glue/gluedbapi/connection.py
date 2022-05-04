@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from dbt import exceptions as dbterrors
 import boto3
-from botocore.exceptions import ClientError
 from waiter import wait
 from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
