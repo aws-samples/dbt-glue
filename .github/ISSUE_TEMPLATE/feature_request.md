@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for dbt-redshift
+about: Suggest an idea for dbt-glue
 title: ''
 labels: enhancement, triage
 assignees: ''

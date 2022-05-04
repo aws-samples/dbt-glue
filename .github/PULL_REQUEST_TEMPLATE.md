@@ -18,7 +18,7 @@ resolves #
 - [ ] I have signed the [CLA](https://docs.getdbt.com/docs/contributor-license-agreements)
 - [ ] I have run this code in development and it appears to resolve the stated issue
 - [ ] This PR includes tests, or tests are not required/relevant for this PR
-- [ ] I have updated the `CHANGELOG.md` and added information about my change to the "dbt-redshift next" section.
+- [ ] I have updated the `CHANGELOG.md` and added information about my change to the "dbt-glue next" section.
 
 
 By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of your choice.
