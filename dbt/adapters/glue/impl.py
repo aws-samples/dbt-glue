@@ -1,7 +1,6 @@
 import io
 import uuid
 import boto3
-from dataclasses import dataclass
 from typing import List
 
 import dbt
@@ -21,12 +20,6 @@ from dbt.utils import executor
 from dbt.events import AdapterLogger
 
 logger = AdapterLogger("Glue")
-
-@dataclass
-class Column:
-    column: str
-    dtype: str
-    comment: str
 
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
@@ -131,7 +124,6 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-
     def get_relation(self, database, schema, identifier):
         relations = []
         session, client, cursor = self.get_connection()
@@ -157,34 +149,12 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-    @available
-    def create_view_as(self, relation: BaseRelation, sql: str):
-        session, client, cursor = self.get_connection()
-        if self.check_relation_exists(relation):
-            code = f'''DROP VIEW IF EXISTS {relation.schema}.{relation.name}'''
-            try:
-                cursor.execute(code)
-            except Exception as e:
-                logger.error(e)
-        code = f'''
-        create or replace view {relation.schema}.{relation.name}
-        as
-        {sql}
-        '''
-        try:
-            cursor.execute(code)
-        except Exception as e:
-            logger.error(e)
-        check_code = f'''select * from {relation.schema}.{relation.name} limit 1'''
-        return check_code
-
     def rename_relation(self, from_relation, to_relation):
         session, client, cursor = self.get_connection()
         code = f'''
         custom_glue_code_for_dbt_adapter
         df = spark.sql("""select * from {from_relation.schema}.{from_relation.name}""")
         df.registerTempTable("df")
-        df = df.coalesce(1)
         table_name = '{to_relation.schema}.{to_relation.name}'
         writer = (
                         df.write.mode("append")
@@ -192,6 +162,7 @@ class GlueAdapter(SQLAdapter):
                         .option("path", "{session.credentials.location}/{to_relation.schema}/{to_relation.name}/")
                     )
         writer.saveAsTable(table_name, mode="append")
+        SqlWrapper2.execute("""select * from {to_relation.schema}.{to_relation.name} limit 1""")
         '''
         try:
             cursor.execute(code)
@@ -206,7 +177,7 @@ class GlueAdapter(SQLAdapter):
         try:
             cursor.execute(code)
             for record in cursor.fetchall():
-                column = Column(column=record[0], dtype=record[1], comment=record[2])
+                column = Column(column=record[0], dtype=record[1])
                 if record[0][:1] != "#":
                     if column not in columns:
                         columns.append(column)
@@ -366,7 +337,7 @@ class GlueAdapter(SQLAdapter):
                     table_row.column,
                     '0',
                     table_row.dtype,
-                    table_row.comment
+                    ''
                 ])
 
         column_names = [
@@ -402,7 +373,7 @@ writer = (
     .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")
 )
 writer.saveAsTable(table_name, mode="append")
-SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]}""")
+SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""")
 '''
         try:
             cursor.execute(code)

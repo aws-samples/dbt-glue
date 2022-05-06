@@ -4,8 +4,8 @@
   {%- set raw_file_format = config.get('file_format', default='parquet') -%}
   {%- set raw_strategy = config.get('incremental_strategy', default='insert_overwrite') -%}
   
-  {%- set file_format = dbt_glue_validate_get_file_format(raw_file_format) -%}
-  {%- set strategy = dbt_glue_validate_get_incremental_strategy(raw_strategy, file_format) -%}
+  {%- set file_format = dbt_spark_validate_get_file_format(raw_file_format) -%}
+  {%- set strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
 
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
@@ -36,7 +36,7 @@
         {% set build_sql = create_table_as(False, target_relation, sql) %}
       {% else %}
         {{ adapter.create_view_as(tmp_relation, sql) }}
-        {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
+        {% set build_sql = dbt_spark_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
       {% endif %}
   {% endif %}
 
@@ -44,7 +44,7 @@
      {{ build_sql }}
   {%- endcall -%}
 
-  {{ drop_relation(tmp_relation) }}
+  {{ glue__drop_view(tmp_relation) }}
   {{ run_hooks(post_hooks) }}
 
   {{ return({'relations': [target_relation]}) }}

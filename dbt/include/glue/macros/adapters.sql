@@ -35,6 +35,12 @@
   {%- endcall %}
 {% endmacro %}
 
+{% macro glue__make_temp_relation(base_relation, suffix) %}
+    {% set tmp_identifier = base_relation.identifier ~ suffix %}
+    {% set tmp_relation = base_relation.incorporate(path={"schema": base_relation.schema, "identifier": tmp_identifier}) -%}
+    {% do return(tmp_relation) %}
+{% endmacro %}
+
 {% macro glue__create_temporary_view(relation, sql) -%}
   create or replace temporary view {{ relation.include(schema=false) }} as
     {{ sql }}
@@ -54,14 +60,6 @@
       {{ sql }}
   {%- endif %}
 {%- endmacro -%}
-
-{% macro glue__create_view_as(relation, sql) -%}
-    {{ adapter.create_view_as(relation, sql) }}
-{% endmacro %}
-
-{% macro glue__create_view(relation, sql) -%}
-    {{ adapter.create_view_as(relation, sql) }}
-{% endmacro %}
 
 {% macro glue__snapshot_get_time() -%}
   datetime()

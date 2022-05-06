@@ -49,8 +49,7 @@ class GlueConnection:
         logger.debug("GlueConnection _start_session called")
 
         args = {
-            "--enable-glue-datacatalog": "true",
-            "--spark.sql.crossJoin.enabled": "true"
+            "--enable-glue-datacatalog": "true"
         }
 
         if (self.credentials.extra_jars is not None):
@@ -177,7 +176,8 @@ class SqlWrapper2:
     i = 0
     dfs = {}
     @classmethod
-    def execute(cls,sql,output=True):       
+    def execute(cls,sql,output=True):   
+        spark.conf.set("spark.sql.crossJoin.enabled", "true")    
         df = spark.sql(sql)
         if len(df.schema.fields) == 0:
             dumped_empty_result = json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None})
