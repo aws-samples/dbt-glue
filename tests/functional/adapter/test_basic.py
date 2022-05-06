@@ -11,29 +11,29 @@ from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCo
 from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
 
 
-class TestSimpleMaterializationsMyAdapter(BaseSimpleMaterializations):
-    pass
+#class TestSimpleMaterializationsMyAdapter(BaseSimpleMaterializations):
+#    pass
 
 
-class TestSingularTestsMyAdapter(BaseSingularTests):
-    pass
+#class TestSingularTestsMyAdapter(BaseSingularTests):
+#    pass
 
 
-class TestSingularTestsEphemeralMyAdapter(BaseSingularTestsEphemeral):
-    pass
+#class TestSingularTestsEphemeralMyAdapter(BaseSingularTestsEphemeral):
+#    pass
 
 
-class TestEmptyMyAdapter(BaseEmpty):
-    pass
+#class TestEmptyMyAdapter(BaseEmpty):
+#    pass
 
 
-class TestEphemeralMyAdapter(BaseEphemeral):
-    pass
+#class TestEphemeralMyAdapter(BaseEphemeral):
+#    pass
 
 
 class TestIncrementalMyAdapter(BaseIncremental):
     pass
 
 
-class TestGenericTestsMyAdapter(BaseGenericTests):
-    pass
+#class TestGenericTestsMyAdapter(BaseGenericTests):
+#    pass

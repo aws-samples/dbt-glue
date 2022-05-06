@@ -186,7 +186,6 @@ $ pip3 install —upgrade aws-glue-sessions
 ```
 
 ### Example config
-<File name='profiles.yml'>
 
 ```yml
 type: glue
@@ -392,9 +391,6 @@ from events
 group by 1
 ```
 
-</File>
-</TabItem>
-</Tabs>
 
 
 ## Persisting model descriptions
@@ -428,7 +424,13 @@ $ pip install -r dev_requirements.txt
 $ python setup.py build && python setup.py install_lib
 ```
 
-3. Run the test
+3. Export variables
+```bash
+$ export DBT_S3_LOCATION=s3://mybucket/myprefix
+$ export DBT_ROLE_ARN=arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+```
+
+4. Run the test
 ```bash
 $ python3 -m pytest tests/functional
 ```

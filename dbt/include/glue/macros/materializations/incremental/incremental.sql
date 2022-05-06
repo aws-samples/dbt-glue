@@ -15,7 +15,7 @@
 
   {% set target_relation = this %}
   {% set existing_relation_type = adapter.get_table_type(this)  %}
-  {% set tmp_relation = make_temp_relation(this) %}
+  {% set tmp_relation = make_temp_relation(this, '_tmp') %}
 
   {{ run_hooks(pre_hooks) }}
 
@@ -28,15 +28,13 @@
           set glue.sql.sources.partitionOverwriteMode = DYNAMIC
         {% endcall %}
       {% endif %}
-
       {% if existing_relation_type is none %}
         {% set build_sql = create_table_as(False, target_relation, sql) %}
       {% elif existing_relation_type == 'view' or full_refresh_mode %}
         {{ drop_relation(target_relation) }}
         {% set build_sql = create_table_as(False, target_relation, sql) %}
       {% else %}
-        {{ adapter.create_view_as(tmp_relation, sql) }}
-        {% set build_sql = dbt_spark_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
+        {% set build_sql = dbt_glue_get_incremental_sql(strategy, target_relation, sql, unique_key) %}
       {% endif %}
   {% endif %}
 
@@ -44,7 +42,6 @@
      {{ build_sql }}
   {%- endcall -%}
 
-  {{ glue__drop_view(tmp_relation) }}
   {{ run_hooks(post_hooks) }}
 
   {{ return({'relations': [target_relation]}) }}

@@ -17,14 +17,6 @@
   {{return('')}}
 {%- endmacro %}
 
-{% macro glue__list_relations_without_caching(schema_relation) %}
-    {% call statement('list_relations_without_caching', fetch_result=True) %}
-        show tables
-    {% endcall %}
-
-    {{ return(load_result('list_relations_without_caching').table) }}
-{% endmacro %}
-
 {% macro glue__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
     {%- if relation.type is not none %}
@@ -65,10 +57,6 @@
   datetime()
 {%- endmacro %}
 
-{% macro glue__rename_relation(from_relation, to_relation) -%}
-    {{ adapter.rename_relation(from_relation, to_relation) }}
-{% endmacro %}
-
 {% macro glue__drop_view(relation) -%}
   {% call statement('drop_view', auto_begin=False) -%}
     drop view if exists {{ relation }}
@@ -84,3 +72,20 @@
   {%- set default_database = target.database -%}
   {{ default_database }}
 {%- endmacro %}
+
+{% macro glue__rename_relation(from_relation, to_relation) -%}
+  {% call statement('rename_relation') -%}
+    {% if not from_relation.type %}
+      {% do exceptions.raise_database_error("Cannot rename a relation with a blank type: " ~ from_relation.identifier) %}
+    {% elif from_relation.type in ('table') %}
+        {%- set dest_columns = adapter.get_columns_in_relation(from_relation) -%}
+        {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
+        {%- set sql = "select " + dest_cols_csv + " from " ~ from_relation -%}
+        {{ create_table_as(False, to_relation, sql) }}
+    {% elif from_relation.type == 'view' %}
+        {{ adapter.duplicate_view_as(from_relation, to_relation) }}
+    {% else %}
+      {% do exceptions.raise_database_error("Unknown type '" ~ from_relation.type ~ "' for relation: " ~ from_relation.identifier) %}
+    {% endif %}
+  {%- endcall %}
+{% endmacro %}

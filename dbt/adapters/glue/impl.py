@@ -149,26 +149,6 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-    def rename_relation(self, from_relation, to_relation):
-        session, client, cursor = self.get_connection()
-        code = f'''
-        custom_glue_code_for_dbt_adapter
-        df = spark.sql("""select * from {from_relation.schema}.{from_relation.name}""")
-        df.registerTempTable("df")
-        table_name = '{to_relation.schema}.{to_relation.name}'
-        writer = (
-                        df.write.mode("append")
-                        .format("parquet")
-                        .option("path", "{session.credentials.location}/{to_relation.schema}/{to_relation.name}/")
-                    )
-        writer.saveAsTable(table_name, mode="append")
-        SqlWrapper2.execute("""select * from {to_relation.schema}.{to_relation.name} limit 1""")
-        '''
-        try:
-            cursor.execute(code)
-        except Exception as e:
-            logger.error(e)
-
     def get_columns_in_relation(self, relation: BaseRelation) -> [Column]:
         session, client, cursor = self.get_connection()
         # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
@@ -189,6 +169,23 @@ class GlueAdapter(SQLAdapter):
                    if x.name not in self.HUDI_METADATA_COLUMNS]
 
         return columns
+
+    @available
+    def duplicate_view_as(self, from_relation: BaseRelation, to_relation: BaseRelation, ):
+        session, client, cursor = self.get_connection()
+        code = f'''SHOW CREATE TABLE {from_relation.schema}.{from_relation.identifier}'''
+
+        try:
+            cursor.execute(code)
+            for record in cursor.fetchall():
+                logger.debug(f"+++++++++++++++++++ record0: {record[0]}")
+                logger.debug(record)
+                create_view_statement = record[0]
+        except Exception as e:
+            logger.error(e)
+        target_query = create_view_statement.replace(from_relation.schema, to_relation.schema)
+        target_query = target_query.replace(from_relation.identifier, to_relation.identifier)
+        return target_query
 
     @available
     def get_location(self, relation: BaseRelation):
