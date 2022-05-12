@@ -176,7 +176,18 @@ class SqlWrapper2:
     i = 0
     dfs = {}
     @classmethod
-    def execute(cls,sql,output=True):   
+    def execute(cls,sql,output=True):
+        if "dbt_next_query" in sql:
+                response=None
+                queries = sql.split("dbt_next_query")
+                for q in queries:
+                    if (len(q)):
+                        if q==queries[-1]:
+                            response=cls.execute(q,output=True)
+                        else:
+                            cls.execute(q,output=False)
+                return  response   
+                
         spark.conf.set("spark.sql.crossJoin.enabled", "true")    
         df = spark.sql(sql)
         if len(df.schema.fields) == 0:

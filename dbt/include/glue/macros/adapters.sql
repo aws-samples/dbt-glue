@@ -74,18 +74,34 @@
 {%- endmacro %}
 
 {% macro glue__rename_relation(from_relation, to_relation) -%}
-  {% call statement('rename_relation') -%}
     {% if not from_relation.type %}
       {% do exceptions.raise_database_error("Cannot rename a relation with a blank type: " ~ from_relation.identifier) %}
     {% elif from_relation.type in ('table') %}
-        {%- set dest_columns = adapter.get_columns_in_relation(from_relation) -%}
-        {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
-        {%- set sql = "select " + dest_cols_csv + " from " ~ from_relation -%}
-        {{ create_table_as(False, to_relation, sql) }}
+        {{ adapter.glue_rename_relation(from_relation, to_relation) }}
     {% elif from_relation.type == 'view' %}
-        {{ adapter.duplicate_view_as(from_relation, to_relation) }}
+        {{ glue_exec_query(adapter.duplicate_view(from_relation, to_relation)) }}
+        {{ drop_view(from_relation) }}
     {% else %}
       {% do exceptions.raise_database_error("Unknown type '" ~ from_relation.type ~ "' for relation: " ~ from_relation.identifier) %}
     {% endif %}
-  {%- endcall %}
+{% endmacro %}
+
+{% macro glue__create_view_as(relation, sql) -%}
+    DROP VIEW IF EXISTS {{ relation }}
+    dbt_next_query
+    create or replace view {{ relation }}
+        as
+    {{ sql }}
+{% endmacro %}
+
+{% macro glue__create_view(relation, sql) -%}
+  {% call statement("create_view(", fetch_result=false, auto_begin=false) %}
+    {{ create_view_as(relation, sql) }}
+  {% endcall %}
+{% endmacro %}
+
+{% macro glue_exec_query(sql) %}
+  {% call statement("run_query_statement", fetch_result=false, auto_begin=false) %}
+    {{ sql }}
+  {% endcall %}
 {% endmacro %}

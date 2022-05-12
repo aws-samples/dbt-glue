@@ -48,6 +48,7 @@ setup(
             'include/glue/macros/*/*/*.sql',
             'include/glue/dbt_project.yml',
             'include/glue/sample_profiles.yml',
+            'include/glue/tests/*/*.sql',
             'adapters/glue/*.py',
             'adapters/gluedbapi/*.py',
         ]
