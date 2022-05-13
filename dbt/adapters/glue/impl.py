@@ -83,7 +83,6 @@ class GlueAdapter(SQLAdapter):
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
-        logger.debug("++++++ list_relations_without_caching")
         session, client, cursor = self.get_connection()
         relations = []
         try:
@@ -102,7 +101,6 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
-        logger.debug("++++++ check_schema_exists")
         try:
             list = self.list_schemas(schema)
             if 'schema' in list:
@@ -113,7 +111,6 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
     def check_relation_exists(self, relation: BaseRelation) -> bool:
-        logger.debug("++++++ check_relation_exists")
         try:
             relation = self.get_relation(
                 database=relation.schema,
@@ -152,7 +149,6 @@ class GlueAdapter(SQLAdapter):
             logger.error("rename_relation exception")
 
     def get_relation(self, database, schema, identifier):
-        logger.debug("++++++ get_relation")
         relations = []
         session, client, cursor = self.get_connection()
         try:
@@ -177,7 +173,6 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
     def get_columns_in_relation(self, relation: BaseRelation) -> [Column]:
-        logger.debug("++++++ get_columns_in_relation")
         session, client, cursor = self.get_connection()
         # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
         code = f'''describe {relation.schema}.{relation.identifier}'''
@@ -200,7 +195,6 @@ class GlueAdapter(SQLAdapter):
 
     @available
     def duplicate_view(self, from_relation: BaseRelation, to_relation: BaseRelation, ):
-        logger.debug("++++++ create_view_as")
         session, client, cursor = self.get_connection()
         code = f'''SHOW CREATE TABLE {from_relation.schema}.{from_relation.identifier}'''
         try:
@@ -215,12 +209,10 @@ class GlueAdapter(SQLAdapter):
 
     @available
     def get_location(self, relation: BaseRelation):
-        logger.debug("++++++ get_location")
         session, client, cursor = self.get_connection()
         return f"LOCATION '{session.credentials.location}/{relation.schema}/{relation.name}/'"
 
     def drop_schema(self, relation: BaseRelation) -> None:
-        logger.debug("++++++ drop_schema")
         session, client, cursor = self.get_connection()
         if self.check_schema_exists(relation.database, relation.schema):
             try:
@@ -235,7 +227,6 @@ class GlueAdapter(SQLAdapter):
             logger.debug("No schema to delete")
 
     def create_schema(self, relation: BaseRelation):
-        logger.debug("++++++ create_schema")
         session, client, cursor = self.get_connection()
         lf = boto3.client("lakeformation", region_name=session.credentials.region)
         sts = boto3.client("sts")
@@ -314,7 +305,6 @@ class GlueAdapter(SQLAdapter):
                 logger.error("create_schema exception")
 
     def get_catalog(self, manifest):
-        logger.debug("++++++ get_catalog")
         schema_map = self._get_catalog_schemas(manifest)
 
         with executor(self.config) as tpe:
@@ -334,7 +324,6 @@ class GlueAdapter(SQLAdapter):
     def _get_one_catalog(
             self, information_schema, schemas, manifest,
     ) -> agate.Table:
-        logger.debug("++++++ _get_one_catalog")
         if len(schemas) != 1:
             dbt.exceptions.raise_compiler_error(
                 f'Expected only one schema in glue _get_one_catalog, found '
@@ -386,7 +375,6 @@ class GlueAdapter(SQLAdapter):
 
     @available
     def create_csv_table(self, model, agate_table):
-        logger.debug("++++++ create_csv_table")
         session, client, cursor = self.get_connection()
         logger.debug(model)
         f = io.StringIO("")
@@ -412,7 +400,6 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
     @available
     def get_table_type(self, relation):
-        logger.debug("++++++ get_table_type")
         session, client, cursor = self.get_connection()
         try:
             response = client.get_table(
@@ -431,7 +418,6 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             return None
 
     def hudi_write(self, write_mode, session, target_relation, custom_location):
-        logger.debug("++++++ hudi_write")
         if custom_location == "empty":
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}/{target_relation.schema}/{target_relation.name}/")'''
         else:
@@ -440,7 +426,6 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location):
-        logger.debug("++++++ hudi_merge_table")
         session, client, cursor = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
