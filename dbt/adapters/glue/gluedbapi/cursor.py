@@ -98,11 +98,13 @@ class GlueCursor:
                 try:
                     self.response = json.loads(output.get("Data", {}).get("TextPlain", None).strip())
                 except Exception as ex:
-                    chunks = output.get("Data", {}).get("TextPlain", None).strip().split('\n')
                     try:
+                        chunks = output.get("Data", {}).get("TextPlain", None).strip().split('\n')
+                        logger.debug(f"chunks: {chunks}")
                         self.response = json.loads(chunks[0])
+                        logger.debug(f"response: {response}")
                     except Exception as ex:
-                        logger.debug("Could not parse " + json.loads(chunks[0]), ex)
+                        logger.error("Could not parse " + json.loads(chunks[0]), ex)
                         self.state = GlueCursorState.ERROR
             else:
                 error_message=f"Glue returned `{status}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"

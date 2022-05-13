@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from dbt import exceptions as dbterrors
 import boto3
-from botocore.exceptions import ClientError
 from waiter import wait
 from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
@@ -50,8 +49,7 @@ class GlueConnection:
         logger.debug("GlueConnection _start_session called")
 
         args = {
-            "--enable-glue-datacatalog": "true",
-            "--spark.sql.crossJoin.enabled": "true"
+            "--enable-glue-datacatalog": "true"
         }
 
         if (self.credentials.extra_jars is not None):
@@ -178,7 +176,19 @@ class SqlWrapper2:
     i = 0
     dfs = {}
     @classmethod
-    def execute(cls,sql,output=True):       
+    def execute(cls,sql,output=True):
+        if "dbt_next_query" in sql:
+                response=None
+                queries = sql.split("dbt_next_query")
+                for q in queries:
+                    if (len(q)):
+                        if q==queries[-1]:
+                            response=cls.execute(q,output=True)
+                        else:
+                            cls.execute(q,output=False)
+                return  response   
+                
+        spark.conf.set("spark.sql.crossJoin.enabled", "true")    
         df = spark.sql(sql)
         if len(df.schema.fields) == 0:
             dumped_empty_result = json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None})
