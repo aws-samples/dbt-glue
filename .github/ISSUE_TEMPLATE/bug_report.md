@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug or an issue you've found with dbt-redshift
+about: Report a bug or an issue you've found with dbt-glue
 title: ''
 labels: bug, triage
 assignees: ''
