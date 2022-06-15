@@ -69,7 +69,7 @@ class GlueConnection:
             additional_args["SecurityConfiguration"] = f"{self.credentials.security_configuration}"
         
         if (self.credentials.connections is not None):
-            additional_args["Connections"] = f"{self.credentials.connections}"
+            additional_args["Connections"] = {"Connections": list(set(self.credentials.connections.split(',')))}
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
