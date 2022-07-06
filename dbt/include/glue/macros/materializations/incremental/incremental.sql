@@ -24,7 +24,7 @@
   {% else %}
       {% if strategy == 'insert_overwrite' and partition_by %}
         {% call statement() %}
-          set glue.sql.sources.partitionOverwriteMode = DYNAMIC
+          set spark.sql.sources.partitionOverwriteMode = DYNAMIC
         {% endcall %}
       {% endif %}
       {% if existing_relation_type is none %}

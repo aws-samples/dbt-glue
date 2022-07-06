@@ -55,6 +55,9 @@ class GlueConnection:
         if (self.credentials.extra_jars is not None):
             args["--extra-jars"] = f"{self.credentials.extra_jars}"
 
+        if (self.credentials.conf is not None):
+            args["--conf"] = f"{self.credentials.conf}"
+
         additional_args = {}
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
