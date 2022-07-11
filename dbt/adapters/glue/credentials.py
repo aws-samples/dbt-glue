@@ -18,6 +18,7 @@ class GlueCredentials(Credentials):
     glue_version: Optional[str] = "2.0"
     security_configuration: Optional[str] = None
     connections: Optional[str] = None
+    conf: Optional[str] = None
     
     @property
     def type(self):
@@ -44,5 +45,6 @@ class GlueCredentials(Credentials):
             'query_timeout_in_seconds',
             'glue_version',
             'security_configuration',
-            'connections'
+            'connections',
+            'conf'
         ]

@@ -55,6 +55,9 @@ class GlueConnection:
         if (self.credentials.extra_jars is not None):
             args["--extra-jars"] = f"{self.credentials.extra_jars}"
 
+        if (self.credentials.conf is not None):
+            args["--conf"] = f"{self.credentials.conf}"
+
         additional_args = {}
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
@@ -69,7 +72,7 @@ class GlueConnection:
             additional_args["SecurityConfiguration"] = f"{self.credentials.security_configuration}"
         
         if (self.credentials.connections is not None):
-            additional_args["Connections"] = f"{self.credentials.connections}"
+            additional_args["Connections"] = {"Connections": list(set(self.credentials.connections.split(',')))}
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)

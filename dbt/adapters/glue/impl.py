@@ -149,19 +149,18 @@ class GlueAdapter(SQLAdapter):
             logger.error("rename_relation exception")
 
     def get_relation(self, database, schema, identifier):
-        relations = []
         session, client, cursor = self.get_connection()
         try:
             response = client.get_table(
                 DatabaseName=schema,
                 Name=identifier
             )
-            relations.append(self.Relation.create(
+            relations = self.Relation.create(
                 database=schema,
                 schema=schema,
                 identifier=identifier,
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
-            ))
+            )
             logger.debug(f"""schema : {schema}
                              identifier : {identifier}
                              type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
