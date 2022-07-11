@@ -18,7 +18,7 @@
   {% set tmp_relation = make_temp_relation(target_relation, '_tmp') %}
   {% set is_incremental = 'False' %}
 
-  {% if raw_strategy == 'merge' and file_format == 'hudi' %}
+  {% if file_format == 'hudi' %}
         {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location) }}
         {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
   {% else %}
