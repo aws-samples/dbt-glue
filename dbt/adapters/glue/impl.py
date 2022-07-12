@@ -75,11 +75,13 @@ class GlueAdapter(SQLAdapter):
         return session, client, cursor
 
     def list_schemas(self, database: str) -> List[str]:
-        # results[1] contains the result of the query
-        # row[0] get the first column of the result
-        # here schemas contains all the databases in glue
-        results = self.connections.execute("show databases", fetch=True)
-        schemas = [row[0] for row in results[1]]
+        session, client, cursor = self.get_connection()
+        responseGetDatabases = client.get_databases()
+        databaseList = responseGetDatabases['DatabaseList']
+        schemas = []
+        for databaseDict in databaseList:
+            databaseName = databaseDict['Name']
+            schemas.append(databaseName)
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
