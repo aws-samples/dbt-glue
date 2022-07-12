@@ -28,7 +28,7 @@ with open(os.path.join(this_directory, 'README.md')) as f:
     long_description = f.read()
 
 package_name = "dbt-glue"
-package_version = "0.2.2"
+package_version = "0.2.3"
 dbt_version = "1.1.0"
 description = """dbt (data build tool) adapter for Aws Glue"""
 setup(
