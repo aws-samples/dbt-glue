@@ -182,7 +182,6 @@ Configure the aws-glue-session package
 ```bash
 $ sudo yum install gcc krb5-devel.x86_64 python3-devel.x86_64 -y
 $ pip3 install —upgrade boto3
-$ pip3 install —upgrade aws-glue-sessions
 ```
 
 ### Example config
@@ -203,24 +202,27 @@ location: "s3://dbt_demo_bucket/dbt_demo_data"
 
 The table below describes all the options.
 
-|Option	|Description	| Mandatory |
-|---|---|---|
-|project_name	|The dbt project name. This must be the same as the one configured in the dbt project.	|yes|
-|type	|The driver to use.	|yes|
-|query-comment	|A string to inject as a comment in each query that dbt runs. 	|no|
-|role_arn	|The ARN of the interactive session role created as part of the CloudFormation template.	|yes|
-|region	|The AWS Region were you run the data pipeline.	|yes|
-|workers	|The number of workers of a defined workerType that are allocated when a job runs.	|yes|
-|worker_type	|The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	|yes|
-|schema	|The schema used to organize data stored in Amazon S3.	|yes|
-|database	|The database in Lake Formation. The database stores metadata tables in the Data Catalog.	|yes|
-|session_provisioning_timeout_in_seconds |The timeout in seconds forT AWS Glue interactive session provisioning.	|yes|
-|location	|The Amazon S3 location of your target data.	|yes|
-|query_timeout_in_seconds	|The timeout in seconds for	a signle query. Default is 300|no|
-|idle_timeout	|The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time.)	|no|
-|glue_version	|The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 2.0.	|no|
-|security_configuration	|The security configuration to use with this session.	|no|
-|connections	|A comma-separated list of connections to use in the session.	|no|
+|Option	| Description	                                                                                                                           | Mandatory |
+|---|----------------------------------------------------------------------------------------------------------------------------------------|---|
+|project_name	| The dbt project name. This must be the same as the one configured in the dbt project.	                                                 |yes|
+|type	| The driver to use.	                                                                                                                    |yes|
+|query-comment	| A string to inject as a comment in each query that dbt runs. 	                                                                         |no|
+|role_arn	| The ARN of the interactive session role created as part of the CloudFormation template.	                                               |yes|
+|region	| The AWS Region were you run the data pipeline.	                                                                                        |yes|
+|workers	| The number of workers of a defined workerType that are allocated when a job runs.	                                                     |yes|
+|worker_type	| The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	                          |yes|
+|schema	| The schema used to organize data stored in Amazon S3.	                                                                                 |yes|
+|database	| The database in Lake Formation. The database stores metadata tables in the Data Catalog.	                                              |yes|
+|session_provisioning_timeout_in_seconds | The timeout in seconds forT AWS Glue interactive session provisioning.	                                                                |yes|
+|location	| The Amazon S3 location of your target data.	                                                                                           |yes|
+|query_timeout_in_seconds	| The timeout in seconds for	a signle query. Default is 300                                                                              |no|
+|idle_timeout	| The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time.)	                  |no|
+|glue_version	| The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 2.0.	         |no|
+|security_configuration	| The security configuration to use with this session.	                                                                                  |no|
+|connections	| A comma-separated list of connections to use in the session.	                                                                          |no|
+|conf	| Specific configuration used at the startup of the Glue Interactive Session (arg --conf)	                                               |no|
+|extra_py_files	| Extra python Libs that can be used by the interactive session.                                                                         |no|
+|delta_athena_prefix	| A prefix used to create Athena compatible tables for Delta tables	(if not specified, then no Athena compatible table will be created)  |no|
 
 ## Configs
 
@@ -352,19 +354,47 @@ Specifying `insert_overwrite` as the incremental strategy is optional, since it'
 
 ### The `merge` strategy
 
-**Usage notes:** The `merge` incremental strategy requires:
-- `file_format: hudi`
-- AWS Glue runtime 2 with hudi libraries as extra jars
+**Compatibility:**
+- Hudi : OK
+- Delta Lake : OK
+- Iceberg : On going
+- Lake Formation Governed Tables : On going
 
-You can add hudi libraries as extra jars in the classpath using extra_jars options in your profiles.yml.
-Here is an example:
-```yml
-extra_jars: "s3://dbt-glue-hudi/Dependencies/hudi-spark.jar,s3://dbt-glue-hudi/Dependencies/spark-avro_2.11-2.4.4.jar"
-```
+The simpliest way to work with theses advanced features is to install theses using [Glue connectors](https://docs.aws.amazon.com/glue/latest/ug/connectors-chapter.html).
+
+This [blog post](https://aws.amazon.com/blogs/big-data/part-1-integrate-apache-hudi-delta-lake-apache-iceberg-datasets-at-scale-aws-glue-studio-notebook/) also explain how to setup and works with Glue Connectors
+
+#### Hudi
+
+**Usage notes:** The `merge` with Hudi incremental strategy requires:
+- To add `file_format: hudi` in your table configuration
+- To add a connections in your profile : `connections: name_of_your_hudi_connector`
+- To add Kryo serializer in your Interactive Session Config (in your profile):  `conf: "spark.serializer=org.apache.spark.serializer.KryoSerializer"`
 
 dbt will run an [atomic `merge` statement](https://hudi.apache.org/docs/writing_data#spark-datasource-writer) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. If a `unique_key` is specified (recommended), dbt will update old records with values from new records that match on the key column. If a `unique_key` is not specified, dbt will forgo match criteria and simply insert all new records (similar to `append` strategy).
 
-#### Source Code
+#### Profile config example
+```yaml
+test_project:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      query-comment: my comment
+      role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+      region: eu-west-1
+      glue_version: "3.0"
+      workers: 2
+      worker_type: G.1X
+      schema: "dbt_test_project"
+      database: "dbt_test_project"
+      session_provisionning_timeout_in_seconds: 120
+      location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      connections: name_of_your_hudi_connector
+      conf: "spark.serializer=org.apache.spark.serializer.KryoSerializer"
+```
+
+#### Source Code example
 ```sql
 {{ config(
     materialized='incremental',
@@ -391,6 +421,71 @@ from events
 group by 1
 ```
 
+#### Delta
+
+You can also use Delta Lake to be able to use merge feature on tables.
+
+**Usage notes:** The `merge` with Delta incremental strategy requires:
+- To add `file_format: delta` in your table configuration
+- To add a connections in your profile : `connections: name_of_your_delta_connector`
+- To add the following config in your Interactive Session Config (in your profile):  `conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog`
+
+**Athena:** Athena is not compatible by default with delta tables, but you can configure the adapter to create Athena tables on top of your delta table. To do so, you need to configure the two following options in your profile:
+- `extra_py_files: "/tmp/delta-core_2.12-1.0.0.jar"`
+- `delta_athena_prefix: "the_prefix_of_your_choice"`
+- If your table is partitioned, then the add of new partition is not automatic, you need to perform an `MSCK REPAIR TABLE your_delta_table` after each new partition adding
+
+#### Profile config example
+```yaml
+test_project:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      query-comment: my comment
+      role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+      region: eu-west-1
+      glue_version: "3.0"
+      workers: 2
+      worker_type: G.1X
+      schema: "dbt_test_project"
+      database: "dbt_test_project"
+      session_provisionning_timeout_in_seconds: 120
+      location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      connections: name_of_your_delta_connector
+      conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
+      extra_py_files: "/tmp/delta-core_2.12-1.0.0.jar"
+      delta_athena_prefix: "delta"
+```
+
+#### Source Code example
+```sql
+{{ config(
+    materialized='incremental',
+    incremental_strategy='merge',
+    unique_key='user_id',
+    partition_by=['dt'],
+    file_format='delta'
+) }}
+
+with new_events as (
+
+    select * from {{ ref('events') }}
+
+    {% if is_incremental() %}
+    where date_day >= date_add(current_date, -1)
+    {% endif %}
+
+)
+
+select
+    user_id,
+    max(date_day) as last_seen,
+    current_date() as dt
+
+from events
+group by 1
+```
 
 
 ## Persisting model descriptions
