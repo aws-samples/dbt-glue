@@ -1,4 +1,5 @@
 import io
+import re
 import uuid
 import boto3
 from typing import List
@@ -20,6 +21,7 @@ from dbt.utils import executor
 from dbt.events import AdapterLogger
 
 logger = AdapterLogger("Glue")
+
 
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
@@ -398,6 +400,84 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
         except Exception as e:
             logger.error(e)
 
+    @available
+    def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
+        session, client, cursor = self.get_connection()
+        logger.debug(request)
+
+        table_name = f'{target_relation.schema}.{target_relation.name}'
+        if custom_location == "empty":
+            location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
+        else:
+            location = custom_location
+
+        create_table_query = f"""
+CREATE TABLE {table_name}
+USING delta
+LOCATION '{location}'
+        """
+
+        write_data_header = f'''
+custom_glue_code_for_dbt_adapter
+spark.sql("""
+{request}
+""").write.format("delta").mode("overwrite")'''
+
+        write_data_footer = f'''.save("{location}")
+SqlWrapper2.execute("""select 1""")
+'''
+
+        create_athena_table_header = f'''
+custom_glue_code_for_dbt_adapter
+from delta.tables import DeltaTable
+deltaTable = DeltaTable.forPath(spark, "{location}")
+deltaTable.generate("symlink_format_manifest")
+schema = deltaTable.toDF().schema
+columns = (','.join([field.simpleString() for field in schema])).replace(':', ' ')
+ddl = """CREATE EXTERNAL TABLE {target_relation.schema}.headertoberepalced_{target_relation.name} (""" + columns + """) 
+
+                '''
+
+        create_athena_table_footer = f'''
+ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+LOCATION '{location}/_symlink_format_manifest/'"""
+spark.sql(ddl)
+spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+SqlWrapper2.execute("""select 1""")
+                        '''
+        if partition_key is not None:
+            part_list = (', '.join([field for field in partition_key]))
+            write_data_partition = f'''.partitionBy("{part_list}")'''
+            create_athena_table_partition = f'''
+PARTITIONED BY ({part_list})
+            '''
+            write_data_code = write_data_header + write_data_partition + write_data_footer
+            create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer
+        else:
+            write_data_code = write_data_header + write_data_footer
+            create_athena_table = create_athena_table_header + create_athena_table_footer
+
+
+
+        try:
+            cursor.execute(write_data_code)
+        except Exception as e:
+            logger.error(e)
+
+        try:
+            cursor.execute(create_table_query)
+        except Exception as e:
+            logger.error(e)
+
+        logger.debug("++++++++ PREFIX :")
+        logger.debug(session.credentials.delta_athena_prefix)
+        if {session.credentials.delta_athena_prefix} is not None:
+            try:
+                cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
+            except Exception as e:
+                logger.error(e)
 
     @available
     def get_table_type(self, relation):
@@ -423,7 +503,6 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}/{target_relation.schema}/{target_relation.name}/")'''
         else:
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
-
 
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location):

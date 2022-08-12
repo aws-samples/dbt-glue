@@ -28,10 +28,20 @@
         {% endcall %}
       {% endif %}
       {% if existing_relation_type is none %}
-        {% set build_sql = create_table_as(False, target_relation, sql) %}
+        {% if file_format == 'delta' %}
+            {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
+            {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
+        {% else %}
+            {% set build_sql = create_table_as(False, target_relation, sql) %}
+        {% endif %}
       {% elif existing_relation_type == 'view' or full_refresh_mode %}
         {{ drop_relation(target_relation) }}
-        {% set build_sql = create_table_as(False, target_relation, sql) %}
+        {% if file_format == 'delta' %}
+            {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
+            {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
+        {% else %}
+            {% set build_sql = create_table_as(False, target_relation, sql) %}
+        {% endif %}
       {% else %}
         {{ glue__create_view(tmp_relation, sql) }}
         {% set is_incremental = 'True' %}

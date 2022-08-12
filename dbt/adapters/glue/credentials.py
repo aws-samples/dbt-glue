@@ -19,6 +19,8 @@ class GlueCredentials(Credentials):
     security_configuration: Optional[str] = None
     connections: Optional[str] = None
     conf: Optional[str] = None
+    extra_py_files: Optional[str] = None
+    delta_athena_prefix: Optional[str] = None
     
     @property
     def type(self):
@@ -46,5 +48,7 @@ class GlueCredentials(Credentials):
             'glue_version',
             'security_configuration',
             'connections',
-            'conf'
+            'conf',
+            'extra_py_files',
+            'delta_athena_prefix'
         ]
