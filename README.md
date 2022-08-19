@@ -177,11 +177,17 @@ $ unzip awscliv2.zip
 $ sudo ./aws/install
 ```
 
-Configure the aws-glue-session package
+Install boto3 package
 
 ```bash
 $ sudo yum install gcc krb5-devel.x86_64 python3-devel.x86_64 -y
 $ pip3 install —upgrade boto3
+```
+
+Install the package:
+
+```bash
+$ pip install dbt-glue
 ```
 
 ### Example config
@@ -511,7 +517,7 @@ use the `schema` config and `generate_schema_name` macro _only_.
 To perform a functional test:
 1. Install dev requirements:
 ```bash
-$ pip install -r dev_requirements.txt
+$ pip install -r dev-requirements.txt
 ```
 
 2. Install dev locally

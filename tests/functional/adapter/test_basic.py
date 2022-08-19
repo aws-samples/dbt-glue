@@ -7,6 +7,7 @@ from dbt.tests.adapter.basic.test_empty import BaseEmpty
 from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
 from dbt.tests.adapter.basic.test_incremental import BaseIncremental
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
+from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
 from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
 from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
 
@@ -36,6 +37,14 @@ class TestIncrementalGlue(BaseIncremental):
 
 
 class TestGenericTestsGlue(BaseGenericTests):
+    pass
+
+
+class TestDocsGenerate(BaseDocsGenerate):
+    pass
+
+
+class TestDocsGenReferences(BaseDocsGenReferences):
     pass
 
 
