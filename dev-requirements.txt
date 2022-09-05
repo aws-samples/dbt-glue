@@ -22,4 +22,4 @@ flaky
 
 dbt-tests-adapter==1.2.1
 mypy==0.971
-black==22.6.0
+black==22.8.0
