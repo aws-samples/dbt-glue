@@ -107,7 +107,7 @@ class GlueAdapter(SQLAdapter):
     def check_schema_exists(self, database: str, schema: str) -> bool:
         try:
             list = self.list_schemas(schema)
-            if 'schema' in list:
+            if schema in list:
                 return True
             else:
                 return False
