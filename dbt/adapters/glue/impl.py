@@ -471,8 +471,6 @@ PARTITIONED BY ({part_list})
         except Exception as e:
             logger.error(e)
 
-        logger.debug("++++++++ PREFIX :")
-        logger.debug(session.credentials.delta_athena_prefix)
         if {session.credentials.delta_athena_prefix} is not None:
             try:
                 cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
@@ -507,6 +505,7 @@ PARTITIONED BY ({part_list})
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client, cursor = self.get_connection()
+        logger.debug("++++++++++++++++ hudi merge table called")
         isTableExists = False
         if self.check_relation_exists(target_relation):
             isTableExists = True
