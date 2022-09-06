@@ -55,6 +55,9 @@
 
   {% if is_incremental == 'True' %}
     {{ glue__drop_view(tmp_relation) }}
+    {% if file_format == 'delta' %}
+        {{ adapter.delta_update_manifest(target_relation, custom_location) }}
+    {% endif %}
   {% endif %}
 
   {{ return({'relations': [target_relation]}) }}

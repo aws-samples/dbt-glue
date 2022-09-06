@@ -401,6 +401,31 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             logger.error(e)
 
     @available
+    def delta_update_manifest(self, target_relation, custom_location):
+        session, client, cursor = self.get_connection()
+        if custom_location == "empty":
+            location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
+        else:
+            location = custom_location
+
+        if {session.credentials.delta_athena_prefix} is not None:
+            update_manifest_code = f'''
+            custom_glue_code_for_dbt_adapter
+            from delta.tables import DeltaTable
+            deltaTable = DeltaTable.forPath(spark, "{location}")
+            deltaTable.generate("symlink_format_manifest")
+            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+            SqlWrapper2.execute("""select 1""")
+            '''
+
+            try:
+                cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
+            except Exception as e:
+                logger.error(e)
+
+
+
+    @available
     def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client, cursor = self.get_connection()
         logger.debug(request)
@@ -505,7 +530,6 @@ PARTITIONED BY ({part_list})
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client, cursor = self.get_connection()
-        logger.debug("++++++++++++++++ hudi merge table called")
         isTableExists = False
         if self.check_relation_exists(target_relation):
             isTableExists = True
@@ -520,7 +544,7 @@ spark = SparkSession.builder \
 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
 .getOrCreate()
 inputDf = spark.sql("""{request}""")
-outputDf = inputDf.withColumn("update_hudi_ts",current_timestamp())
+outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
 if outputDf.count() > 0:
     if {partition_key} is not None:
         outputDf = outputDf.withColumn(partitionKey, concat(lit(partitionKey + '='), col(partitionKey)))
