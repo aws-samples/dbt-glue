@@ -19,8 +19,9 @@
 
 {% macro glue__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
-    {%- if relation.type is not none %}
-        drop {{ relation.type }} if exists {{ relation }}
+  {% set rel_type = adapter.get_table_type(relation)  %}
+    {%- if rel_type is not none %}
+        drop {{ rel_type }} if exists {{ relation }}
     {%- else -%}
         drop table if exists {{ relation }}
     {%- endif %}

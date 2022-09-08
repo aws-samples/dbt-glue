@@ -12,40 +12,50 @@ from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCo
 from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
 
 
-class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
-    pass
+#class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
+    # all tests within this test has the same schema
+#    @pytest.fixture(scope="class")
+#    def unique_schema(request, prefix) -> str:
+#        return "dbt_functional_test_01"
+
+#    pass
 
 
-class TestSingularTestsGlue(BaseSingularTests):
-    pass
+#class TestSingularTestsGlue(BaseSingularTests):
+#    pass
 
 # To test
 #class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
 #    pass
 
 
-class TestEmptyGlue(BaseEmpty):
-    pass
+#class TestEmptyGlue(BaseEmpty):
+#    pass
 
 
-class TestEphemeralGlue(BaseEphemeral):
-    pass
+#class TestEphemeralGlue(BaseEphemeral):
+    # all tests within this test has the same schema
+#    @pytest.fixture(scope="class")
+#    def unique_schema(request, prefix) -> str:
+#        return "dbt_functional_test_01"
+
+#    pass
 
 
 class TestIncrementalGlue(BaseIncremental):
     pass
 
 
-class TestGenericTestsGlue(BaseGenericTests):
-    pass
+#class TestGenericTestsGlue(BaseGenericTests):
+#    pass
 
 
-class TestDocsGenerate(BaseDocsGenerate):
-    pass
+#class TestDocsGenerate(BaseDocsGenerate):
+#    pass
 
 
-class TestDocsGenReferences(BaseDocsGenReferences):
-    pass
+#class TestDocsGenReferences(BaseDocsGenReferences):
+#    pass
 
 
 # To Dev
