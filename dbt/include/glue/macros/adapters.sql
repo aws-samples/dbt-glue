@@ -39,12 +39,21 @@
     {{ sql }}
 {% endmacro %}
 
+{% macro glue__file_format_clause() %}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- if file_format is not none %}
+    using {{ file_format }}
+  {%- else -%}
+    using PARQUET
+  {%- endif %}
+{%- endmacro -%}
+
 {% macro glue__create_table_as(temporary, relation, sql) -%}
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
     create table {{ relation }}
-    {{ file_format_clause() }}
+    {{ glue__file_format_clause() }}
     {{ partition_cols(label="partitioned by") }}
     {{ clustered_cols(label="clustered by") }}
     {{ glue__location_clause(relation) }}
@@ -52,6 +61,14 @@
     as
       {{ sql }}
   {%- endif %}
+{%- endmacro -%}
+
+{% macro glue__create_tmp_table_as(relation, sql) -%}
+  {% call statement("create_tmp_table_as", fetch_result=false, auto_begin=false) %}
+    create table {{ relation }}
+    as
+      {{ sql }}
+  {% endcall %}
 {%- endmacro -%}
 
 {% macro glue__snapshot_get_time() -%}

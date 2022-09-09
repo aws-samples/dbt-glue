@@ -43,7 +43,7 @@
             {% set build_sql = create_table_as(False, target_relation, sql) %}
         {% endif %}
       {% else %}
-        {{ glue__create_view(tmp_relation, sql) }}
+        {{ glue__create_tmp_table_as(tmp_relation, sql) }}
         {% set is_incremental = 'True' %}
         {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
       {% endif %}
@@ -54,7 +54,7 @@
   {%- endcall -%}
 
   {% if is_incremental == 'True' %}
-    {{ glue__drop_view(tmp_relation) }}
+    {{ glue__drop_relation(tmp_relation) }}
     {% if file_format == 'delta' %}
         {{ adapter.delta_update_manifest(target_relation, custom_location) }}
     {% endif %}
