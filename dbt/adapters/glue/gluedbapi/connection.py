@@ -49,7 +49,8 @@ class GlueConnection:
         logger.debug("GlueConnection _start_session called")
 
         args = {
-            "--enable-glue-datacatalog": "true"
+            "--enable-glue-datacatalog": "true",
+            "--glue_kernel_version": "0.30"
         }
 
         if (self.credentials.extra_jars is not None):
@@ -58,12 +59,15 @@ class GlueConnection:
         if (self.credentials.conf is not None):
             args["--conf"] = f"{self.credentials.conf}"
 
+        if (self.credentials.extra_py_files is not None):
+            args["--extra-py-files"] = f"{self.credentials.extra_py_files}"
+
         additional_args = {}
         additional_args["NumberOfWorkers"] = self.credentials.workers
         additional_args["WorkerType"] = self.credentials.worker_type
         additional_args["IdleTimeout"] = self.credentials.idle_timeout
         additional_args["Timeout"] = self.credentials.query_timeout_in_seconds
-
+        additional_args["RequestOrigin"] = 'dbt-glue'
         
         if (self.credentials.glue_version is not None):
             additional_args["GlueVersion"] = f"{self.credentials.glue_version}"

@@ -1,4 +1,5 @@
 import io
+import re
 import uuid
 import boto3
 from typing import List
@@ -20,6 +21,7 @@ from dbt.utils import executor
 from dbt.events import AdapterLogger
 
 logger = AdapterLogger("Glue")
+
 
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
@@ -105,7 +107,7 @@ class GlueAdapter(SQLAdapter):
     def check_schema_exists(self, database: str, schema: str) -> bool:
         try:
             list = self.list_schemas(schema)
-            if 'schema' in list:
+            if schema in list:
                 return True
             else:
                 return False
@@ -398,6 +400,107 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
         except Exception as e:
             logger.error(e)
 
+    @available
+    def delta_update_manifest(self, target_relation, custom_location):
+        session, client, cursor = self.get_connection()
+        if custom_location == "empty":
+            location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
+        else:
+            location = custom_location
+
+        if {session.credentials.delta_athena_prefix} is not None:
+            update_manifest_code = f'''
+            custom_glue_code_for_dbt_adapter
+            from delta.tables import DeltaTable
+            deltaTable = DeltaTable.forPath(spark, "{location}")
+            deltaTable.generate("symlink_format_manifest")
+            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+            SqlWrapper2.execute("""select 1""")
+            '''
+
+            try:
+                cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
+            except Exception as e:
+                logger.error(e)
+
+
+
+    @available
+    def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
+        session, client, cursor = self.get_connection()
+        logger.debug(request)
+
+        table_name = f'{target_relation.schema}.{target_relation.name}'
+        if custom_location == "empty":
+            location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
+        else:
+            location = custom_location
+
+        create_table_query = f"""
+CREATE TABLE {table_name}
+USING delta
+LOCATION '{location}'
+        """
+
+        write_data_header = f'''
+custom_glue_code_for_dbt_adapter
+spark.sql("""
+{request}
+""").write.format("delta").mode("overwrite")'''
+
+        write_data_footer = f'''.save("{location}")
+SqlWrapper2.execute("""select 1""")
+'''
+
+        create_athena_table_header = f'''
+custom_glue_code_for_dbt_adapter
+from delta.tables import DeltaTable
+deltaTable = DeltaTable.forPath(spark, "{location}")
+deltaTable.generate("symlink_format_manifest")
+schema = deltaTable.toDF().schema
+columns = (','.join([field.simpleString() for field in schema])).replace(':', ' ')
+ddl = """CREATE EXTERNAL TABLE {target_relation.schema}.headertoberepalced_{target_relation.name} (""" + columns + """) 
+
+                '''
+
+        create_athena_table_footer = f'''
+ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+LOCATION '{location}/_symlink_format_manifest/'"""
+spark.sql(ddl)
+spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+SqlWrapper2.execute("""select 1""")
+                        '''
+        if partition_key is not None:
+            part_list = (', '.join([field for field in partition_key]))
+            write_data_partition = f'''.partitionBy("{part_list}")'''
+            create_athena_table_partition = f'''
+PARTITIONED BY ({part_list})
+            '''
+            write_data_code = write_data_header + write_data_partition + write_data_footer
+            create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer
+        else:
+            write_data_code = write_data_header + write_data_footer
+            create_athena_table = create_athena_table_header + create_athena_table_footer
+
+
+
+        try:
+            cursor.execute(write_data_code)
+        except Exception as e:
+            logger.error(e)
+
+        try:
+            cursor.execute(create_table_query)
+        except Exception as e:
+            logger.error(e)
+
+        if {session.credentials.delta_athena_prefix} is not None:
+            try:
+                cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
+            except Exception as e:
+                logger.error(e)
 
     @available
     def get_table_type(self, relation):
@@ -424,7 +527,6 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
         else:
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
 
-
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client, cursor = self.get_connection()
@@ -442,7 +544,7 @@ spark = SparkSession.builder \
 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
 .getOrCreate()
 inputDf = spark.sql("""{request}""")
-outputDf = inputDf.withColumn("update_hudi_ts",current_timestamp())
+outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
 if outputDf.count() > 0:
     if {partition_key} is not None:
         outputDf = outputDf.withColumn(partitionKey, concat(lit(partitionKey + '='), col(partitionKey)))
