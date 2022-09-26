@@ -123,3 +123,7 @@
     {{ sql }}
   {% endcall %}
 {% endmacro %}
+
+{% macro spark__type_string() -%}
+    STRING
+{%- endmacro %}
