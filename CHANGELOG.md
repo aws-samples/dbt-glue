@@ -7,3 +7,4 @@
   - Updated get_relation method to return relation as dict instead of list. [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/52)
   - Added Conf param for Glue to add custom spark configuration options.
   - Updated glue.sql.sources.partitionOverwriteMode to spark.sql.sources.partitionOverwriteMode to work partition overwrite properly.
+- Override default types for STRING from TEXT to STRING
