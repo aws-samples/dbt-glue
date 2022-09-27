@@ -21,7 +21,8 @@ class GlueCredentials(Credentials):
     conf: Optional[str] = None
     extra_py_files: Optional[str] = None
     delta_athena_prefix: Optional[str] = None
-    
+    tags: Optional[str] = None
+
     @property
     def type(self):
         return "glue"
@@ -50,5 +51,6 @@ class GlueCredentials(Credentials):
             'connections',
             'conf',
             'extra_py_files',
-            'delta_athena_prefix'
+            'delta_athena_prefix',
+            'tags'
         ]

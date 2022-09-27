@@ -17,7 +17,6 @@ ipdb
 pytest-xdist
 pytest-dotenv
 pytest-csv
-pytest
 flaky
 
 dbt-tests-adapter==1.2.1
