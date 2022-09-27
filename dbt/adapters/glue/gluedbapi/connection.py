@@ -78,6 +78,12 @@ class GlueConnection:
         if (self.credentials.connections is not None):
             additional_args["Connections"] = {"Connections": list(set(self.credentials.connections.split(',')))}
 
+        if (self.credentials.tags is not None):
+            tags_dictionary = {}
+            for i in self.credentials.tags.split(","):
+                tags_dictionary[i.split("=")[0].strip('\'').replace("\"", "")] = i.split("=")[1].strip('"\'')
+            additional_args["Tags"] = tags_dictionary
+
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
         session_prefix = self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
