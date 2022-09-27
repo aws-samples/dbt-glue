@@ -39,6 +39,8 @@ class TestEphemeralGlue(BaseEphemeral):
 
     pass
 
+class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
+    pass
 
 class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope="class")
@@ -59,9 +61,6 @@ class TestGenericTestsGlue(BaseGenericTests):
     pass
 
 # To test
-#class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
-#    pass
-
 #class TestDocsGenerate(BaseDocsGenerate):
 #    pass
 
