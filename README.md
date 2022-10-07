@@ -187,7 +187,7 @@ $ pip3 install —upgrade boto3
 Install the package:
 
 ```bash
-$ pip install dbt-glue
+$ pip3 install dbt-glue
 ```
 
 ### Example config
@@ -518,12 +518,12 @@ use the `schema` config and `generate_schema_name` macro _only_.
 To perform a functional test:
 1. Install dev requirements:
 ```bash
-$ pip install -r dev-requirements.txt
+$ pip3 install -r dev-requirements.txt
 ```
 
 2. Install dev locally
 ```bash
-$ python setup.py build && python setup.py install_lib
+$ python3 setup.py build && python3 setup.py install_lib
 ```
 
 3. Export variables
