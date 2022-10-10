@@ -538,10 +538,12 @@ PARTITIONED BY ({part_list})
 
         if partition_key:
             partition_list = ','.join(partition_key)
+            hudi_partitionning = f''' 'hoodie.datasource.write.partitionpath.field': '{partition_list}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_list}','''
+        else:
+            hudi_partitionning = ''
+
 
         begin_of_hudi_setup = f'''combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
-
-        hudi_partitionning = f''' 'hoodie.datasource.write.partitionpath.field': '{partition_list}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_list}','''
 
         hudi_no_partition = f''' 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','''
 

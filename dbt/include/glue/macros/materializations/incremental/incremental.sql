@@ -18,6 +18,10 @@
   {% set tmp_relation = make_temp_relation(target_relation, '_tmp') %}
   {% set is_incremental = 'False' %}
 
+  {% call statement() %}
+    set spark.sql.autoBroadcastJoinThreshold=-1
+  {% endcall %}
+
   {% if file_format == 'hudi' %}
         {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location) }}
         {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}

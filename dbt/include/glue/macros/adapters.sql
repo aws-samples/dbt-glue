@@ -65,7 +65,9 @@
 
 {% macro glue__create_tmp_table_as(relation, sql) -%}
   {% call statement("create_tmp_table_as", fetch_result=false, auto_begin=false) %}
-    create table {{ relation }}
+    DROP TABLE IF EXISTS {{ relation }}
+    dbt_next_query
+    create or replace table {{ relation }}
     as
       {{ sql }}
   {% endcall %}

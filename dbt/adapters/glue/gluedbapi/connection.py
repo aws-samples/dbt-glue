@@ -49,8 +49,7 @@ class GlueConnection:
         logger.debug("GlueConnection _start_session called")
 
         args = {
-            "--enable-glue-datacatalog": "true",
-            "--glue_kernel_version": "0.30"
+            "--enable-glue-datacatalog": "true"
         }
 
         if (self.credentials.extra_jars is not None):
