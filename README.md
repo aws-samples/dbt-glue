@@ -187,7 +187,7 @@ $ pip3 install —upgrade boto3
 Install the package:
 
 ```bash
-$ pip install dbt-glue
+$ pip3 install dbt-glue
 ```
 
 ### Example config
@@ -213,17 +213,17 @@ The table below describes all the options.
 |project_name	| The dbt project name. This must be the same as the one configured in the dbt project.	                                                 |yes|
 |type	| The driver to use.	                                                                                                                    |yes|
 |query-comment	| A string to inject as a comment in each query that dbt runs. 	                                                                         |no|
-|role_arn	| The ARN of the interactive session role created as part of the CloudFormation template.	                                               |yes|
+|role_arn	| The ARN of the glue interactive session IAM role.	                                               |yes|
 |region	| The AWS Region were you run the data pipeline.	                                                                                        |yes|
 |workers	| The number of workers of a defined workerType that are allocated when a job runs.	                                                     |yes|
 |worker_type	| The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	                          |yes|
 |schema	| The schema used to organize data stored in Amazon S3.	                                                                                 |yes|
 |database	| The database in Lake Formation. The database stores metadata tables in the Data Catalog.	                                              |yes|
-|session_provisioning_timeout_in_seconds | The timeout in seconds forT AWS Glue interactive session provisioning.	                                                                |yes|
+|session_provisioning_timeout_in_seconds | The timeout in seconds for AWS Glue interactive session provisioning.	                                                                |yes|
 |location	| The Amazon S3 location of your target data.	                                                                                           |yes|
-|query_timeout_in_seconds	| The timeout in seconds for	a signle query. Default is 300                                                                              |no|
-|idle_timeout	| The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time.)	                  |no|
-|glue_version	| The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 2.0.	         |no|
+|query_timeout_in_seconds	| The timeout in seconds for a signle query. Default is 300                                                                              |no|
+|idle_timeout	| The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time)	                  |no|
+|glue_version	| The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 3.0.	         |no|
 |security_configuration	| The security configuration to use with this session.	                                                                                  |no|
 |connections	| A comma-separated list of connections to use in the session.	                                                                          |no|
 |conf	| Specific configuration used at the startup of the Glue Interactive Session (arg --conf)	                                               |no|
@@ -247,7 +247,7 @@ When materializing a model as `table`, you may include several optional configs 
 
 ## Incremental models
 
-dbt seeks to offer useful, intuitive modeling abstractions by means of its built-in configurations and materializations. 
+dbt seeks to offer useful and intuitive modeling abstractions by means of its built-in configurations and materializations.
 
 For that reason, the dbt-glue plugin leans heavily on the [`incremental_strategy` config](configuring-incremental-models#about-incremental_strategy). This config tells the incremental materialization how to build models in runs beyond their first. It can be set to one of three values:
  - **`append`** (default): Insert new records without updating or overwriting any existing data.
@@ -518,12 +518,12 @@ use the `schema` config and `generate_schema_name` macro _only_.
 To perform a functional test:
 1. Install dev requirements:
 ```bash
-$ pip install -r dev-requirements.txt
+$ pip3 install -r dev-requirements.txt
 ```
 
 2. Install dev locally
 ```bash
-$ python setup.py build && python setup.py install_lib
+$ python3 setup.py build && python3 setup.py install_lib
 ```
 
 3. Export variables
