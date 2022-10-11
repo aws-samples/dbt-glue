@@ -1,6 +1,10 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
-## v0.2.11 (unreleased)
+## v0.2.12 (unreleased)
+
+- Added a function to add an end space in case of single quoute at the end of a query. Ex: WHERE column='foo' [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/87)
+
+## v0.2.11
 
 - [#80](https://github.com/aws-samples/dbt-glue/pull/80): Fix default glue version on documentation
   - Changing default glue version and fixing a typo. [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/80)
