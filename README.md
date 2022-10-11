@@ -370,10 +370,20 @@ Specifying `insert_overwrite` as the incremental strategy is optional, since it'
 
 The simpliest way to work with theses advanced features is to install theses using [Glue connectors](https://docs.aws.amazon.com/glue/latest/ug/connectors-chapter.html).
 
-When using a connector be sure that you have the IAM role has these policies
+When using a connector be sure that your IAM role has these policies:
 ```
-"glue:GetConnection",
-"glue:GetConnections"
+{
+    "Sid": "access_to_connections",
+    "Action": [
+        "glue:GetConnection",
+        "glue:GetConnections"
+    ],
+    "Resource": [
+        "arn:aws:glue:<region>:<AWS Account>:catalog",
+        "arn:aws:glue:<region>:<AWS Account>:connection/*"
+    ],
+    "Effect": "Allow"
+}
 ```
 and that the managed policy `AmazonEC2ContainerRegistryReadOnly` is attached. 
 Be sure that you follow the getting started instructions [here](https://docs.aws.amazon.com/glue/latest/ug/setting-up.html#getting-started-min-privs-connectors).
