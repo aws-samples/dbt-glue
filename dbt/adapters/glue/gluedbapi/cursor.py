@@ -58,6 +58,16 @@ class GlueCursor:
             return sql[end + len(comment_end):]
         return sql
 
+    @classmethod
+    def add_end_space_if_single_quote(cls, sql: str):
+        """ If query finishes with single quote ('),
+        the execution of the query will fail. Ex: WHERE column='foo'
+        """
+        logger.debug("GlueCursor add_end_space_if_single_quote called")
+        if sql.endswith("'"):
+            return sql + " "
+        return sql
+
     def execute(self, sql, bindings=None):
         logger.debug("GlueCursor execute called")
         if self.closed:
@@ -65,6 +75,7 @@ class GlueCursor:
         if self._is_running:
             raise dbterrors.InternalException("CursorAlreadyRunning")
         self.sql = GlueCursor.remove_comments_header(sql)
+        self.sql = GlueCursor.add_end_space_if_single_quote(sql)
 
         self._pre()
 
