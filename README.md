@@ -79,6 +79,7 @@ Please to update variables between **`<>`**, here are explanations of these argu
                 "glue:BatchDeleteTableVersion",
                 "glue:BatchDeleteTable",
                 "glue:DeletePartition",
+                "glue:GetUserDefinedFunctions",
                 "lakeformation:ListResources",
                 "lakeformation:BatchGrantPermissions",
                 "lakeformation:ListPermissions"
@@ -368,6 +369,15 @@ Specifying `insert_overwrite` as the incremental strategy is optional, since it'
 - Lake Formation Governed Tables : On going
 
 The simpliest way to work with theses advanced features is to install theses using [Glue connectors](https://docs.aws.amazon.com/glue/latest/ug/connectors-chapter.html).
+
+When using a connector be sure that you have the IAM role has these policies
+```
+"glue:GetConnection",
+"glue:GetConnections"
+```
+and that the managed policy `AmazonEC2ContainerRegistryReadOnly` is attached. 
+Be sure that you follow the getting started instructions [here](https://docs.aws.amazon.com/glue/latest/ug/setting-up.html#getting-started-min-privs-connectors).
+
 
 This [blog post](https://aws.amazon.com/blogs/big-data/part-1-integrate-apache-hudi-delta-lake-apache-iceberg-datasets-at-scale-aws-glue-studio-notebook/) also explain how to setup and works with Glue Connectors
 
