@@ -569,7 +569,7 @@ if outputDf.count() > 0:
         {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
         {self.hudi_write(write_mode, session, target_relation, custom_location)}
     else:
-        {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
+        {begin_of_hudi_setup} {hudi_no_partition} {hudi_upsert}
         {self.hudi_write(write_mode, session, target_relation, custom_location)}
         '''
         else:
