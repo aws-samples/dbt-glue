@@ -538,14 +538,14 @@ PARTITIONED BY ({part_list})
 
         if partition_key:
             partition_list = ','.join(partition_key)
-            hudi_partitionning = f''' 'hoodie.datasource.write.partitionpath.field': '{partition_list}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_list}','hoodie.cleaner.commits.retained': 10,'''
+            hudi_partitionning = f''' 'hoodie.datasource.write.partitionpath.field': '{partition_list}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_list}','hoodie.cleaner.commits.retained': 10,'hoodie.index.type': 'GLOBAL_BLOOM', 'hoodie.bloom.index.update.partition.path': 'true','''
         else:
             hudi_partitionning = ''
 
 
-        begin_of_hudi_setup = f'''combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','hoodie.index.type': 'GLOBAL_BLOOM', 'hoodie.bloom.index.update.partition.path': 'true','''
+        begin_of_hudi_setup = f'''combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
 
-        hudi_no_partition = f''' 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','''
+        hudi_no_partition = f''' 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','hoodie.index.type': 'GLOBAL_BLOOM', 'hoodie.bloom.index.update.partition.path': 'true','''
 
         hudi_upsert = f''' 'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS',}}'''
 
