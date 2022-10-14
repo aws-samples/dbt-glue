@@ -547,7 +547,7 @@ PARTITIONED BY ({part_list})
 
         hudi_no_partition = f''' 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','''
 
-        hudi_upsert = f''' 'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10}}'''
+        hudi_upsert = f''' 'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10, 'hoodie.index.type": 'GLOBAL_BLOOM', 'hoodie.bloom.index.update.partition.path': 'true'}}'''
 
         hudi_insert = f''' 'hoodie.bulkinsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'bulk_insert'}}'''
 
