@@ -1,8 +1,13 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
-## v0.2.12 (unreleased)
+## v0.2.13 (unreleased)
 
-- Added a function to add an end space in case of single quoute at the end of a query. Ex: WHERE column='foo' [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/87)
+- Fix duplicates when using partitions changes with Hudi/Merge incremental materialization  [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/90)
+
+
+## v0.2.12
+
+- Added a function to add an end space in case of single quote at the end of a query. Ex: WHERE column='foo' [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/87)
 
 ## v0.2.11
 
