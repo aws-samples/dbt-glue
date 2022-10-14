@@ -67,7 +67,7 @@
   {% call statement("create_tmp_table_as", fetch_result=false, auto_begin=false) %}
     DROP TABLE IF EXISTS {{ relation }}
     dbt_next_query
-    create or replace table {{ relation }}
+    create table {{ relation }}
     as
       {{ sql }}
   {% endcall %}
@@ -109,7 +109,7 @@
 {% macro glue__create_view_as(relation, sql) -%}
     DROP VIEW IF EXISTS {{ relation }}
     dbt_next_query
-    create or replace view {{ relation }}
+    create view {{ relation }}
         as
     {{ sql }}
 {% endmacro %}
