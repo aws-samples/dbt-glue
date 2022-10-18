@@ -10,14 +10,14 @@ dbt is the T in ELT. Organize, cleanse, denormalize, filter, rename, and pre-agg
 The `dbt-glue` package implements the [dbt adapter](https://docs.getdbt.com/docs/contributing/building-a-new-adapter) protocol for AWS Glue's Spark engine. 
 It supports running dbt against Spark, through the new Glue Interactive Sessions API.
 
-
+To learn how to deploy a data pipeline in your modern data platform using the `dbt-glue` adapter, please read the following blog post: [Build your data pipeline in your AWS modern data platform using AWS Lake Formation, AWS Glue, and dbt Core](https://aws.amazon.com/blogs/big-data/build-your-data-pipeline-in-your-aws-modern-data-platform-using-aws-lake-formation-aws-glue-and-dbt-core/)
 
 ## Installation
 
 The package can be installed from PyPI with:
 
 ```bash
-$ pip install dbt-glue
+$ pip3 install dbt-glue
 ```
 For further (and more likely up-to-date) info, see the [README](https://github.com/aws-samples/dbt-glue#readme)
 
@@ -40,9 +40,9 @@ Please to update variables between **`<>`**, here are explanations of these argu
 
 |Args	|Description	| 
 |---|---|
-|region|The region where you're Glue database is stored |
+|region|The region where your Glue database is stored |
 |AWS Account|The AWS account where you run your pipeline|
-|dbt output database|The database updated by dbt (this is the database configured in the profile.yml of your dbt environment)|
+|dbt output database|The database updated by dbt (this is the schema configured in the profile.yml of your dbt environment)|
 |dbt source database|All databases used as source|
 |dbt output bucket|The bucket name where the data will be generate dbt (the location configured in the profile.yml of your dbt environment)|
 |dbt source bucket|The bucket name of source databases (if they are not managed by Lake Formation)|
@@ -202,7 +202,6 @@ workers: 2
 worker_type: G.1X
 idle_timeout: 10
 schema: "dbt_demo"
-database: "dbt_demo"
 session_provisioning_timeout_in_seconds: 120
 location: "s3://dbt_demo_bucket/dbt_demo_data"
 ```
@@ -218,8 +217,7 @@ The table below describes all the options.
 |region	| The AWS Region were you run the data pipeline.	                                                                                        |yes|
 |workers	| The number of workers of a defined workerType that are allocated when a job runs.	                                                     |yes|
 |worker_type	| The type of predefined worker that is allocated when a job runs. Accepts a value of Standard, G.1X, or G.2X.	                          |yes|
-|schema	| The schema used to organize data stored in Amazon S3.	                                                                                 |yes|
-|database	| The database in Lake Formation. The database stores metadata tables in the Data Catalog.	                                              |yes|
+|schema	| The schema used to organize data stored in Amazon S3.Additionally, is the database in AWS Lake Formation that stores metadata tables in the Data Catalog.	                                              |yes|
 |session_provisioning_timeout_in_seconds | The timeout in seconds for AWS Glue interactive session provisioning.	                                                                |yes|
 |location	| The Amazon S3 location of your target data.	                                                                                           |yes|
 |query_timeout_in_seconds	| The timeout in seconds for a signle query. Default is 300                                                                              |no|
@@ -244,7 +242,7 @@ When materializing a model as `table`, you may include several optional configs 
 | partition_by  | Partition the created table by the specified columns. A directory is created for each partition. | Optional                | `date_day`              |
 | clustered_by  | Each partition in the created table will be split into a fixed number of buckets by the specified columns. | Optional               | `country_code`              |
 | buckets  | The number of buckets to create while clustering | Required if `clustered_by` is specified                | `8`              |
-| custom_location  | By default, the adapter will store your data in the following path: `location path`/`database`/`table`. If you don't want to follow that default behaviour, you can use this parameter to set your own custom location on S3 | No | `s3://mycustombucket/mycustompath`              |
+| custom_location  | By default, the adapter will store your data in the following path: `location path`/`schema`/`table`. If you don't want to follow that default behaviour, you can use this parameter to set your own custom location on S3 | No | `s3://mycustombucket/mycustompath`              |
 
 ## Incremental models
 
@@ -414,7 +412,6 @@ test_project:
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
-      database: "dbt_test_project"
       session_provisionning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       connections: name_of_your_hudi_connector
@@ -476,7 +473,6 @@ test_project:
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
-      database: "dbt_test_project"
       session_provisionning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       connections: name_of_your_delta_connector
@@ -532,6 +528,7 @@ use or set `database` as a node config or in the target profile when running dbt
 
 If you want to control the schema/database in which dbt will materialize models,
 use the `schema` config and `generate_schema_name` macro _only_.
+For more information, check the dbt documentation about [custom schemas](https://docs.getdbt.com/docs/build/custom-schemas).
 
 ## Tests
 
