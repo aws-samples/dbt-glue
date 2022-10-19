@@ -190,12 +190,12 @@ class GlueCursor:
         return item
 
     def description(self):
-        logger.debug("GlueCursor get_columns_in_relation called")
+        logger.debug("GlueCursor description called")
         if self.response:
             return [[c["name"], c["type"]] for c in self.response.get("description", [])]
 
     def get_response(self) -> AdapterResponse:
-        logger.debug("GlueCursor get_columns_in_relation called")
+        logger.debug("GlueCursor get_response called")
         if self.statement:
             r = self.statement._get_statement()
             return AdapterResponse(
@@ -205,7 +205,7 @@ class GlueCursor:
             )
 
     def close(self):
-        logger.debug("GlueCursor get_columns_in_relation called")
+        logger.debug("GlueCursor close called")
         if self._closed:
             raise Exception("CursorAlreadyClosed")
         self._closed = True
