@@ -8,7 +8,6 @@ default:
       workers: 5
       worker_type: G.1X
       schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
-      database: dbt
       session_provisionning_timeout_in_seconds: 20
 
     prod:
@@ -18,7 +17,6 @@ default:
       workers: 5
       worker_type: G.1X
       schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
-      database: dbt
       session_provisionning_timeout_in_seconds: 20
 
   target: dev

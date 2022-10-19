@@ -89,7 +89,7 @@
 {% endmacro %}
 
 {% macro glue__generate_database_name(custom_database_name=none, node=none) -%}
-  {%- set default_database = target.database -%}
+  {%- set default_database = target.schema -%}
   {{ default_database }}
 {%- endmacro %}
 
