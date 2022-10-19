@@ -1,8 +1,14 @@
 from contextlib import contextmanager
 import agate
 from typing import Any, List
+import atexit
+import threading
 from dbt.adapters.sql import SQLConnectionManager
-from dbt.contracts.connection import AdapterResponse
+from dbt.contracts.connection import (
+    Connection,
+    ConnectionState,
+    AdapterResponse
+)
 from dbt.exceptions import (
     FailedToConnectException,
     RuntimeException
@@ -13,37 +19,60 @@ from dbt.events import AdapterLogger
 
 logger = AdapterLogger("Glue")
 
-
-class GlueSessionState:
-    OPEN = "open"
-    FAIL = "fail"
-
 class ReturnCode:
     OK = "OK"
 
+
 class GlueConnectionManager(SQLConnectionManager):
     TYPE = "glue"
+    LOCK = threading.RLock()
+    CONN = None
+    CONN_COUNT = 0
 
     @classmethod
     def open(cls, connection):
-        if connection.state == "open":
+        if connection.state == ConnectionState.OPEN:
             logger.debug("Connection is already open, skipping open.")
             return connection
 
         credentials = connection.credentials
-        try:
-            cls._connection: GlueConnection = GlueConnection(credentials=credentials)
-            cls._connection.connect()
-            connection.state = GlueSessionState.OPEN
-            connection.handle = cls._connection
+        with cls.LOCK:
+            try:
+
+                if not cls.CONN:
+                    cls.CONN: GlueConnection = GlueConnection(credentials=credentials)
+                    cls.CONN.connect()
+
+                connection.handle = cls.CONN
+                connection.state = ConnectionState.OPEN
+                cls.CONN_COUNT += 1
+                
+            except Exception as e:
+                logger.error(
+                    f"Got an error when attempting to open a GlueSession : {e}"
+                )
+                connection.handle = None
+                connection.state = ConnectionState.FAIL
+                raise FailedToConnectException(f"Got an error when attempting to open a GlueSessions: {e}")
+            
             return connection
-        except Exception as e:
-            logger.error(
-                f"Got an error when attempting to open a GlueSession : {e}"
-            )
-            connection.handle = None
-            connection.state = GlueSessionState.FAIL
-            raise FailedToConnectException(f"Got an error when attempting to open a GlueSessions: {e}")
+
+    @classmethod
+    def close(cls, connection: Connection) -> Connection:
+        # if the connection is in closed or init, there's nothing to do
+        if connection.state in {ConnectionState.CLOSED, ConnectionState.INIT}:
+            return connection
+
+        connection = super(GlueConnectionManager, cls).close(connection)
+
+        if connection.state == ConnectionState.CLOSED:
+            with cls.LOCK:
+                cls.CONN_COUNT -= 1
+                if cls.CONN_COUNT == 0:
+                    cls.CONN.close()
+                    cls.CONN = None
+
+        return connection
 
     def cancel(self, connection):
         """ cancel ongoing queries """
@@ -107,3 +136,12 @@ class GlueConnectionManager(SQLConnectionManager):
             self._connection.close_session()
         except:
             logger.debug("connection not yet initialized")
+
+    @classmethod
+    def close_all_connections(cls):
+        with cls.LOCK:
+            if cls.CONN is not None:
+                cls.CONN.close()
+                cls.CONN = None
+
+atexit.register(GlueConnectionManager.close_all_connections)
