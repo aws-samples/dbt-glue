@@ -473,7 +473,7 @@ spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target
 SqlWrapper2.execute("""select 1""")
                         '''
         if partition_key is not None:
-            part_list = (', '.join([field for field in partition_key]))
+            part_list = (', '.join(['`{}`'.format(field) for field in partition_key]))
             write_data_partition = f'''.partitionBy("{part_list}")'''
             create_athena_table_partition = f'''
 PARTITIONED BY ({part_list})
