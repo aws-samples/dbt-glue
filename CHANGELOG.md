@@ -1,6 +1,21 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
-## v0.2.1 (unreleased)
+## v0.2.14 (unreleased)
+
+- Fix duplicates when using partitions changes with Hudi/Merge incremental materialization  [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/90)
+
+
+## v0.2.12
+
+- Added a function to add an end space in case of single quote at the end of a query. Ex: WHERE column='foo' [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/87)
+
+## v0.2.11
+
+- [#80](https://github.com/aws-samples/dbt-glue/pull/80): Fix default glue version on documentation
+  - Changing default glue version and fixing a typo. [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/80)
+  - Changing on Readme file the pip and python commands by python3 and pip3. This resolves potential issues when python2 is installed too.
+
+## v0.2.1
 
 - [#45](https://github.com/aws-samples/dbt-glue/pull/45): Modified Connection argument for Glue Session and table relation information for incremental mode
   - Modified Connection argument for Glue Session

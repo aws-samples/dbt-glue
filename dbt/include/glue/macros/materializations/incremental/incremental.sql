@@ -18,9 +18,13 @@
   {% set tmp_relation = make_temp_relation(target_relation, '_tmp') %}
   {% set is_incremental = 'False' %}
 
+  {% call statement() %}
+    set spark.sql.autoBroadcastJoinThreshold=-1
+  {% endcall %}
+
   {% if file_format == 'hudi' %}
         {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location) }}
-        {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
+        {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
   {% else %}
       {% if strategy == 'insert_overwrite' and partition_by %}
         {% call statement() %}
@@ -30,7 +34,7 @@
       {% if existing_relation_type is none %}
         {% if file_format == 'delta' %}
             {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
-            {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
+            {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 " %}
         {% else %}
             {% set build_sql = create_table_as(False, target_relation, sql) %}
         {% endif %}
@@ -38,7 +42,7 @@
         {{ drop_relation(target_relation) }}
         {% if file_format == 'delta' %}
             {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
-            {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
+            {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 " %}
         {% else %}
             {% set build_sql = create_table_as(False, target_relation, sql) %}
         {% endif %}
