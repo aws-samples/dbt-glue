@@ -1,8 +1,8 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
-## v1.3.0 
+## v0.3.0 
 
-- Updated dependencies to support dbt-core 1.3.0 and switched to mainline version numbering
+- Updated dependencies to support dbt-core 1.3.0
 
 ## v0.2.14 (unreleased)
 
