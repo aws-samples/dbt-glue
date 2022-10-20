@@ -1,5 +1,9 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v1.3.0 
+
+- Updated dependencies to support dbt-core 1.3.0 and switched to mainline version numbering
+
 ## v0.2.14 (unreleased)
 
 - Fix duplicates when using partitions changes with Hudi/Merge incremental materialization  [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/90)
