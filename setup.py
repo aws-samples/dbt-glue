@@ -28,8 +28,9 @@ with open(os.path.join(this_directory, 'README.md')) as f:
     long_description = f.read()
 
 package_name = "dbt-glue"
-package_version = "0.2.7"
-dbt_version = "1.2.0"
+package_version = "0.2.15"
+dbt_min_version = "1.2.0"
+dbt_max_version = "1.3.2"
 description = """dbt (data build tool) adapter for Aws Glue"""
 setup(
     name=package_name,
@@ -54,8 +55,8 @@ setup(
         ]
     },
     install_requires=[
-        "dbt-core~={}".format(dbt_version),
-        "dbt-spark~={}".format(dbt_version),
+        "dbt-core >={}, <={}".format(dbt_min_version, dbt_max_version),
+        "dbt-spark >={}, <={}".format(dbt_min_version, dbt_max_version),
         "waiter",
         "boto3"
     ],
