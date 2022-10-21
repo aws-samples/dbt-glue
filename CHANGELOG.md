@@ -1,7 +1,12 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v0.3.0 
+
+- Updated dependencies to support dbt-core 1.3.0
+
 ## v0.2.15 (unreleased)
 
+## v0.2.14 (unreleased)
 - Force database parameter must be omitted or have the same value as schema  [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/93)
 
 ## v0.2.14
