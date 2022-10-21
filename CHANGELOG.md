@@ -4,10 +4,14 @@
 
 - Updated dependencies to support dbt-core 1.3.0
 
+## v0.2.15 (unreleased)
+
 ## v0.2.14 (unreleased)
+- Force database parameter must be omitted or have the same value as schema  [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/93)
+
+## v0.2.14
 
 - Fix duplicates when using partitions changes with Hudi/Merge incremental materialization  [Github Issue Link](https://github.com/aws-samples/dbt-glue/issues/90)
-
 
 ## v0.2.12
 
