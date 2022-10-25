@@ -24,6 +24,7 @@ class GlueCredentials(Credentials):
     delta_athena_prefix: Optional[str] = None
     tags: Optional[str] = None
     database: Optional[str] # type: ignore
+    default_arguments: Optional[str] = None
 
     @property
     def type(self):
@@ -71,5 +72,6 @@ class GlueCredentials(Credentials):
             'conf',
             'extra_py_files',
             'delta_athena_prefix',
-            'tags'
+            'tags',
+            'default_arguments'
         ]

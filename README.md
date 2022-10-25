@@ -229,6 +229,7 @@ The table below describes all the options.
 |extra_py_files	| Extra python Libs that can be used by the interactive session.                                                                         |no|
 |delta_athena_prefix	| A prefix used to create Athena compatible tables for Delta tables	(if not specified, then no Athena compatible table will be created)  |no|
 |tags	| The map of key value pairs (tags) belonging to the session. Ex: KeyName1=Value1,KeyName2=Value2  |no|
+|default_arguments	| The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: --enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true  |no|
 
 ## Configs
 
@@ -510,6 +511,74 @@ from events
 group by 1
 ```
 
+## Monitoring your Glue Interactive Session
+Monitoring is an important part of maintaining the reliability, availability,
+and performance of AWS Glue and your other AWS solutions. AWS provides monitoring
+tools that you can use to watch AWS Glue, report when something is wrong,
+and take action automatically when appropriate. AWS Glue provides Spark UI,
+and CloudWatch logs and metrics for monitoring your AWS Glue jobs.
+More information on: [Monitoring AWS Glue Spark jobs](https://docs.aws.amazon.com/glue/latest/dg/monitor-spark.html)
+
+**Usage notes:** Monitoring requires:
+- To add the following IAM policy to your IAM role:
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CloudwatchMetrics",
+            "Effect": "Allow",
+            "Action": "cloudwatch:PutMetricData",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "cloudwatch:namespace": "Glue"
+                }
+            }
+        },
+        {
+            "Sid": "CloudwatchLogs",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "logs:CreateLogStream",
+                "logs:CreateLogGroup",
+                "logs:PutLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:*:*:/aws-glue/*",
+                "arn:aws:s3:::bucket-to-write-sparkui-logs/*"
+            ]
+        }
+    ]
+}
+```
+
+- To add monitoring parameters in your Interactive Session Config (in your profile).
+More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html)
+
+#### Profile config example
+```yaml
+test_project:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      query-comment: my comment
+      role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+      region: eu-west-1
+      glue_version: "3.0"
+      workers: 2
+      worker_type: G.1X
+      schema: "dbt_test_project"
+      session_provisionning_timeout_in_seconds: 120
+      location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      default_arguments: "--enable-metrics=true, --enable-continuous-cloudwatch-log=true, --enable-continuous-log-filter=true, --enable-spark-ui=true, --spark-event-logs-path=s3://bucket-to-write-sparkui-logs/dbt/"
+```
+
+If you want to use the Spark UI, you can launch the Spark history server using a
+AWS CloudFormation template that hosts the server on an EC2 instance,
+or launch locally using Docker. More information on [Launching the Spark history server](https://docs.aws.amazon.com/glue/latest/dg/monitor-spark-ui-history.html#monitor-spark-ui-history-local)
 
 ## Persisting model descriptions
 
