@@ -228,8 +228,8 @@ The table below describes all the options.
 |conf	| Specific configuration used at the startup of the Glue Interactive Session (arg --conf)	                                               |no|
 |extra_py_files	| Extra python Libs that can be used by the interactive session.                                                                         |no|
 |delta_athena_prefix	| A prefix used to create Athena compatible tables for Delta tables	(if not specified, then no Athena compatible table will be created)  |no|
-|tags	| The map of key value pairs (tags) belonging to the session. Ex: KeyName1=Value1,KeyName2=Value2  |no|
-|default_arguments	| The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: --enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true  |no|
+|tags	| The map of key value pairs (tags) belonging to the session. Ex: `KeyName1=Value1,KeyName2=Value2`  |no|
+|default_arguments	| The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: `--enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true`  |no|
 
 ## Configs
 
