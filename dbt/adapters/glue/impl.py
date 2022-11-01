@@ -514,10 +514,14 @@ PARTITIONED BY ({part_list})
             logger.debug(e)
             pass
         try:
-            type = self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
+            _type = self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
+            _specific_type = response.get("Table", {}).get('Parameters', {}).get('table_type', '')
+
+            if _specific_type.lower() == 'iceberg':
+                _type = 'iceberg_table'
             logger.debug("table_name : " + relation.name)
-            logger.debug("table type : " + type)
-            return type
+            logger.debug("table type : " + _type)
+            return _type
         except Exception as e:
             return None
 

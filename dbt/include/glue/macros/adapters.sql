@@ -20,11 +20,14 @@
 {% macro glue__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
   {% set rel_type = adapter.get_table_type(relation)  %}
-    {%- if rel_type is not none %}
+  	{%- if rel_type is not none and rel_type != 'iceberg_table' %}
         drop {{ rel_type }} if exists {{ relation }}
-    {%- else -%}
+    {%- elif rel_type is not none and rel_type == 'iceberg_table' %}
+    	{%- set default_catalog = 'iceberg_catalog' -%}
+        drop table if exists {{ default_catalog }}.{{ relation }}
+  	{%- else -%}
         drop table if exists {{ relation }}
-    {%- endif %}
+  	{%- endif %}
   {%- endcall %}
 {% endmacro %}
 
@@ -49,10 +52,17 @@
 {%- endmacro -%}
 
 {% macro glue__create_table_as(temporary, relation, sql) -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
+    {% if file_format == 'iceberg' -%}
+    {%- set default_catalog = 'iceberg_catalog' -%}
+    create table {{ default_catalog }}.{{ relation }}
+    {%- else -%}
     create table {{ relation }}
+    {%- endif -%}
     {{ glue__file_format_clause() }}
     {{ partition_cols(label="partitioned by") }}
     {{ clustered_cols(label="clustered by") }}
