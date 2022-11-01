@@ -510,6 +510,38 @@ from events
 group by 1
 ```
 
+## Iceberg
+The adaptor support Iceberg as an Open Table Format. In order to work with Iceberg,
+setup an Iceberg connector and then create an Iceberg connection in Glue connections.
+Then use the following `conf` in your profile
+```
+connections: iceberg_connection
+conf: "spark.sql.catalog.iceberg_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.iceberg_catalog.warehouse=s3://your_bucket/prefix --conf spark.sql.catalog.iceberg_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.iceberg_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.sql.sources.partitionOverwriteMode=dynamic --conf spark.sql.iceberg.handle-timestamp-without-timezone=true"
+```
+The `warehouse` conf must be provided, but it's overwritten by the adapter `location` in your profile or `custom_location` in model configuration.
+
+As it is now, due to some dbt internal, the iceberg catalog used internally has a hardcoded name `iceberg_catalog`.
+
+
+### Table materialization
+Using table materialization, as for the other formats, the table is dropped and then recreated.
+An example of config is:
+
+```
+{{ config(
+    materialized='table',
+    file_format='iceberg',
+    partition_by=['status']
+) }}
+```
+
+
+### Table replace materialization
+It's possible to use a `materialized='table_replace'`, in order to avoid destructive behaviors.
+When `table_replace` is used the DDL used under the hood is a `CREATE OR REPLACE`, tha means that
+a new snapshot (or a new version) is added to the table, and old data is still retained.
+
+When using such materialization, consider to `expire_snapshots` time to time, as historical runs are not removed.
 
 ## Persisting model descriptions
 
