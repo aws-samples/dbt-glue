@@ -57,19 +57,19 @@
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
-    {% if file_format == 'iceberg' -%}
+    {% if file_format == 'iceberg' %}
     {%- set default_catalog = 'iceberg_catalog' -%}
-    create table {{ default_catalog }}.{{ relation }}
-    {%- else -%}
-    create table {{ relation }}
-    {%- endif -%}
+    	create table {{ default_catalog }}.{{ relation }}
+    {% else %}
+    	create table {{ relation }}
+    {% endif %}
     {{ glue__file_format_clause() }}
-    {{ partition_cols(label="partitioned by") }}
-    {{ clustered_cols(label="clustered by") }}
-    {{ glue__location_clause(relation) }}
-    {{ comment_clause() }}
-    as
-      {{ sql }}
+	{{ partition_cols(label="partitioned by") }}
+	{{ clustered_cols(label="clustered by") }}
+	{{ glue__location_clause(relation) }}
+	{{ comment_clause() }}
+	as
+	{{ sql }}
   {%- endif %}
 {%- endmacro -%}
 
