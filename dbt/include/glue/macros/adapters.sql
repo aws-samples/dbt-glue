@@ -139,3 +139,8 @@
 {% macro spark__type_string() -%}
     STRING
 {%- endmacro %}
+
+{% macro iceberg_expire_snapshots(relation, timestamp, keep_versions) -%}
+    {%- set default_catalog = 'iceberg_catalog' -%}
+    {% set result = adapter.iceberg_expire_snapshots(default_catalog, relation, timestamp, keep_versions )  %}
+{%- endmacro %}
