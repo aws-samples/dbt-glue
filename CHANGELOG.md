@@ -1,7 +1,9 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
-## v0.3.0 
+## v0.4.0
+- Add support for Iceberg table materializion, and iceberg_table_replace materializion
 
+## v0.3.0
 - Updated dependencies to support dbt-core 1.3.0
 
 ## v0.2.15 (unreleased)

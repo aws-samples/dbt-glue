@@ -67,4 +67,3 @@
   {{ return({'relations': [target_relation]}) }}
 
 {%- endmaterialization %}
-
