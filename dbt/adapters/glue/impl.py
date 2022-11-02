@@ -603,7 +603,8 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
     def iceberg_expire_snapshots(self, catalog, table):
         """
         Helper function to call snapshot expiration.
-        The function check for the latest snapshot and it expire it.
+        The function check for the latest snapshot and it expire all versions before it.
+        If the table has only one snapshot it is retained.
         """
         session, client, cursor = self.get_connection()
         logger.debug(f'expiring snapshots for table {str(table)}')
