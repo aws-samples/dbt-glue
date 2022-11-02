@@ -20,14 +20,14 @@
 {% macro glue__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
   {% set rel_type = adapter.get_table_type(relation)  %}
-  	{%- if rel_type is not none and rel_type != 'iceberg_table' %}
+    {%- if rel_type is not none and rel_type != 'iceberg_table' %}
         drop {{ rel_type }} if exists {{ relation }}
     {%- elif rel_type is not none and rel_type == 'iceberg_table' %}
     	{%- set default_catalog = 'iceberg_catalog' -%}
         drop table if exists {{ default_catalog }}.{{ relation }}
   	{%- else -%}
         drop table if exists {{ relation }}
-  	{%- endif %}
+    {%- endif %}
   {%- endcall %}
 {% endmacro %}
 
