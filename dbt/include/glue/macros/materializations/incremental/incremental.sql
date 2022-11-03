@@ -11,7 +11,8 @@
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set custom_location = config.get('custom_location', default='empty') -%}
 
-  {%- set full_refresh_mode = (flags.FULL_REFRESH == True) -%}
+  {%- set full_refresh_config = config.get('full_refresh', default=False) -%}
+  {%- set full_refresh_mode = (flags.FULL_REFRESH == True or full_refresh_config == True) -%}
 
   {% set target_relation = this %}
   {% set existing_relation_type = adapter.get_table_type(target_relation)  %}
