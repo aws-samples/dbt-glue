@@ -533,7 +533,10 @@ An example of config is:
 {{ config(
     materialized='table',
     file_format='iceberg',
-    partition_by=['status']
+    partition_by=['status'],
+    table_properties={
+    	'write.target-file-size-bytes': '268435456'
+    }
 ) }}
 ```
 
