@@ -625,4 +625,4 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         try:
             cursor.execute(code)
         except Exception as e:
-            logger.error('error when expiring iceberg snapshots' + e)
+            logger.error(e)
