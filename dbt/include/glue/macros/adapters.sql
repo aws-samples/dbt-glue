@@ -7,7 +7,7 @@
     location '{{ custom_location }}'
   {%- else -%}
     {% if file_format == 'iceberg' or materialized == 'iceberg_table_replace' %}
-			{{ adapter.get_iceberg_location(relation) }}
+      {{ adapter.get_iceberg_location(relation) }}
     {%- else -%}
     	{{ adapter.get_location(relation) }}
     {%- endif %}
