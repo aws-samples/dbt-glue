@@ -52,6 +52,9 @@ class GlueConnection:
             "--enable-glue-datacatalog": "true"
         }
 
+        if (self.credentials.default_arguments is not None):
+            args.update(self._string_to_dict(self.credentials.default_arguments.replace(' ', '')))
+
         if (self.credentials.extra_jars is not None):
             args["--extra-jars"] = f"{self.credentials.extra_jars}"
 
@@ -78,18 +81,16 @@ class GlueConnection:
             additional_args["Connections"] = {"Connections": list(set(self.credentials.connections.split(',')))}
 
         if (self.credentials.tags is not None):
-            tags_dictionary = {}
-            for i in self.credentials.tags.split(","):
-                tags_dictionary[i.split("=")[0].strip('\'').replace("\"", "")] = i.split("=")[1].strip('"\'')
-            additional_args["Tags"] = tags_dictionary
+            additional_args["Tags"] = self._string_to_dict(self.credentials.tags)
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
         session_prefix = self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
+        id = f"{session_prefix}-dbt-glue-{session_uuidStr}"
 
         try:
             self._session = self.client.create_session(
-                Id=f"{session_prefix}-dbt-glue-{session_uuidStr}",
+                Id=id,
                 Role=self.credentials.role_arn,
                 DefaultArguments=args,
                 Command={
@@ -179,6 +180,12 @@ class GlueConnection:
         except:
             self._state = GlueSessionState.CLOSED
         return self._state
+
+    def _string_to_dict(self, value_to_convert):
+        value_in_dictionary = {}
+        for i in value_to_convert.split(","):
+            value_in_dictionary[i.split("=")[0].strip('\'').replace("\"", "")] = i.split("=")[1].strip('"\'')
+        return value_in_dictionary
 
 
 SQLPROXY = """
