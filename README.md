@@ -533,17 +533,36 @@ An example of config is:
 {{ config(
     materialized='table',
     file_format='iceberg',
-    partition_by=['status']
+    partition_by=['status'],
+    table_properties={
+    	'write.target-file-size-bytes': '268435456'
+    }
 ) }}
 ```
 
 
 ### Table replace materialization
-It's possible to use a `materialized='table_replace'`, in order to avoid destructive behaviors.
-When `table_replace` is used the DDL used under the hood is a `CREATE OR REPLACE`, tha means that
+It's possible to use a `materialized='iceberg_table_replace'`, in order to avoid destructive behaviors.
+When `iceberg_table_replace` is used the DDL used under the hood is a `CREATE OR REPLACE`, tha means that
 a new snapshot (or a new version) is added to the table, and old data is still retained.
 
-When using such materialization, consider to `expire_snapshots` time to time, as historical runs are not removed.
+By default, this materialization has `expire_snapshots` set to True, if you need to have historical auditable changes,
+set: `expire_snapshots=False`.
+
+Full config example:
+
+```
+{{ config(
+    materialized='iceberg_table_replace',
+    partition_by=['status'],
+    expire_snapshots=False,
+    table_properties={
+    	'write.target-file-size-bytes': '268435456'
+    }
+)
+}}
+```
+A full reference to `table_properties` can be found [here](https://iceberg.apache.org/docs/latest/configuration/).
 
 ## Monitoring your Glue Interactive Session
 
