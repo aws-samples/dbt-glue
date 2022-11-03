@@ -1,3 +1,4 @@
+import datetime
 import io
 import re
 import uuid
@@ -423,8 +424,6 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             except Exception as e:
                 logger.error(e)
 
-
-
     @available
     def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client, cursor = self.get_connection()
@@ -514,10 +513,14 @@ PARTITIONED BY ({part_list})
             logger.debug(e)
             pass
         try:
-            type = self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
+            _type = self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
+            _specific_type = response.get("Table", {}).get('Parameters', {}).get('table_type', '')
+
+            if _specific_type.lower() == 'iceberg':
+                _type = 'iceberg_table'
             logger.debug("table_name : " + relation.name)
-            logger.debug("table type : " + type)
-            return type
+            logger.debug("table type : " + _type)
+            return _type
         except Exception as e:
             return None
 
@@ -591,6 +594,34 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         {code}
         """)
 
+        try:
+            cursor.execute(code)
+        except Exception as e:
+            logger.error(e)
+
+    @available
+    def iceberg_expire_snapshots(self, catalog, table):
+        """
+        Helper function to call snapshot expiration.
+        The function check for the latest snapshot and it expire all versions before it.
+        If the table has only one snapshot it is retained.
+        """
+        session, client, cursor = self.get_connection()
+        logger.debug(f'expiring snapshots for table {str(table)}')
+
+        expire_sql = f"CALL {catalog}.system.expire_snapshots('{str(table)}', timestamp 'to_replace')"
+
+        code = f'''
+        custom_glue_code_for_dbt_adapter
+        history_df = spark.sql("select committed_at from {catalog}.{table}.snapshots order by committed_at desc")
+        last_commited_at = str(history_df.first().committed_at)
+        expire_sql_procedure = f"{expire_sql}".replace("to_replace", last_commited_at)
+        result_df = spark.sql(expire_sql_procedure)
+        SqlWrapper2.execute("""SELECT 1""")
+        '''
+        logger.debug(f"""expire procedure code:
+            {code}
+            """)
         try:
             cursor.execute(code)
         except Exception as e:

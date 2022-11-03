@@ -1,14 +1,18 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v0.3.3
+
+- Add support for Iceberg table materializion, and iceberg_table_replace materializion
+
 ## v0.3.2
 
 - Added default_arguments param for Glue to add custom Glue configuration options. 
 
 ## v0.3.1 
+
 - Include config `full_refresh` flag when materialization is incremental
 
 ## v0.3.0
-
 - Updated dependencies to support dbt-core 1.3.0
 
 

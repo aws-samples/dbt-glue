@@ -20,9 +20,12 @@
 {% macro glue__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
   {% set rel_type = adapter.get_table_type(relation)  %}
-    {%- if rel_type is not none %}
+    {%- if rel_type is not none and rel_type != 'iceberg_table' %}
         drop {{ rel_type }} if exists {{ relation }}
-    {%- else -%}
+    {%- elif rel_type is not none and rel_type == 'iceberg_table' %}
+    	{%- set default_catalog = 'iceberg_catalog' -%}
+        drop table if exists {{ default_catalog }}.{{ relation }}
+  	{%- else -%}
         drop table if exists {{ relation }}
     {%- endif %}
   {%- endcall %}
@@ -49,17 +52,26 @@
 {%- endmacro -%}
 
 {% macro glue__create_table_as(temporary, relation, sql) -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- set table_properties = config.get('table_properties', default={}) -%}
+
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
-    create table {{ relation }}
+    {% if file_format == 'iceberg' %}
+    {%- set default_catalog = 'iceberg_catalog' -%}
+    	create table {{ default_catalog }}.{{ relation }}
+    {% else %}
+    	create table {{ relation }}
+    {% endif %}
     {{ glue__file_format_clause() }}
-    {{ partition_cols(label="partitioned by") }}
-    {{ clustered_cols(label="clustered by") }}
-    {{ glue__location_clause(relation) }}
-    {{ comment_clause() }}
-    as
-      {{ sql }}
+		{{ partition_cols(label="partitioned by") }}
+		{{ clustered_cols(label="clustered by") }}
+		{{ set_table_properties(table_properties) }}
+		{{ glue__location_clause(relation) }}
+		{{ comment_clause() }}
+	as
+	{{ sql }}
   {%- endif %}
 {%- endmacro -%}
 
@@ -128,4 +140,25 @@
 
 {% macro spark__type_string() -%}
     STRING
+{%- endmacro %}
+
+{% macro iceberg_expire_snapshots(relation, timestamp, keep_versions) -%}
+    {%- set default_catalog = 'iceberg_catalog' -%}
+    {%- set result = adapter.iceberg_expire_snapshots(default_catalog, relation, timestamp, keep_versions ) -%}
+{%- endmacro %}
+
+
+{% macro set_table_properties(table_properties) -%}
+	{%- set table_properties_formatted = [] -%}
+
+	{%- for k in table_properties -%}
+  	{% set _ = table_properties_formatted.append("'" + k + "'='" + table_properties[k] + "'") -%}
+  {%- endfor -%}
+
+  {% if table_properties_formatted|length > 0 %}
+  	{%- set table_properties_csv= table_properties_formatted | join(', ') -%}
+		TBLPROPERTIES (
+			{{table_properties_csv}}
+		)
+  {%- endif %}
 {%- endmacro %}
