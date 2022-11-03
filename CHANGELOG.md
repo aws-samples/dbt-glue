@@ -3,7 +3,7 @@
 ## v0.3.4
 
 - Add method to create a default location for Iceberg without using final trailing slash.
-  The fix will make the tables readable from query engines like Trino.
+  The fix will make Iceberg tables readable from query engines like Trino.
 
 ## v0.3.3
 
