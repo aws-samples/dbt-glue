@@ -564,6 +564,15 @@ Full config example:
 ```
 A full reference to `table_properties` can be found [here](https://iceberg.apache.org/docs/latest/configuration/).
 
+### Notes
+
+#### Trailing slashes in custom location
+When using a custom_location in Iceberg, avoid to use final trailing slash.
+Adding a final trailing slash lead to an un-proper handling of the location, and issues when reading the data from
+query engines like Trino. 
+The issue should be fixed for Iceberg version > 0.13.
+Related Github issue can be find [here](https://github.com/apache/iceberg/issues/4582).
+
 ## Monitoring your Glue Interactive Session
 
 Monitoring is an important part of maintaining the reliability, availability,

@@ -1,9 +1,16 @@
 {% macro glue__location_clause(relation) %}
   {%- set custom_location = config.get('custom_location', validator=validation.any[basestring]) -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- set materialized = config.get('materialized') -%}
+
   {%- if custom_location is not none %}
     location '{{ custom_location }}'
   {%- else -%}
-    {{ adapter.get_location(relation) }}
+    {% if file_format == 'iceberg' or materialized == 'iceberg_table_replace' %}
+      {{ adapter.get_iceberg_location(relation) }}
+    {%- else -%}
+    	{{ adapter.get_location(relation) }}
+    {%- endif %}
   {%- endif %}
 {%- endmacro -%}
 

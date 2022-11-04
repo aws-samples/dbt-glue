@@ -1,5 +1,6 @@
 import datetime
 import io
+import os
 import re
 import uuid
 import boto3
@@ -215,6 +216,16 @@ class GlueAdapter(SQLAdapter):
     def get_location(self, relation: BaseRelation):
         session, client, cursor = self.get_connection()
         return f"LOCATION '{session.credentials.location}/{relation.schema}/{relation.name}/'"
+
+    @available
+    def get_iceberg_location(self, relation: BaseRelation):
+        """
+        Helper method to deal with issues due to trailing / in Iceberg location.
+        The method ensure that no final slash is in the location.
+        """
+        session, client, cursor = self.get_connection()
+        s3_path = os.path.join(session.credentials.location, relation.schema, relation.name)
+        return f"LOCATION '{s3_path}'"
 
     def drop_schema(self, relation: BaseRelation) -> None:
         session, client, cursor = self.get_connection()

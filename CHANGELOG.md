@@ -1,5 +1,10 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v0.3.4
+
+- Add method to create a default location for Iceberg without using final trailing slash.
+  The fix will make Iceberg tables readable from query engines like Trino.
+
 ## v0.3.3
 
 - Add support for Iceberg table materializion, and iceberg_table_replace materializion
