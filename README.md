@@ -577,8 +577,9 @@ Related Github issue can be find [here](https://github.com/apache/iceberg/issues
 
 Monitoring is an important part of maintaining the reliability, availability,
 and performance of AWS Glue and your other AWS solutions. AWS provides monitoring
-tools that you can use to watch AWS Glue, identify the required number of workers in a job,
-report when something is wrong and take action automatically when appropriate. AWS Glue provides Spark UI,
+tools that you can use to watch AWS Glue, identify the required number of workers
+required for your Glue Interactive Session, report when something is wrong and
+take action automatically when appropriate. AWS Glue provides Spark UI,
 and CloudWatch logs and metrics for monitoring your AWS Glue jobs.
 More information on: [Monitoring AWS Glue Spark jobs](https://docs.aws.amazon.com/glue/latest/dg/monitor-spark.html)
 
@@ -642,6 +643,45 @@ test_project:
 If you want to use the Spark UI, you can launch the Spark history server using a
 AWS CloudFormation template that hosts the server on an EC2 instance,
 or launch locally using Docker. More information on [Launching the Spark history server](https://docs.aws.amazon.com/glue/latest/dg/monitor-spark-ui-history.html#monitor-spark-ui-history-local)
+
+## Enabling AWS Glue Auto Scaling
+Auto Scaling is available since AWS Glue version 3.0 or later. More information
+on the following AWS blog post: ["Introducing AWS Glue Auto Scaling: Automatically resize serverless computing resources for lower cost with optimized Apache Spark"](https://aws.amazon.com/blogs/big-data/introducing-aws-glue-auto-scaling-automatically-resize-serverless-computing-resources-for-lower-cost-with-optimized-apache-spark/)
+With Auto Scaling enabled, you will get the following benefits:
+
+* AWS Glue automatically adds and removes workers from the cluster depending on the parallelism at each stage or microbatch of the job run.
+
+* It removes the need for you to experiment and decide on the number of workers to assign for your AWS Glue Interactive sessions.
+
+* Once you choose the maximum number of workers, AWS Glue will choose the right size resources for the workload.
+
+* You can see how the size of the cluster changes during the Glue Interactive sessions run by looking at CloudWatch metrics. See the monitoring section of this documentation.
+
+**Usage notes:** AWS Glue Auto Scaling requires:
+- To set your AWS Glue version 3.0 or later.
+- To set the maximum number of workers (if Auto Scaling is enabled, the `workers`
+parameter sets the maximum number of workers)
+- To set the `--enable-auto-scaling=true` parameter on your Glue Interactive Session Config (in your profile).
+More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html)
+
+#### Profile config example
+```yaml
+test_project:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      query-comment: my comment
+      role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+      region: eu-west-1
+      glue_version: "3.0"
+      workers: 2
+      worker_type: G.1X
+      schema: "dbt_test_project"
+      session_provisionning_timeout_in_seconds: 120
+      location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      default_arguments: "--enable-auto-scaling=true"
+```
 
 ## Persisting model descriptions
 
