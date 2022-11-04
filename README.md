@@ -647,6 +647,7 @@ or launch locally using Docker. More information on [Launching the Spark history
 ## Enabling AWS Glue Auto Scaling
 Auto Scaling is available since AWS Glue version 3.0 or later. More information
 on the following AWS blog post: ["Introducing AWS Glue Auto Scaling: Automatically resize serverless computing resources for lower cost with optimized Apache Spark"](https://aws.amazon.com/blogs/big-data/introducing-aws-glue-auto-scaling-automatically-resize-serverless-computing-resources-for-lower-cost-with-optimized-apache-spark/)
+
 With Auto Scaling enabled, you will get the following benefits:
 
 * AWS Glue automatically adds and removes workers from the cluster depending on the parallelism at each stage or microbatch of the job run.
@@ -655,7 +656,8 @@ With Auto Scaling enabled, you will get the following benefits:
 
 * Once you choose the maximum number of workers, AWS Glue will choose the right size resources for the workload.
 
-* You can see how the size of the cluster changes during the Glue Interactive sessions run by looking at CloudWatch metrics. See the monitoring section of this documentation.
+* You can see how the size of the cluster changes during the Glue Interactive sessions run by looking at CloudWatch metrics.
+More information on [Monitoring your Glue Interactive Session](#Monitoring-your-Glue-Interactive-Session).
 
 **Usage notes:** AWS Glue Auto Scaling requires:
 - To set your AWS Glue version 3.0 or later.
