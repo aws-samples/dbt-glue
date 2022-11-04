@@ -577,8 +577,8 @@ Related Github issue can be find [here](https://github.com/apache/iceberg/issues
 
 Monitoring is an important part of maintaining the reliability, availability,
 and performance of AWS Glue and your other AWS solutions. AWS provides monitoring
-tools that you can use to watch AWS Glue, report when something is wrong,
-and take action automatically when appropriate. AWS Glue provides Spark UI,
+tools that you can use to watch AWS Glue, identify the required number of workers in a job,
+report when something is wrong and take action automatically when appropriate. AWS Glue provides Spark UI,
 and CloudWatch logs and metrics for monitoring your AWS Glue jobs.
 More information on: [Monitoring AWS Glue Spark jobs](https://docs.aws.amazon.com/glue/latest/dg/monitor-spark.html)
 
