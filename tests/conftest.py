@@ -14,7 +14,7 @@ def dbt_profile_target():
         'query-comment': 'test-glue-adapter',
         'role_arn': os.getenv('DBT_ROLE_ARN'),
         'user': os.getenv('DBT_ROLE_ARN'),
-        'region': 'eu-west-1',
+        'region': os.getenv("AWS_REGION", 'eu-west-1'),
         'workers': 2,
         'worker_type': 'G.1X',
         'schema': 'dbt_functional_test_01',

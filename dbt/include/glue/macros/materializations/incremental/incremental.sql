@@ -8,6 +8,9 @@
   {%- set strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
 
   {%- set unique_key = config.get('unique_key', none) -%}
+  {% if unique_key is none and file_format == 'hudi' %}
+    {{ exceptions.raise_compiler_error("unique_key model configuration is required for HUDI incremental materializations.") }}
+  {% endif %}
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set custom_location = config.get('custom_location', default='empty') -%}
 
