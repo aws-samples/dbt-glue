@@ -24,6 +24,8 @@ class GlueCredentials(Credentials):
     delta_athena_prefix: Optional[str] = None
     tags: Optional[str] = None
     database: Optional[str] # type: ignore
+    seed_format: Optional[str] = "parquet"
+    seed_mode: Optional[str] = "overwrite"
     default_arguments: Optional[str] = None
 
     @property
@@ -73,5 +75,7 @@ class GlueCredentials(Credentials):
             'extra_py_files',
             'delta_athena_prefix',
             'tags',
+            'seed_format',
+            'seed_mode',
             'default_arguments'
         ]

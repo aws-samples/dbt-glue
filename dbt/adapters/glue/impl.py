@@ -394,17 +394,28 @@ class GlueAdapter(SQLAdapter):
         logger.debug(model)
         f = io.StringIO("")
         agate_table.to_json(f)
+        if session.credentials.seed_mode == "overwrite":
+            mode = "True"
+        else:
+            mode = "False"
+
         code = f'''
 custom_glue_code_for_dbt_adapter
 csv = {f.getvalue()}
 df = spark.createDataFrame(csv)
 table_name = '{model["schema"]}.{model["name"]}'
-writer = (
-    df.write.mode("append")
-    .format("parquet")
-    .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")
-)
-writer.saveAsTable(table_name, mode="append")
+try:
+    # if the table exists, add data
+    df.write\
+        .mode("{session.credentials.seed_mode}")\
+        .format("{session.credentials.seed_format}")\
+        .insertInto(table_name, overwrite={mode})
+except:
+    # create a table and add data
+    df.write\
+        .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")\
+        .format("{session.credentials.seed_format}")\
+        .saveAsTable(table_name)
 SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""")
 '''
         try:

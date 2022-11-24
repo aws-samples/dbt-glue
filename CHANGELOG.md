@@ -1,5 +1,9 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v0.3.6
+- improvement of seed
+- add seed_format and seed_mode to configuration
+
 ## v0.3.5
 - Add error checking for HUDI incremental materializations
 - Specify location for tmp table
