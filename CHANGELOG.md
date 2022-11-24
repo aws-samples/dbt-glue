@@ -1,5 +1,9 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v0.3.5
+- Add error checking for HUDI incremental materializations
+- Specify location for tmp table
+
 ## v0.3.4
 
 - Add method to create a default location for Iceberg without using final trailing slash.
