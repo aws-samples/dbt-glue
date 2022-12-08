@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from dbt import exceptions as dbterrors
 import boto3
+from botocore.config import Config
 from waiter import wait
 from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
@@ -136,8 +137,14 @@ class GlueConnection:
 
     @property
     def client(self):
+        config = Config(
+            retries={
+                'max_attempts': 10,
+                'mode': 'adaptive'
+            }
+        )
         if not self._client:
-            self._client = boto3.client("glue", region_name=self.credentials.region)
+            self._client = boto3.client("glue", region_name=self.credentials.region, config=config)
         return self._client
 
     def cancel_statement(self, statement_id):

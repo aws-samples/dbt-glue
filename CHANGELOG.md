@@ -1,5 +1,8 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v0.3.7
+- improve support for Boto backoff and retry logic
+
 ## v0.3.6
 - improvement of seed
 - add seed_format and seed_mode to configuration
