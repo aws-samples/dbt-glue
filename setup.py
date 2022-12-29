@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 import sys
-import re
 
 # require python 3.7 or newer
 if sys.version_info < (3, 7):
@@ -9,9 +8,9 @@ if sys.version_info < (3, 7):
     print('Please upgrade to Python 3.7 or higher.')
     sys.exit(1)
 
-
 # require version of setuptools that supports find_namespace_packages
 from setuptools import setup
+
 try:
     from setuptools import find_namespace_packages
 except ImportError:
@@ -22,15 +21,26 @@ except ImportError:
     sys.exit(1)
 
 
-# pull long description from README
-this_directory = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(this_directory, 'README.md')) as f:
-    long_description = f.read()
+def read(rel_path):
+    this_directory = os.path.abspath(os.path.dirname(__file__))
+    with open(os.path.join(this_directory, rel_path), 'r') as f:
+        return f.read()
+
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith('version'):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
+
 
 package_name = "dbt-glue"
-package_version = "0.3.7"
+package_version = get_version("dbt/adapters/glue/__version__.py")
 dbt_version = "1.3.0"
 description = """dbt (data build tool) adapter for Aws Glue"""
+long_description = read('README.md')
 setup(
     name=package_name,
     version=package_version,

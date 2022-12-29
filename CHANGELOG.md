@@ -1,5 +1,8 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v0.3.8
+- add __version__.py to fix `dbt --version`
+
 ## v0.3.7
 - improve support for Boto backoff and retry logic
 
