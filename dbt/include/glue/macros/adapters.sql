@@ -16,7 +16,7 @@
 
 
 {% macro glue__create_csv_table(model, agate_table) -%}
-  {{ adapter.create_csv_table(model, agate_table) }}
+    {{ adapter.create_csv_table(model, agate_table) }}
 {%- endmacro %}
 
 

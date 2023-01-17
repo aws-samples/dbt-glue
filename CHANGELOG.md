@@ -1,14 +1,19 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
-## v1.3.91
+## v1.3.11
 - add details on Iceberg documentation (provide details on commit locking, catalog alias. Provide least privilege IAM Permission for DynamoDB Commit Locking. Correct typos)
 - add customizable DynamoDB table name for Iceberg Commit Locking.
 - Refactoring of unused --conf parameter for Iceberg file format (warehouse_path)
+
+## v1.3.10
+- Fix error catching for seed feature
+
 
 ## v1.3.9
 - implementation of Iceberg append, merge, and insert_overwrite operation and refacto of the existing create and create or replace implementation.
 - add method to create dbt snapshots from Iceberg tables
 - update README.md
+
 
 ## v1.3.8
 - add __version__.py to fix `dbt --version`
