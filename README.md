@@ -517,15 +517,32 @@ group by 1
 
 **Usage notes:** The `merge` with Iceberg incremental strategy requires:
 - To attach the AmazonEC2ContainerRegistryReadOnly Manged policy to your execution role :
-- To add the following policy to your execution role to enable commit locking in a dynamodb table (more info [here](https://iceberg.apache.org/docs/latest/aws/#dynamodb-lock-manager))
+- To add the following policy to your execution role to enable commit locking in a dynamodb table (more info [here](https://iceberg.apache.org/docs/latest/aws/#dynamodb-lock-manager)). Note that the DynamoDB table specified in the ressource field of this policy should be the one that is mentionned in your dbt profiles (`--conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable`). By default, this table is named `myGlueLockTable` and is created automatically (with On-Demand Pricing) when running a dbt-glue model with Incremental Materialization and Iceberg file format. If you want to name the table differently or to create your own table without letting Glue do it on your behalf, please provide the `iceberg_glue_commit_lock_table` parameter with your table name (eg. `MyDynamoDbTable`) in your dbt profile.
+```yaml
+iceberg_glue_commit_lock_table: "MyDynamoDbTable"
+```
+
+Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.table=<YourDynamoDBLockTableName>` and, you change the below iam permission with your correct table name.
 ```
 {
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "CommitLockingTableFullAccess",
+            "Sid": "CommitLockTable",
             "Effect": "Allow",
-            "Action": "dynamodb:*",
+            "Action": [
+                "dynamodb:CreateTable",
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:ConditionCheckItem",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem"
+            ],
             "Resource": "arn:aws:dynamodb:<AWS_REGION>:<AWS_ACCOUNT_ID>:table/myGlueLockTable"
         }
     ]
@@ -534,16 +551,16 @@ group by 1
 - To add `file_format: Iceberg` in your table configuration
 - To add a connections in your profile : `connections: name_of_your_iceberg_connector` (The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
 - To add the following config in your Interactive Session Config (in your profile):  
-  ```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
+```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
     --conf spark.serializer=org.apache.spark.serializer.KryoSerializer 
-    --conf spark.sql.warehouse.dir=s3://<your-bucket-name>/<your-prefix> 
+    --conf spark.sql.warehouse=s3://<your-bucket-name>
     --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
-    --conf spark.sql.catalog.glue_catalog.warehouse=warehouse_path 
     --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
     --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
     --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager 
     --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
-    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions```
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+```
 
 dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/latest/spark-writes/) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. You need to provide a `unique_key` to perform merge operation otherwise it will fail. This key is to provide in a Python list format and can contains multiple column name to create a composite unique_key. 
 
@@ -552,10 +569,24 @@ dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/lates
 - Iceberg also supports `insert_overwrite` and `append` strategies. 
 - The `warehouse` conf must be provided, but it's overwritten by the adapter `location` in your profile or `custom_location` in model configuration.
 - By default, this materialization has `iceberg_expire_snapshots` set to 'True', if you need to have historical auditable changes, set: `iceberg_expire_snapshots='False'`.
-- As it is now, due to some dbt internal, the iceberg catalog used internally when running glue interactive sessions with dbt-glue has a hardcoded name `glue_catalog`. This name is an alias gave to the AWS Glue Catalog but specific to each session. If you want to interact with your data in another session without using dbt-glue, you can configure another alias (ie. another name for the Iceberg Catalog) and it will work fine. 
+- Currently, due to some dbt internal, the iceberg catalog used internally when running glue interactive sessions with dbt-glue has a hardcoded name `glue_catalog`. This name is an alias pointing to the AWS Glue Catalog but is specific to each session. If you want to interact with your data in another session without using dbt-glue (from a Glue Studio notebook, for example), you can configure another alias (ie. another name for the Iceberg Catalog). To illustrate this concept, you can set in your configuration file : 
+```
+--conf spark.sql.catalog.RandomCatalogName=org.apache.iceberg.spark.SparkCatalog
+```
+And then run in an AWS Glue Studio Notebook a session with the following config: 
+```
+--conf spark.sql.catalog.AnotherRandomCatalogName=org.apache.iceberg.spark.SparkCatalog
+```
+In both cases, the underlying catalog would be the AWS Glue Catalog, unique in your AWS Account and Region, and you would be able to work with the exact same data. Also make sure that if you change the name of the Glue Catalog Alias, you change it in all the other `--conf` where it's used: 
+```
+ --conf spark.sql.catalog.RandomCatalogName=org.apache.iceberg.spark.SparkCatalog 
+ --conf spark.sql.catalog.RandomCatalogName.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
+ ...
+ --conf spark.sql.catalog.RandomCatalogName.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager
+```
 - A full reference to `table_properties` can be found [here](https://iceberg.apache.org/docs/latest/configuration/).
-- Iceberg Tables are natively supported by Athena so that you can query table created and operated with dbt-glue adapter from Athena.
-- Iceberg file format supports dbt snapshot. You are able to run a dbt snapshot command that queries an Iceberg Table and create a dbt fashioned snapshot of it. 
+- Iceberg Tables are natively supported by Athena. Therefore, you can query tables created and operated with dbt-glue adapter from Athena.
+- Incremental Materialization with Iceberg file format supports dbt snapshot. You are able to run a dbt snapshot command that queries an Iceberg Table and create a dbt fashioned snapshot of it. 
 
 #### Profile config example
 ```yaml
@@ -574,7 +605,7 @@ test_project:
       session_provisionning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       connections: name_of_your_iceberg_connector
-      conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse.dir=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.warehouse=warehouse_path --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
+      conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
 ```
 
 #### Source Code example
@@ -585,6 +616,7 @@ test_project:
     unique_key=['user_id'],
     file_format='iceberg',
     iceberg_expire_snapshots='False', 
+    partition_by=['status']
     table_properties={'write.target-file-size-bytes': '268435456'}
 ) }}
 

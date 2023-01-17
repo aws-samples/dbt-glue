@@ -27,6 +27,7 @@ class GlueCredentials(Credentials):
     seed_format: Optional[str] = "parquet"
     seed_mode: Optional[str] = "overwrite"
     default_arguments: Optional[str] = None
+    iceberg_glue_commit_lock_table: Optional[str] = "myGlueLockTable"
 
     @property
     def type(self):
@@ -77,5 +78,6 @@ class GlueCredentials(Credentials):
             'tags',
             'seed_format',
             'seed_mode',
-            'default_arguments'
+            'default_arguments', 
+            'iceberg_glue_commit_lock_table'
         ]
