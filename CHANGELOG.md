@@ -1,5 +1,8 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v1.3.12
+- add ability to override any hudi option
+
 ## v1.3.11
 - add details on Iceberg documentation (provide details on commit locking, catalog alias. Provide least privilege IAM Permission for DynamoDB Commit Locking. Correct typos)
 - add customizable DynamoDB table name for Iceberg Commit Locking.
