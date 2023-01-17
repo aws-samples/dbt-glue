@@ -191,7 +191,7 @@ class GlueAdapter(SQLAdapter):
             from pyspark.sql import SparkSession
             from pyspark.sql.functions import *
             warehouse_path = f"{session.credentials.location}/{relation.schema}"
-            dynamodb_table = 'myGlueLockTable'
+            dynamodb_table = f"{session.credentials.iceberg_glue_commit_lock_table}"
             spark = SparkSession.builder \
                 .config("spark.sql.warehouse.dir", warehouse_path) \
                 .config(f"spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog") \
@@ -745,7 +745,7 @@ custom_glue_code_for_dbt_adapter
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 warehouse_path = f"{session.credentials.location}/{target_relation.schema}"
-dynamodb_table = 'myGlueLockTable'
+dynamodb_table = f"{session.credentials.iceberg_glue_commit_lock_table}"
 spark = SparkSession.builder \
     .config("spark.sql.warehouse.dir", warehouse_path) \
     .config(f"spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog") \
