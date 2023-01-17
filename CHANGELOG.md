@@ -3,7 +3,7 @@
 ## v1.3.91
 - add details on Iceberg documentation (provide details on commit locking, catalog alias. Provide least privilege IAM Permission for DynamoDB Commit Locking. Correct typos)
 - add customizable DynamoDB table name for Iceberg Commit Locking.
-- Refactor unused --conf parameter for Iceberg file format (warehouse_path)
+- Refactoring of unused --conf parameter for Iceberg file format (warehouse_path)
 
 ## v1.3.9
 - implementation of Iceberg append, merge, and insert_overwrite operation and refacto of the existing create and create or replace implementation.
