@@ -6,7 +6,7 @@
   {%- if custom_location is not none %}
     location '{{ custom_location }}'
   {%- else -%}
-    {% if file_format == 'iceberg' or materialized == 'iceberg_table_replace' %}
+    {% if file_format == 'iceberg' %}
       {{ adapter.get_iceberg_location(relation) }}
     {%- else -%}
     	{{ adapter.get_location(relation) }}
@@ -30,7 +30,7 @@
     {%- if rel_type is not none and rel_type != 'iceberg_table' %}
         drop {{ rel_type }} if exists {{ relation }}
     {%- elif rel_type is not none and rel_type == 'iceberg_table' %}
-    	{%- set default_catalog = 'iceberg_catalog' -%}
+    	{%- set default_catalog = 'glue_catalog' -%}
         drop table if exists {{ default_catalog }}.{{ relation }}
   	{%- else -%}
         drop table if exists {{ relation }}
@@ -65,18 +65,13 @@
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
-    {% if file_format == 'iceberg' %}
-    {%- set default_catalog = 'iceberg_catalog' -%}
-    	create table {{ default_catalog }}.{{ relation }}
-    {% else %}
     	create table {{ relation }}
-    {% endif %}
-    {{ glue__file_format_clause() }}
-		{{ partition_cols(label="partitioned by") }}
-		{{ clustered_cols(label="clustered by") }}
-		{{ set_table_properties(table_properties) }}
-		{{ glue__location_clause(relation) }}
-		{{ comment_clause() }}
+  {{ glue__file_format_clause() }}
+	{{ partition_cols(label="partitioned by") }}
+	{{ clustered_cols(label="clustered by") }}
+	{{ set_table_properties(table_properties) }}
+	{{ glue__location_clause(relation) }}
+	{{ comment_clause() }}
 	as
 	{{ sql }}
   {%- endif %}
@@ -148,11 +143,6 @@
 
 {% macro spark__type_string() -%}
     STRING
-{%- endmacro %}
-
-{% macro iceberg_expire_snapshots(relation, timestamp, keep_versions) -%}
-    {%- set default_catalog = 'iceberg_catalog' -%}
-    {%- set result = adapter.iceberg_expire_snapshots(default_catalog, relation, timestamp, keep_versions ) -%}
 {%- endmacro %}
 
 

@@ -254,12 +254,12 @@ dbt seeks to offer useful and intuitive modeling abstractions by means of its bu
 For that reason, the dbt-glue plugin leans heavily on the [`incremental_strategy` config](configuring-incremental-models#about-incremental_strategy). This config tells the incremental materialization how to build models in runs beyond their first. It can be set to one of three values:
  - **`append`** (default): Insert new records without updating or overwriting any existing data.
  - **`insert_overwrite`**: If `partition_by` is specified, overwrite partitions in the table with new data. If no `partition_by` is specified, overwrite the entire table with new data.
- - **`merge`** (Apache Hudi only): Match records based on a `unique_key`; update old records, insert new ones. (If no `unique_key` is specified, all new data is inserted, similar to `append`.)
+ - **`merge`** (Apache Hudi and Apache Iceberg only): Match records based on a `unique_key`; update old records, insert new ones. (If no `unique_key` is specified, all new data is inserted, similar to `append`.)
  
 Each of these strategies has its pros and cons, which we'll discuss below. As with any model config, `incremental_strategy` may be specified in `dbt_project.yml` or within a model file's `config()` block.
 
 **Notes:**
-The default strategie is **`insert_overwrite`**
+The default strategy is **`insert_overwrite`**
 
 ### The `append` strategy
 
@@ -366,7 +366,7 @@ Specifying `insert_overwrite` as the incremental strategy is optional, since it'
 **Compatibility:**
 - Hudi : OK
 - Delta Lake : OK
-- Iceberg : On going
+- Iceberg : OK
 - Lake Formation Governed Tables : On going
 
 The simpliest way to work with theses advanced features is to install theses using [Glue connectors](https://docs.aws.amazon.com/glue/latest/ug/connectors-chapter.html).
@@ -513,67 +513,116 @@ from events
 group by 1
 ```
 
-## Iceberg
+#### Iceberg
 
-The adaptor support Iceberg as an Open Table Format. In order to work with Iceberg,
-setup an Iceberg connector and then create an Iceberg connection in Glue connections.
-Then use the following `conf` in your profile
+**Usage notes:** The `merge` with Iceberg incremental strategy requires:
+- To attach the AmazonEC2ContainerRegistryReadOnly Manged policy to your execution role :
+- To add the following policy to your execution role to enable commit locking in a dynamodb table (more info [here](https://iceberg.apache.org/docs/latest/aws/#dynamodb-lock-manager))
 ```
-connections: iceberg_connection
-conf: "spark.sql.catalog.iceberg_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.iceberg_catalog.warehouse=s3://your_bucket/prefix --conf spark.sql.catalog.iceberg_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.iceberg_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.sql.sources.partitionOverwriteMode=dynamic --conf spark.sql.iceberg.handle-timestamp-without-timezone=true"
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CommitLockingTableFullAccess",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:<AWS_REGION>:<AWS_ACCOUNT_ID>:table/myGlueLockTable"
+        }
+    ]
+}
 ```
-The `warehouse` conf must be provided, but it's overwritten by the adapter `location` in your profile or `custom_location` in model configuration.
+- To add `file_format: Iceberg` in your table configuration
+- To add a connections in your profile : `connections: name_of_your_iceberg_connector` (The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
+- To add the following config in your Interactive Session Config (in your profile):  
+  ```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
+    --conf spark.serializer=org.apache.spark.serializer.KryoSerializer 
+    --conf spark.sql.warehouse.dir=s3://<your-bucket-name>/<your-prefix> 
+    --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
+    --conf spark.sql.catalog.glue_catalog.warehouse=warehouse_path 
+    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
+    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
+    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager 
+    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions```
 
-As it is now, due to some dbt internal, the iceberg catalog used internally has a hardcoded name `iceberg_catalog`.
+dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/latest/spark-writes/) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. You need to provide a `unique_key` to perform merge operation otherwise it will fail. This key is to provide in a Python list format and can contains multiple column name to create a composite unique_key. 
 
+##### Notes
+- When using a custom_location in Iceberg, avoid to use final trailing slash. Adding a final trailing slash lead to an un-proper handling of the location, and issues when reading the data from query engines like Trino. The issue should be fixed for Iceberg version > 0.13. Related Github issue can be find [here](https://github.com/apache/iceberg/issues/4582).
+- Iceberg also supports `insert_overwrite` and `append` strategies. 
+- The `warehouse` conf must be provided, but it's overwritten by the adapter `location` in your profile or `custom_location` in model configuration.
+- By default, this materialization has `iceberg_expire_snapshots` set to 'True', if you need to have historical auditable changes, set: `iceberg_expire_snapshots='False'`.
+- As it is now, due to some dbt internal, the iceberg catalog used internally when running glue interactive sessions with dbt-glue has a hardcoded name `glue_catalog`. This name is an alias gave to the AWS Glue Catalog but specific to each session. If you want to interact with your data in another session without using dbt-glue, you can configure another alias (ie. another name for the Iceberg Catalog) and it will work fine. 
+- A full reference to `table_properties` can be found [here](https://iceberg.apache.org/docs/latest/configuration/).
+- Iceberg Tables are natively supported by Athena so that you can query table created and operated with dbt-glue adapter from Athena.
+- Iceberg file format supports dbt snapshot. You are able to run a dbt snapshot command that queries an Iceberg Table and create a dbt fashioned snapshot of it. 
 
-### Table materialization
-Using table materialization, as for the other formats, the table is dropped and then recreated.
-An example of config is:
-
+#### Profile config example
+```yaml
+test_project:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      query-comment: my comment
+      role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+      region: eu-west-1
+      glue_version: "3.0"
+      workers: 2
+      worker_type: G.1X
+      schema: "dbt_test_project"
+      session_provisionning_timeout_in_seconds: 120
+      location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      connections: name_of_your_iceberg_connector
+      conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse.dir=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.warehouse=warehouse_path --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
 ```
+
+#### Source Code example
+```sql
 {{ config(
-    materialized='table',
+    materialized='incremental',
+    incremental_strategy='merge',
+    unique_key=['user_id'],
     file_format='iceberg',
-    partition_by=['status'],
-    table_properties={
-    	'write.target-file-size-bytes': '268435456'
-    }
+    iceberg_expire_snapshots='False', 
+    table_properties={'write.target-file-size-bytes': '268435456'}
 ) }}
-```
 
+with new_events as (
 
-### Table replace materialization
-It's possible to use a `materialized='iceberg_table_replace'`, in order to avoid destructive behaviors.
-When `iceberg_table_replace` is used the DDL used under the hood is a `CREATE OR REPLACE`, tha means that
-a new snapshot (or a new version) is added to the table, and old data is still retained.
+    select * from {{ ref('events') }}
 
-By default, this materialization has `expire_snapshots` set to True, if you need to have historical auditable changes,
-set: `expire_snapshots=False`.
+    {% if is_incremental() %}
+    where date_day >= date_add(current_date, -1)
+    {% endif %}
 
-Full config example:
-
-```
-{{ config(
-    materialized='iceberg_table_replace',
-    partition_by=['status'],
-    expire_snapshots=False,
-    table_properties={
-    	'write.target-file-size-bytes': '268435456'
-    }
 )
-}}
+
+select
+    user_id,
+    max(date_day) as last_seen
+
+from events
+group by 1
 ```
-A full reference to `table_properties` can be found [here](https://iceberg.apache.org/docs/latest/configuration/).
+#### Iceberg Snapshot source code example
+```sql
 
-### Notes
+{% snapshot demosnapshot %}
 
-#### Trailing slashes in custom location
-When using a custom_location in Iceberg, avoid to use final trailing slash.
-Adding a final trailing slash lead to an un-proper handling of the location, and issues when reading the data from
-query engines like Trino. 
-The issue should be fixed for Iceberg version > 0.13.
-Related Github issue can be find [here](https://github.com/apache/iceberg/issues/4582).
+{{
+    config(
+        strategy='timestamp',
+        target_schema='jaffle_db',
+        updated_at='dt',
+        file_format='iceberg'
+) }}
+
+select * from {{ ref('customers') }}
+
+{% endsnapshot %}
+
+```
 
 ## Monitoring your Glue Interactive Session
 
