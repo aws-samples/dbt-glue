@@ -3,8 +3,15 @@
 ## v1.3.10
 - Fix error catching for seed feature
 
+## v1.3.9
+- implementation of Iceberg append, merge, and insert_overwrite operation and refacto of the existing create and create or replace implementation.
+- add method to create dbt snapshots from Iceberg tables
+- update README.md
+
+
 ## v1.3.8
 - add __version__.py to fix `dbt --version`
+
 
 ## v0.3.7
 - improve support for Boto backoff and retry logic

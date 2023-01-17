@@ -180,7 +180,31 @@ class GlueAdapter(SQLAdapter):
     def get_columns_in_relation(self, relation: BaseRelation) -> [Column]:
         session, client, cursor = self.get_connection()
         # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
-        code = f'''describe {relation.schema}.{relation.identifier}'''
+        response = client.get_table(
+                DatabaseName=relation.schema,
+                Name=relation.name
+            )
+        _specific_type = response.get("Table", {}).get('Parameters', {}).get('table_type', '')
+
+        if _specific_type.lower() == 'iceberg':
+            code = f'''custom_glue_code_for_dbt_adapter
+            from pyspark.sql import SparkSession
+            from pyspark.sql.functions import *
+            warehouse_path = f"{session.credentials.location}/{relation.schema}"
+            dynamodb_table = 'myGlueLockTable'
+            spark = SparkSession.builder \
+                .config("spark.sql.warehouse.dir", warehouse_path) \
+                .config(f"spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog") \
+                .config(f"spark.sql.catalog.glue_catalog.warehouse", warehouse_path) \
+                .config(f"spark.sql.catalog.glue_catalog.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog") \
+                .config(f"spark.sql.catalog.glue_catalog.io-impl", "org.apache.iceberg.aws.s3.S3FileIO") \
+                .config(f"spark.sql.catalog.glue_catalog.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager") \
+                .config(f"spark.sql.catalog.glue_catalog.lock.table", dynamodb_table) \
+                .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
+                .getOrCreate()
+            SqlWrapper2.execute("""describe glue_catalog.{relation.schema}.{relation.name}""")'''
+        else : 
+            code = f'''describe {relation.schema}.{relation.identifier}'''
         columns = []
         try:
             cursor.execute(code)
@@ -197,7 +221,25 @@ class GlueAdapter(SQLAdapter):
                    if x.name not in self.HUDI_METADATA_COLUMNS]
 
         return columns
-
+    
+    def set_table_properties(self, table_properties):
+        if table_properties=='empty':
+            return ""
+        else:
+            table_properties_formatted = []
+            for key in table_properties : 
+                table_properties_formatted.append("'" + key + "'='" + table_properties[key] + "'")
+            if len(table_properties_formatted) > 0:
+                table_properties_csv = ','.join(table_properties_formatted)
+                return "TBLPROPERTIES (" + table_properties_csv + ")"
+            else : 
+                return ""
+    
+    def set_iceberg_merge_key(self, merge_key):
+        if not isinstance(merge_key, list):
+            merge_key = [merge_key]
+        return ' AND '.join(['t.{} = s.{}'.format(field, field) for field in merge_key])
+            
     @available
     def duplicate_view(self, from_relation: BaseRelation, to_relation: BaseRelation, ):
         session, client, cursor = self.get_connection()
@@ -618,9 +660,135 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
             cursor.execute(code)
         except Exception as e:
             logger.error(e)
+    
+    def iceberg_create_or_replace_table(self, target_relation, partition_by, table_properties):
+        table_properties = self.set_table_properties(table_properties)
+        if partition_by is None: 
+            query = f"""
+                        CREATE OR REPLACE TABLE glue_catalog.{target_relation.schema}.{target_relation.name}
+                        USING iceberg
+                        {table_properties}
+                        AS SELECT * FROM tmp_{target_relation.name}
+                """
+        else : 
+            query = f"""
+                        CREATE OR REPLACE TABLE glue_catalog.{target_relation.schema}.{target_relation.name}
+                        PARTITIONED BY {partition_by}
+                        {table_properties}
+                        AS SELECT * FROM tmp_{target_relation.name} ORDER BY {partition_by}
+                """
+        return query
+    
+    def iceberg_insert(self, target_relation, partition_by):
+        if partition_by is None: 
+            query = f"""
+                        INSERT INTO glue_catalog.{target_relation.schema}.{target_relation.name}
+                        SELECT * FROM tmp_{target_relation.name}
+                    """
+        else : 
+            query = f"""
+                        INSERT INTO glue_catalog.{target_relation.schema}.{target_relation.name}
+                        SELECT * FROM tmp_{target_relation.name} ORDER BY {partition_by}
+                    """
+        return query
+        
+
+    def iceberg_create_table(self, target_relation, partition_by, location, table_properties):
+        table_properties = self.set_table_properties(table_properties)
+        if partition_by is None: 
+            query = f"""
+                        CREATE TABLE glue_catalog.{target_relation.schema}.{target_relation.name}
+                        USING iceberg
+                        LOCATION '{location}'
+                        {table_properties}
+                        AS SELECT * FROM tmp_{target_relation.name}
+                    """
+        else : 
+            query = f"""
+                        CREATE TABLE glue_catalog.{target_relation.schema}.{target_relation.name}
+                        USING iceberg
+                        PARTITIONED BY {partition_by}
+                        LOCATION '{location}'
+                        {table_properties}
+                        AS SELECT * FROM tmp_{target_relation.name} ORDER BY {partition_by}
+                    """
+        return query
+    
+    
+    def iceberg_upsert(self, target_relation, merge_key):
+    ## Perform merge operation on incremental input data with MERGE INTO. This section of the code uses Spark SQL to showcase the expressive SQL approach of Iceberg to perform a Merge operation
+        query = f"""
+        MERGE INTO glue_catalog.{target_relation.schema}.{target_relation.name} t
+        USING (SELECT * FROM tmp_{target_relation.name}) s
+        ON {self.set_iceberg_merge_key(merge_key=merge_key)}
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+        """
+        return query
+    
+    @available
+    def iceberg_write(self, target_relation, request, primary_key, partition_key, custom_location, write_mode, table_properties):
+        session, client, cursor = self.get_connection()
+        if partition_key is not None:
+            partition_key  = '(' + ','.join(partition_key) + ')'
+        if custom_location == "empty":
+            location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
+        else:
+            location = custom_location
+        isTableExists = False
+        if self.check_relation_exists(target_relation):
+            isTableExists = True
+        else:
+            isTableExists = False
+        head_code = f'''
+custom_glue_code_for_dbt_adapter
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+warehouse_path = f"{session.credentials.location}/{target_relation.schema}"
+dynamodb_table = 'myGlueLockTable'
+spark = SparkSession.builder \
+    .config("spark.sql.warehouse.dir", warehouse_path) \
+    .config(f"spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog") \
+    .config(f"spark.sql.catalog.glue_catalog.warehouse", warehouse_path) \
+    .config(f"spark.sql.catalog.glue_catalog.catalog-impl", "org.apache.iceberg.aws.glue.GlueCatalog") \
+    .config(f"spark.sql.catalog.glue_catalog.io-impl", "org.apache.iceberg.aws.s3.S3FileIO") \
+    .config(f"spark.sql.catalog.glue_catalog.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager") \
+    .config(f"spark.sql.catalog.glue_catalog.lock.table", dynamodb_table) \
+    .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
+    .getOrCreate()
+inputDf = spark.sql("""{request}""")
+outputDf = inputDf.drop("dbt_unique_key").withColumn("update_iceberg_ts",current_timestamp())
+outputDf.createOrReplaceTempView("tmp_{target_relation.name}")
+if outputDf.count() > 0:'''
+        if isTableExists:
+            if write_mode == "append":
+                core_code = f'''
+                    spark.sql("""{self.iceberg_insert(target_relation=target_relation,partition_by=partition_key)}""") '''
+            elif write_mode == 'insert_overwrite':
+                core_code = f'''
+                    spark.sql("""{self.iceberg_create_or_replace_table(target_relation=target_relation, partition_by=partition_key, table_properties=table_properties)}""") '''
+            elif write_mode == 'merge':
+                core_code = f'''
+                    spark.sql("""{self.iceberg_upsert(target_relation=target_relation, merge_key=primary_key)}""") '''
+        else:
+                core_code = f'''
+                    spark.sql("""{self.iceberg_create_table(target_relation=target_relation, partition_by=partition_key, location=location, table_properties=table_properties)}""") '''
+        footer_code = f'''
+spark.sql("""REFRESH TABLE glue_catalog.{target_relation.schema}.{target_relation.name}""")
+SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{target_relation.name} LIMIT 1""")
+        '''
+        code = head_code + core_code + footer_code
+        logger.debug(f"""iceberg code :
+        {code}
+        """)
+
+        try:
+            cursor.execute(code)
+        except Exception as e:
+            logger.error(e)
 
     @available
-    def iceberg_expire_snapshots(self, catalog, table):
+    def iceberg_expire_snapshots(self, table):
         """
         Helper function to call snapshot expiration.
         The function check for the latest snapshot and it expire all versions before it.
@@ -629,11 +797,11 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         session, client, cursor = self.get_connection()
         logger.debug(f'expiring snapshots for table {str(table)}')
 
-        expire_sql = f"CALL {catalog}.system.expire_snapshots('{str(table)}', timestamp 'to_replace')"
+        expire_sql = f"CALL glue_catalog.system.expire_snapshots('{str(table)}', timestamp 'to_replace')"
 
         code = f'''
         custom_glue_code_for_dbt_adapter
-        history_df = spark.sql("select committed_at from {catalog}.{table}.snapshots order by committed_at desc")
+        history_df = spark.sql("select committed_at from glue_catalog.{table}.snapshots order by committed_at desc")
         last_commited_at = str(history_df.first().committed_at)
         expire_sql_procedure = f"{expire_sql}".replace("to_replace", last_commited_at)
         result_df = spark.sql(expire_sql_procedure)
