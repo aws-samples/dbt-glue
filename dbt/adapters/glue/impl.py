@@ -446,14 +446,12 @@ custom_glue_code_for_dbt_adapter
 csv = {f.getvalue()}
 df = spark.createDataFrame(csv)
 table_name = '{model["schema"]}.{model["name"]}'
-try:
-    # if the table exists, add data
+if (spark.sql("show tables in {model["schema"]}").where("tableName == '{model["name"]}'").count() > 0):
     df.write\
         .mode("{session.credentials.seed_mode}")\
         .format("{session.credentials.seed_format}")\
-        .insertInto(table_name, overwrite={mode})
-except:
-    # create a table and add data
+        .insertInto(table_name, overwrite={mode})   
+else:
     df.write\
         .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")\
         .format("{session.credentials.seed_format}")\
