@@ -593,7 +593,7 @@ PARTITIONED BY ({part_list})
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
 
     @available
-    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location):
+    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config = {}):
         session, client, cursor = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
@@ -601,21 +601,53 @@ PARTITIONED BY ({part_list})
         else:
             isTableExists = False
 
+        base_config = {
+            'className' : 'org.apache.hudi',
+            'hoodie.datasource.hive_sync.use_jdbc':'false',
+            'hoodie.datasource.write.precombine.field': 'update_hudi_ts',
+            'hoodie.consistency.check.enabled': 'true',
+            'hoodie.datasource.write.recordkey.field': primary_key,
+            'hoodie.table.name': target_relation.name,
+            'hoodie.datasource.hive_sync.database': target_relation.schema,
+            'hoodie.datasource.hive_sync.table': target_relation.name,
+            'hoodie.datasource.hive_sync.enable': 'true',
+        }
+
         if partition_key:
             partition_list = ','.join(partition_key)
-            hudi_partitionning = f''' 'hoodie.datasource.write.partitionpath.field': '{partition_list}', 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor', 'hoodie.datasource.hive_sync.partition_fields': '{partition_list}','hoodie.index.type': 'GLOBAL_BLOOM', 'hoodie.bloom.index.update.partition.path': 'true','''
+            partition_config = {
+                'hoodie.datasource.write.partitionpath.field': f'{partition_list}',
+                'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor',
+                'hoodie.datasource.hive_sync.partition_fields': f'{partition_list}',
+                'hoodie.index.type': 'GLOBAL_BLOOM',
+                'hoodie.bloom.index.update.partition.path': 'true',
+            }
         else:
-            hudi_partitionning = ''
+            partition_config = {
+                'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor',
+                'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator',
+                'hoodie.index.type': 'GLOBAL_BLOOM',
+                'hoodie.bloom.index.update.partition.path': 'true',
+            }
 
-        begin_of_hudi_setup = f'''combinedConf = {{'className' : 'org.apache.hudi', 'hoodie.datasource.hive_sync.use_jdbc':'false', 'hoodie.datasource.write.precombine.field': 'update_hudi_ts', 'hoodie.consistency.check.enabled': 'true', 'hoodie.datasource.write.recordkey.field': '{primary_key}', 'hoodie.table.name': '{target_relation.name}', 'hoodie.datasource.hive_sync.database': '{target_relation.schema}', 'hoodie.datasource.hive_sync.table': '{target_relation.name}', 'hoodie.datasource.hive_sync.enable': 'true','''
+        if isTableExists:
+            write_mode = 'Overwrite'
+            write_operation_config = {
+                'hoodie.upsert.shuffle.parallelism': 20,
+                'hoodie.datasource.write.operation': 'upsert',
+                'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS',
+                'hoodie.cleaner.commits.retained': 10,
+            }
+        else :
+            write_mode = 'Append'
+            write_operation_config = {
+                'hoodie.bulkinsert.shuffle.parallelism': 20,
+                'hoodie.datasource.write.operation': 'bulk_insert',
+            }
 
-        hudi_no_partition = f''' 'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor', 'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator','hoodie.index.type': 'GLOBAL_BLOOM', 'hoodie.bloom.index.update.partition.path': 'true','''
+        combined_config = {**base_config, **partition_config, **write_operation_config, **hudi_config}
 
-        hudi_upsert = f''' 'hoodie.upsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'upsert', 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS', 'hoodie.cleaner.commits.retained': 10}}'''
-
-        hudi_insert = f''' 'hoodie.bulkinsert.shuffle.parallelism': 20, 'hoodie.datasource.write.operation': 'bulk_insert'}}'''
-
-        head_code = f'''
+        code = f'''
 custom_glue_code_for_dbt_adapter
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
@@ -625,33 +657,13 @@ spark = SparkSession.builder \
 inputDf = spark.sql("""{request}""")
 outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
 if outputDf.count() > 0:
-    if {partition_key} is not None:
-        '''
-        if isTableExists:
-            write_mode = "Append"
-            core_code = f'''
-        {begin_of_hudi_setup} {hudi_partitionning} {hudi_upsert}
+        combinedConf = {str(combined_config)}
         {self.hudi_write(write_mode, session, target_relation, custom_location)}
-    else:
-        {begin_of_hudi_setup} {hudi_no_partition} {hudi_upsert}
-        {self.hudi_write(write_mode, session, target_relation, custom_location)}
-        '''
-        else:
-            write_mode = "Overwrite"
-            core_code = f'''
-        {begin_of_hudi_setup} {hudi_partitionning} {hudi_insert}
-        {self.hudi_write(write_mode, session, target_relation, custom_location)}
-    else:
-        {begin_of_hudi_setup} {hudi_no_partition} {hudi_insert}
-        {self.hudi_write(write_mode, session, target_relation, custom_location)}
-        '''
 
-        footer_code = f'''
 spark.sql("""REFRESH TABLE {target_relation.schema}.{target_relation.name}""")
 SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.name} LIMIT 1""")
         '''
 
-        code = head_code + core_code + footer_code
         logger.debug(f"""hudi code :
         {code}
         """)

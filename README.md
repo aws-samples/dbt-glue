@@ -246,7 +246,7 @@ When materializing a model as `table`, you may include several optional configs 
 | clustered_by  | Each partition in the created table will be split into a fixed number of buckets by the specified columns. | Optional               | `country_code`              |
 | buckets  | The number of buckets to create while clustering | Required if `clustered_by` is specified                | `8`              |
 | custom_location  | By default, the adapter will store your data in the following path: `location path`/`schema`/`table`. If you don't want to follow that default behaviour, you can use this parameter to set your own custom location on S3 | No | `s3://mycustombucket/mycustompath`              |
-
+| hudi_options | When using file_format `hudi`, gives the ability to overwrite any of the default configuration options. | Optional | `{'hoodie.schema.on.read.enable': 'true'}` |
 ## Incremental models
 
 dbt seeks to offer useful and intuitive modeling abstractions by means of its built-in configurations and materializations.
@@ -427,7 +427,10 @@ test_project:
     materialized='incremental',
     incremental_strategy='merge',
     unique_key='user_id',
-    file_format='hudi'
+    file_format='hudi',
+    hudi_options={
+        'hoodie.datasource.write.precombine.field': 'eventtime',
+    }
 ) }}
 
 with new_events as (

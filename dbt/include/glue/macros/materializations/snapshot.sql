@@ -186,7 +186,8 @@
       {%- set custom_location = 'empty' -%}
       {%- set unique_key = 'dbt_scd_id' -%}
       {% set build_sql = build_snapshot_table(strategy, sql) %}
-      {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location) }}
+      {%- set hudi_options = config.get('hudi_options', default={}) -%}
+      {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location, hudi_options) }}
       {% set final_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
     {% elif file_format == 'iceberg'%}
       {%- set partition_by = None -%}
@@ -234,7 +235,8 @@
         {%- set custom_location = 'empty' -%}
         {%- set build_sql = "select * from " + staging_table.schema + "." + staging_table.identifier -%}
         {%- set unique_key = 'dbt_scd_id' -%}
-        {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location) }}
+        {%- set hudi_options = config.get('hudi_options', default={}) -%}
+        {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location, hudi_options) }}
         {% set final_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
       {% elif file_format == 'iceberg' %}
         {%- set partition_by = None -%}
