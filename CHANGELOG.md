@@ -1,5 +1,8 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v1.3.13
+- Fix exception handling for correct DBT report
+
 ## v1.3.12
 - add ability to override any hudi option
 
