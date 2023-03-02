@@ -524,6 +524,7 @@ group by 1
 ```yaml
 iceberg_glue_commit_lock_table: "MyDynamoDbTable"
 ```
+- the latest connector for icerberg in AWS marketplace uses Ver 0.14.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546)
 
 Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.table=<YourDynamoDBLockTableName>` and, you change the below iam permission with your correct table name.
 ```
@@ -552,10 +553,10 @@ Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.
 }
 ```
 - To add `file_format: Iceberg` in your table configuration
-- To add a connections in your profile : `connections: name_of_your_iceberg_connector` (The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
+- To add a connections in your profile : `connections: name_of_your_iceberg_connector` (The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
 - To add the following config in your Interactive Session Config (in your profile):  
 ```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
-    --conf spark.serializer=org.apache.spark.serializer.KryoSerializer 
+    --conf spark.serializer=org.apache.spark.serializer.JavaSerializer
     --conf spark.sql.warehouse=s3://<your-bucket-name>
     --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
     --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
