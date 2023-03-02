@@ -553,10 +553,14 @@ Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.
 }
 ```
 - To add `file_format: Iceberg` in your table configuration
-- To add a connections in your profile : `connections: name_of_your_iceberg_connector` (The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
+- To add a connections in your profile : `connections: name_of_your_iceberg_connector` (
+  - For Athena version 3: 
+    - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
+    - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
+  - For Athena version 2: The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
 - To add the following config in your Interactive Session Config (in your profile):  
 ```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
-    --conf spark.serializer=org.apache.spark.serializer.JavaSerializer
+    --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
     --conf spark.sql.warehouse=s3://<your-bucket-name>
     --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
     --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
