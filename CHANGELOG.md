@@ -1,5 +1,9 @@
 ## dbt-glue 1.0.0 (Release TBD)
 
+## v1.3.13
+- Fix exception handling for correct DBT report
+- Update READEME.md to use Apache Iceberg Connector for AWS Glue v0.14.0
+
 ## v1.3.12
 - add ability to override any hudi option
 
