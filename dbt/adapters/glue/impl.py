@@ -17,7 +17,7 @@ from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
-from dbt.exceptions import NotImplementedException
+from dbt.exceptions import NotImplementedException, DatabaseException
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.utils import executor
 from dbt.events import AdapterLogger
@@ -150,6 +150,8 @@ class GlueAdapter(SQLAdapter):
         '''
         try:
             cursor.execute(code)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueRenameRelationFailed") from e
         except Exception as e:
             logger.error(e)
             logger.error("rename_relation exception")
@@ -213,6 +215,8 @@ class GlueAdapter(SQLAdapter):
                 if record[0][:1] != "#":
                     if column not in columns:
                         columns.append(column)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueGetColumnsInRelationFailed") from e
         except Exception as e:
             logger.error(e)
 
@@ -248,6 +252,8 @@ class GlueAdapter(SQLAdapter):
             cursor.execute(code)
             for record in cursor.fetchall():
                 create_view_statement = record[0]
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueDuplicateViewFailed") from e
         except Exception as e:
             logger.error(e)
         target_query = create_view_statement.replace(from_relation.schema, to_relation.schema)
@@ -460,6 +466,8 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 '''
         try:
             cursor.execute(code)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueCreateCsvFailed") from e
         except Exception as e:
             logger.error(e)
 
@@ -483,9 +491,10 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
             try:
                 cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
+            except DatabaseException as e:
+                raise DatabaseException(msg="GlueDeltaUpdateManifestFailed") from e
             except Exception as e:
                 logger.error(e)
-
     @available
     def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client, cursor = self.get_connection()
@@ -549,17 +558,23 @@ PARTITIONED BY ({part_list})
 
         try:
             cursor.execute(write_data_code)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueDeltaWriteTableFailed") from e
         except Exception as e:
             logger.error(e)
 
         try:
             cursor.execute(create_table_query)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueDeltaWriteTableFailed") from e
         except Exception as e:
             logger.error(e)
 
         if {session.credentials.delta_athena_prefix} is not None:
             try:
                 cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
+            except DatabaseException as e:
+                raise DatabaseException(msg="GlueDeltaCreateTableFailed") from e
             except Exception as e:
                 logger.error(e)
 
@@ -670,6 +685,8 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
 
         try:
             cursor.execute(code)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueHudiMergeTableFailed") from e
         except Exception as e:
             logger.error(e)
     
@@ -796,6 +813,8 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
 
         try:
             cursor.execute(code)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueIcebergWriteTableFailed") from e
         except Exception as e:
             logger.error(e)
 
@@ -824,5 +843,7 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             """)
         try:
             cursor.execute(code)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueIcebergExpireSnapshotsFailed") from e
         except Exception as e:
             logger.error(e)
