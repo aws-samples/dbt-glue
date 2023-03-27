@@ -630,9 +630,8 @@ PARTITIONED BY ({part_list})
                 'hoodie.bloom.index.update.partition.path': 'true',
             }
 
-        write_mode = 'Append'
         if isTableExists:
-            # write_mode = 'Overwrite'
+            write_mode = 'Append'
             write_operation_config = {
                 'hoodie.upsert.shuffle.parallelism': 20,
                 'hoodie.datasource.write.operation': 'upsert',
@@ -640,7 +639,7 @@ PARTITIONED BY ({part_list})
                 'hoodie.cleaner.commits.retained': 10,
             }
         else :
-            # write_mode = 'Append'
+            write_mode = 'Overwrite'
             write_operation_config = {
                 'hoodie.bulkinsert.shuffle.parallelism': 20,
                 'hoodie.datasource.write.operation': 'bulk_insert',
