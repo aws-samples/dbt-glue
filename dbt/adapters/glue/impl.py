@@ -626,6 +626,7 @@ PARTITIONED BY ({part_list})
             'hoodie.datasource.hive_sync.database': target_relation.schema,
             'hoodie.datasource.hive_sync.table': target_relation.name,
             'hoodie.datasource.hive_sync.enable': 'true',
+            'hoodie.datasource.write.hive_style_partitioning': 'true',
         }
 
         if partition_key:
