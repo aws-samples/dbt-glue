@@ -1,5 +1,8 @@
 ## v1.4.0
-- add compatibility with dbt 1.4.x
+- add compatibility with dbt 1.4.1
+
+## v1.4.0
+- add compatibility with dbt 1.4.0
 
 ## v1.3.14
 - Fix HUDI merge strategy
