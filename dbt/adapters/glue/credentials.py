@@ -47,7 +47,7 @@ class GlueCredentials(Credentials):
     def __post_init__(self):
         # spark classifies database and schema as the same thing
         if self.database is not None and self.database != self.schema:
-            raise dbt.exceptions.RuntimeException(
+            raise dbt.exceptions.DbtRuntimeError(
                 f"    schema: {self.schema} \n"
                 f"    database: {self.database} \n"
                 f"On Spark, database must be omitted or have the same value as"

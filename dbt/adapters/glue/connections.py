@@ -4,8 +4,8 @@ from typing import Any, List
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import AdapterResponse
 from dbt.exceptions import (
-    FailedToConnectException,
-    RuntimeException
+    FailedToConnectError,
+    DbtRuntimeError
 )
 import dbt
 from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
@@ -43,7 +43,7 @@ class GlueConnectionManager(SQLConnectionManager):
             )
             connection.handle = None
             connection.state = GlueSessionState.FAIL
-            raise FailedToConnectException(f"Got an error when attempting to open a GlueSessions: {e}")
+            raise FailedToConnectError(f"Got an error when attempting to open a GlueSessions: {e}")
 
     def cancel(self, connection):
         """ cancel ongoing queries """
@@ -56,12 +56,12 @@ class GlueConnectionManager(SQLConnectionManager):
         except Exception as e:
             logger.debug("Unhandled error while running:\n{}".format(sql))
             self.release()
-            if isinstance(e, RuntimeException):
+            if isinstance(e, DbtRuntimeError):
                 # during a sql query, an internal to dbt exception was raised.
                 # this sounds a lot like a signal handler and probably has
                 # useful information, so raise it without modification.
                 raise
-            raise RuntimeException(str(e))
+            raise DbtRuntimeError(str(e))
 
     @classmethod
     def get_response(cls, cursor) -> AdapterResponse:

@@ -1,4 +1,5 @@
-## dbt-glue 1.0.0 (Release TBD)
+## v1.4.0
+- add compatibility with dbt 1.4.x
 
 ## v1.3.14
 - Fix HUDI merge strategy
