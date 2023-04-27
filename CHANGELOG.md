@@ -1,4 +1,4 @@
-## v1.4.2
+## v1.4.21
 - add Hudi related extensions #167 
 - add  add execute_pyspark capability for registering python/pyspark UDFs #163 
 
