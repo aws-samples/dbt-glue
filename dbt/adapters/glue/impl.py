@@ -847,3 +847,23 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             raise DbtDatabaseError(msg="GlueIcebergExpireSnapshotsFailed") from e
         except Exception as e:
             logger.error(e)
+
+    @available
+    def execute_pyspark(self, codeblock):
+        session, client, cursor = self.get_connection()
+
+        code = f"""
+custom_glue_code_for_dbt_adapter
+{codeblock}
+        """
+
+        logger.debug(f"""pyspark code :
+        {code}
+        """)
+
+        try:
+            cursor.execute(code)
+        except DatabaseException as e:
+            raise DatabaseException(msg="GlueExecutePySparkFailed") from e
+        except Exception as e:
+            logger.error(e)
