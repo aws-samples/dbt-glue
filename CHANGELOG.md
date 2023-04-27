@@ -1,4 +1,8 @@
-## v1.4.0
+## v1.4.2
+- add Hudi related extensions #167 
+- add  add execute_pyspark capability for registering python/pyspark UDFs #163 
+
+## v1.4.1
 - add compatibility with dbt 1.4.1
 
 ## v1.4.0
