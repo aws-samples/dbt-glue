@@ -776,6 +776,34 @@ test_project:
       default_arguments: "--enable-auto-scaling=true"
 ```
 
+## Access Glue catalog in another AWS account
+In many cases, you may need to run you dbt jobs to read from another AWS account.
+
+Review the following link https://repost.aws/knowledge-center/glue-tables-cross-accounts to set up access policies in source and target accounts
+
+Add the following "spark.hadoop.hive.metastore.glue.catalogid=<AWS-ACCOUNT-ID>" to your conf in the DBT profile, as such, you can have multiple outputs for each of the accounts that you have access to.
+
+Note: The access cross-accounts need to be within the same AWS Region
+#### Profile config example
+```yaml
+test_project:
+  target: dev
+  outputsAccountB:
+    dev:
+      type: glue
+      query-comment: my comment
+      role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+      region: eu-west-1
+      glue_version: "3.0"
+      workers: 2
+      worker_type: G.1X
+      schema: "dbt_test_project"
+      session_provisionning_timeout_in_seconds: 120
+      location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      conf: "--conf hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory 
+             --conf spark.hadoop.hive.metastore.glue.catalogid=<TARGET-AWS-ACCOUNT-ID-B>"
+```
+
 ## Persisting model descriptions
 
 Relation-level docs persistence is supported since dbt v0.17.0. For more
