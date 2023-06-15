@@ -2,21 +2,21 @@ default:
   outputs:
 
     dev:
-      type: awsglue
+      type: glue
       role_arn: arn:aws:iam::<awss account>:role/GlueInteractiveSessionRole
       region: eu-west-1
       workers: 5
       worker_type: G.1X
       schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
-      session_provisionning_timeout_in_seconds: 20
+      session_provisioning_timeout_in_seconds: 20
 
     prod:
-      type: awsglue
+      type: glue
       role_arn: arn:aws:iam::<aws account>:role/GlueInteractiveSessionRole
       region: eu-west-1
       workers: 5
       worker_type: G.1X
       schema: "dbt_test_{{ var('_dbt_random_suffix') }}"
-      session_provisionning_timeout_in_seconds: 20
+      session_provisioning_timeout_in_seconds: 20
 
   target: dev

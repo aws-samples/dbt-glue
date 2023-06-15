@@ -1,3 +1,6 @@
+## v1.4.22
+- fix typos in sample_profiles.yml and README.md
+
 ## v1.4.21
 - add Hudi related extensions #167 
 - add  add execute_pyspark capability for registering python/pyspark UDFs #163 
