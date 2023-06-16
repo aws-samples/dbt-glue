@@ -33,6 +33,8 @@
     set spark.sql.autoBroadcastJoinThreshold=-1
   {% endcall %}
 
+  {{ run_hooks(pre_hooks) }}
+
   {% if file_format == 'hudi' %}
         {%- set hudi_options = config.get('hudi_options', default={}) -%}
         {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location, hudi_options) }}
@@ -70,8 +72,6 @@
         {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
       {% endif %}
   {% endif %}
-	
-  {{ run_hooks(pre_hooks) }}
 
   {%- call statement('main') -%}
      {{ build_sql }}
