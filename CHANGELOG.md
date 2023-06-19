@@ -1,3 +1,6 @@
+## v1.4.23
+- run pre_hooks before create tmp table
+
 ## v1.4.22
 - fix typos in sample_profiles.yml and README.md
 
