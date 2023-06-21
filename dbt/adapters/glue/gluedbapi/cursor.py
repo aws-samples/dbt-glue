@@ -124,18 +124,18 @@ class GlueCursor:
                     logger.error(error_message)
                 else:
                     logger.debug(error_message)
-                    raise dbterrors.DatabaseException(msg=error_message)
+                    raise dbterrors.DbtDatabaseError(msg=error_message)
 
         if self.state == GlueCursorState.ERROR:
             self._post()
             output = response.get("Statement", {}).get("Output", {})
             error_message=f"Glue cursor returned `{output.get('Status')}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
             logger.debug(error_message)
-            raise dbterrors.DatabaseException(msg=error_message)
+            raise dbterrors.DbtDatabaseError(msg=error_message)
 
         if self.state in [GlueCursorState.CANCELLED, GlueCursorState.CANCELLING]:
             self._post()
-            raise dbterrors.DatabaseException(
+            raise dbterrors.DbtDatabaseError(
                 msg=f"Statement {self.connection.session_id}.{self.statement_id} cancelled.")
 
         logger.debug("GlueCursor execute successfully")

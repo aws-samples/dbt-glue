@@ -415,7 +415,7 @@ test_project:
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
-      session_provisionning_timeout_in_seconds: 120
+      session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       connections: name_of_your_hudi_connector
       conf: "spark.serializer=org.apache.spark.serializer.KryoSerializer"
@@ -479,7 +479,7 @@ test_project:
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
-      session_provisionning_timeout_in_seconds: 120
+      session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       connections: name_of_your_delta_connector
       conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
@@ -610,7 +610,7 @@ test_project:
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
-      session_provisionning_timeout_in_seconds: 120
+      session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       connections: name_of_your_iceberg_connector
       conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
@@ -726,7 +726,7 @@ test_project:
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
-      session_provisionning_timeout_in_seconds: 120
+      session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       default_arguments: "--enable-metrics=true, --enable-continuous-cloudwatch-log=true, --enable-continuous-log-filter=true, --enable-spark-ui=true, --spark-event-logs-path=s3://bucket-to-write-sparkui-logs/dbt/"
 ```
@@ -771,9 +771,37 @@ test_project:
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
-      session_provisionning_timeout_in_seconds: 120
+      session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       default_arguments: "--enable-auto-scaling=true"
+```
+
+## Access Glue catalog in another AWS account
+In many cases, you may need to run you dbt jobs to read from another AWS account.
+
+Review the following link https://repost.aws/knowledge-center/glue-tables-cross-accounts to set up access policies in source and target accounts
+
+Add the following "spark.hadoop.hive.metastore.glue.catalogid=<AWS-ACCOUNT-ID>" to your conf in the DBT profile, as such, you can have multiple outputs for each of the accounts that you have access to.
+
+Note: The access cross-accounts need to be within the same AWS Region
+#### Profile config example
+```yaml
+test_project:
+  target: dev
+  outputsAccountB:
+    dev:
+      type: glue
+      query-comment: my comment
+      role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+      region: eu-west-1
+      glue_version: "3.0"
+      workers: 2
+      worker_type: G.1X
+      schema: "dbt_test_project"
+      session_provisioning_timeout_in_seconds: 120
+      location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      conf: "--conf hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory 
+             --conf spark.hadoop.hive.metastore.glue.catalogid=<TARGET-AWS-ACCOUNT-ID-B>"
 ```
 
 ## Persisting model descriptions

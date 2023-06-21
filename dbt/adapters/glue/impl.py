@@ -1,4 +1,3 @@
-import datetime
 import io
 import os
 import re
@@ -17,7 +16,7 @@ from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
-from dbt.exceptions import NotImplementedException, DatabaseException
+from dbt.exceptions import DbtDatabaseError
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.utils import executor
 from dbt.events import AdapterLogger
@@ -150,8 +149,8 @@ class GlueAdapter(SQLAdapter):
         '''
         try:
             cursor.execute(code)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueRenameRelationFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueRenameRelationFailed") from e
         except Exception as e:
             logger.error(e)
             logger.error("rename_relation exception")
@@ -179,7 +178,7 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-    def get_columns_in_relation(self, relation: BaseRelation) -> [Column]:
+    def get_columns_in_relation(self, relation: BaseRelation):
         session, client, cursor = self.get_connection()
         # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
         response = client.get_table(
@@ -215,8 +214,8 @@ class GlueAdapter(SQLAdapter):
                 if record[0][:1] != "#":
                     if column not in columns:
                         columns.append(column)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueGetColumnsInRelationFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
         except Exception as e:
             logger.error(e)
 
@@ -252,8 +251,8 @@ class GlueAdapter(SQLAdapter):
             cursor.execute(code)
             for record in cursor.fetchall():
                 create_view_statement = record[0]
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueDuplicateViewFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueDuplicateViewFailed") from e
         except Exception as e:
             logger.error(e)
         target_query = create_view_statement.replace(from_relation.schema, to_relation.schema)
@@ -466,8 +465,8 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 '''
         try:
             cursor.execute(code)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueCreateCsvFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueCreateCsvFailed") from e
         except Exception as e:
             logger.error(e)
 
@@ -491,8 +490,8 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
             try:
                 cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
-            except DatabaseException as e:
-                raise DatabaseException(msg="GlueDeltaUpdateManifestFailed") from e
+            except DbtDatabaseError as e:
+                raise DbtDatabaseError(msg="GlueDeltaUpdateManifestFailed") from e
             except Exception as e:
                 logger.error(e)
     @available
@@ -543,7 +542,7 @@ spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target
 SqlWrapper2.execute("""select 1""")
                         '''
         if partition_key is not None:
-            part_list = (', '.join(['`{}`'.format(field) for field in partition_key]))
+            part_list = (', '.join(['`{}`'.format(field) for field in partition_key])).replace('`', '')
             write_data_partition = f'''.partitionBy("{part_list}")'''
             create_athena_table_partition = f'''
 PARTITIONED BY ({part_list})
@@ -558,23 +557,23 @@ PARTITIONED BY ({part_list})
 
         try:
             cursor.execute(write_data_code)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueDeltaWriteTableFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueDeltaWriteTableFailed") from e
         except Exception as e:
             logger.error(e)
 
         try:
             cursor.execute(create_table_query)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueDeltaWriteTableFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueDeltaWriteTableFailed") from e
         except Exception as e:
             logger.error(e)
 
         if {session.credentials.delta_athena_prefix} is not None:
             try:
                 cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
-            except DatabaseException as e:
-                raise DatabaseException(msg="GlueDeltaCreateTableFailed") from e
+            except DbtDatabaseError as e:
+                raise DbtDatabaseError(msg="GlueDeltaCreateTableFailed") from e
             except Exception as e:
                 logger.error(e)
 
@@ -626,6 +625,7 @@ PARTITIONED BY ({part_list})
             'hoodie.datasource.hive_sync.database': target_relation.schema,
             'hoodie.datasource.hive_sync.table': target_relation.name,
             'hoodie.datasource.hive_sync.enable': 'true',
+            'hoodie.datasource.write.hive_style_partitioning': 'true',
         }
 
         if partition_key:
@@ -646,7 +646,7 @@ PARTITIONED BY ({part_list})
             }
 
         if isTableExists:
-            write_mode = 'Overwrite'
+            write_mode = 'Append'
             write_operation_config = {
                 'hoodie.upsert.shuffle.parallelism': 20,
                 'hoodie.datasource.write.operation': 'upsert',
@@ -654,7 +654,7 @@ PARTITIONED BY ({part_list})
                 'hoodie.cleaner.commits.retained': 10,
             }
         else :
-            write_mode = 'Append'
+            write_mode = 'Overwrite'
             write_operation_config = {
                 'hoodie.bulkinsert.shuffle.parallelism': 20,
                 'hoodie.datasource.write.operation': 'bulk_insert',
@@ -685,8 +685,8 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
 
         try:
             cursor.execute(code)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueHudiMergeTableFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueHudiMergeTableFailed") from e
         except Exception as e:
             logger.error(e)
     
@@ -813,8 +813,8 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
 
         try:
             cursor.execute(code)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueIcebergWriteTableFailed") from e
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueIcebergWriteTableFailed") from e
         except Exception as e:
             logger.error(e)
 
@@ -843,7 +843,27 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             """)
         try:
             cursor.execute(code)
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueIcebergExpireSnapshotsFailed") from e
+        except Exception as e:
+            logger.error(e)
+
+    @available
+    def execute_pyspark(self, codeblock):
+        session, client, cursor = self.get_connection()
+
+        code = f"""
+custom_glue_code_for_dbt_adapter
+{codeblock}
+        """
+
+        logger.debug(f"""pyspark code :
+        {code}
+        """)
+
+        try:
+            cursor.execute(code)
         except DatabaseException as e:
-            raise DatabaseException(msg="GlueIcebergExpireSnapshotsFailed") from e
+            raise DatabaseException(msg="GlueExecutePySparkFailed") from e
         except Exception as e:
             logger.error(e)

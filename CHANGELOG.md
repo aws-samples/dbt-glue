@@ -1,4 +1,21 @@
-## dbt-glue 1.0.0 (Release TBD)
+## v1.4.23
+- run pre_hooks before create tmp table
+
+## v1.4.22
+- fix typos in sample_profiles.yml and README.md
+
+## v1.4.21
+- add Hudi related extensions #167 
+- add  add execute_pyspark capability for registering python/pyspark UDFs #163 
+
+## v1.4.1
+- add compatibility with dbt 1.4.1
+
+## v1.4.0
+- add compatibility with dbt 1.4.0
+
+## v1.3.14
+- Fix HUDI merge strategy
 
 ## v1.3.13
 - Fix exception handling for correct DBT report

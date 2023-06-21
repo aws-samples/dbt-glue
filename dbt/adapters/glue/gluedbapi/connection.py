@@ -103,7 +103,7 @@ class GlueConnection:
             logger.error(
                 f"Got an error when attempting to open a GlueSession : {e}"
             )
-            raise dbterrors.FailedToConnectException(str(e))
+            raise dbterrors.FailedToConnectError(str(e))
 
         for elapsed in wait(1):
             if self.state == GlueSessionState.READY:
