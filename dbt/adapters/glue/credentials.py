@@ -11,7 +11,6 @@ class GlueCredentials(Credentials):
     workers: int
     worker_type: str
     session_provisioning_timeout_in_seconds: int = 120
-    session_id: Optional[str] = None
     location: Optional[str] = None
     extra_jars: Optional[str] = None
     idle_timeout: int = 10
@@ -60,7 +59,6 @@ class GlueCredentials(Credentials):
         return [
             'role_arn',
             'region',
-            'session_id',
             'workers',
             'worker_type',
             'session_provisioning_timeout_in_seconds',

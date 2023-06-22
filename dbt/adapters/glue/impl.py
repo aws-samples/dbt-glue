@@ -73,12 +73,11 @@ class GlueAdapter(SQLAdapter):
         connection: GlueConnectionManager = self.connections.get_thread_connection()
         session: GlueConnection = connection.handle
         client = boto3.client("glue", region_name=session.credentials.region)
-        cursor = session.cursor()
 
-        return session, client, cursor
+        return session, client
 
     def list_schemas(self, database: str) -> List[str]:
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         responseGetDatabases = client.get_databases()
         databaseList = responseGetDatabases['DatabaseList']
         schemas = []
@@ -88,7 +87,7 @@ class GlueAdapter(SQLAdapter):
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         relations = []
         try:
             response = client.get_tables(
@@ -132,7 +131,7 @@ class GlueAdapter(SQLAdapter):
     @available
     def glue_rename_relation(self, from_relation, to_relation):
         logger.debug("rename " + from_relation.schema + " to " + to_relation.identifier)
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         code = f'''
         custom_glue_code_for_dbt_adapter
         df = spark.sql("""select * from {from_relation.schema}.{from_relation.name}""")
@@ -148,7 +147,7 @@ class GlueAdapter(SQLAdapter):
         SqlWrapper2.execute("""select * from {to_relation.schema}.{to_relation.name} limit 1""")
         '''
         try:
-            cursor.execute(code)
+            session.cursor().execute(code)
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueRenameRelationFailed") from e
         except Exception as e:
@@ -156,7 +155,7 @@ class GlueAdapter(SQLAdapter):
             logger.error("rename_relation exception")
 
     def get_relation(self, database, schema, identifier):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         try:
             response = client.get_table(
                 DatabaseName=schema,
@@ -179,7 +178,7 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
     def get_columns_in_relation(self, relation: BaseRelation):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
         response = client.get_table(
                 DatabaseName=relation.schema,
@@ -208,8 +207,8 @@ class GlueAdapter(SQLAdapter):
             code = f'''describe {relation.schema}.{relation.identifier}'''
         columns = []
         try:
-            cursor.execute(code)
-            for record in cursor.fetchall():
+            session.cursor().execute(code)
+            for record in session.cursor().fetchall():
                 column = Column(column=record[0], dtype=record[1])
                 if record[0][:1] != "#":
                     if column not in columns:
@@ -245,11 +244,11 @@ class GlueAdapter(SQLAdapter):
             
     @available
     def duplicate_view(self, from_relation: BaseRelation, to_relation: BaseRelation, ):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         code = f'''SHOW CREATE TABLE {from_relation.schema}.{from_relation.identifier}'''
         try:
-            cursor.execute(code)
-            for record in cursor.fetchall():
+            session.cursor().execute(code)
+            for record in session.cursor().fetchall():
                 create_view_statement = record[0]
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueDuplicateViewFailed") from e
@@ -261,7 +260,7 @@ class GlueAdapter(SQLAdapter):
 
     @available
     def get_location(self, relation: BaseRelation):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         return f"LOCATION '{session.credentials.location}/{relation.schema}/{relation.name}/'"
 
     @available
@@ -270,12 +269,12 @@ class GlueAdapter(SQLAdapter):
         Helper method to deal with issues due to trailing / in Iceberg location.
         The method ensure that no final slash is in the location.
         """
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         s3_path = os.path.join(session.credentials.location, relation.schema, relation.name)
         return f"LOCATION '{s3_path}'"
 
     def drop_schema(self, relation: BaseRelation) -> None:
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         if self.check_schema_exists(relation.database, relation.schema):
             try:
                 client.delete_database(Name=relation.schema)
@@ -289,7 +288,7 @@ class GlueAdapter(SQLAdapter):
             logger.debug("No schema to delete")
 
     def create_schema(self, relation: BaseRelation):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         lf = boto3.client("lakeformation", region_name=session.credentials.region)
         sts = boto3.client("sts")
         identity = sts.get_caller_identity()
@@ -437,7 +436,7 @@ class GlueAdapter(SQLAdapter):
 
     @available
     def create_csv_table(self, model, agate_table):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         logger.debug(model)
         f = io.StringIO("")
         agate_table.to_json(f)
@@ -464,7 +463,7 @@ else:
 SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""")
 '''
         try:
-            cursor.execute(code)
+            session.cursor().execute(code)
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueCreateCsvFailed") from e
         except Exception as e:
@@ -472,7 +471,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
     @available
     def delta_update_manifest(self, target_relation, custom_location):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         if custom_location == "empty":
             location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
         else:
@@ -489,14 +488,14 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             '''
 
             try:
-                cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
+                session.cursor().execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
             except DbtDatabaseError as e:
                 raise DbtDatabaseError(msg="GlueDeltaUpdateManifestFailed") from e
             except Exception as e:
                 logger.error(e)
     @available
     def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         logger.debug(request)
 
         table_name = f'{target_relation.schema}.{target_relation.name}'
@@ -556,14 +555,14 @@ PARTITIONED BY ({part_list})
 
 
         try:
-            cursor.execute(write_data_code)
+            session.cursor().execute(write_data_code)
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueDeltaWriteTableFailed") from e
         except Exception as e:
             logger.error(e)
 
         try:
-            cursor.execute(create_table_query)
+            session.cursor().execute(create_table_query)
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueDeltaWriteTableFailed") from e
         except Exception as e:
@@ -571,7 +570,7 @@ PARTITIONED BY ({part_list})
 
         if {session.credentials.delta_athena_prefix} is not None:
             try:
-                cursor.execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
+                session.cursor().execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
             except DbtDatabaseError as e:
                 raise DbtDatabaseError(msg="GlueDeltaCreateTableFailed") from e
             except Exception as e:
@@ -579,7 +578,7 @@ PARTITIONED BY ({part_list})
 
     @available
     def get_table_type(self, relation):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         try:
             response = client.get_table(
                 DatabaseName=relation.schema,
@@ -608,7 +607,7 @@ PARTITIONED BY ({part_list})
 
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config = {}):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
             isTableExists = True
@@ -684,7 +683,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         """)
 
         try:
-            cursor.execute(code)
+            session.cursor().execute(code)
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueHudiMergeTableFailed") from e
         except Exception as e:
@@ -757,7 +756,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
     
     @available
     def iceberg_write(self, target_relation, request, primary_key, partition_key, custom_location, write_mode, table_properties):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         if partition_key is not None:
             partition_key  = '(' + ','.join(partition_key) + ')'
         if custom_location == "empty":
@@ -812,7 +811,7 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
         """)
 
         try:
-            cursor.execute(code)
+            session.cursor().execute(code)
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueIcebergWriteTableFailed") from e
         except Exception as e:
@@ -825,7 +824,7 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
         The function check for the latest snapshot and it expire all versions before it.
         If the table has only one snapshot it is retained.
         """
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
         logger.debug(f'expiring snapshots for table {str(table)}')
 
         expire_sql = f"CALL glue_catalog.system.expire_snapshots('{str(table)}', timestamp 'to_replace')"
@@ -842,7 +841,7 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             {code}
             """)
         try:
-            cursor.execute(code)
+            session.cursor().execute(code)
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueIcebergExpireSnapshotsFailed") from e
         except Exception as e:
@@ -850,7 +849,7 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
 
     @available
     def execute_pyspark(self, codeblock):
-        session, client, cursor = self.get_connection()
+        session, client = self.get_connection()
 
         code = f"""
 custom_glue_code_for_dbt_adapter
@@ -862,8 +861,8 @@ custom_glue_code_for_dbt_adapter
         """)
 
         try:
-            cursor.execute(code)
-        except DatabaseException as e:
-            raise DatabaseException(msg="GlueExecutePySparkFailed") from e
+            session.cursor().execute(code)
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueExecutePySparkFailed") from e
         except Exception as e:
             logger.error(e)
