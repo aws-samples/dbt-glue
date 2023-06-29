@@ -647,7 +647,6 @@ PARTITIONED BY ({part_list})
         if isTableExists:
             write_mode = 'Append'
             write_operation_config = {
-                'hoodie.upsert.shuffle.parallelism': 20,
                 'hoodie.datasource.write.operation': 'upsert',
                 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS',
                 'hoodie.cleaner.commits.retained': 10,
@@ -655,7 +654,6 @@ PARTITIONED BY ({part_list})
         else :
             write_mode = 'Overwrite'
             write_operation_config = {
-                'hoodie.bulkinsert.shuffle.parallelism': 20,
                 'hoodie.datasource.write.operation': 'bulk_insert',
             }
 
@@ -671,7 +669,13 @@ spark = SparkSession.builder \
 inputDf = spark.sql("""{request}""")
 outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
 if outputDf.count() > 0:
-        combinedConf = {str(combined_config)}
+        parallelism = spark.conf.get("spark.default.parallelism")
+        print("spark.default.parallelism: %s", parallelism)
+        hudi_parallelism_options = {{
+            "hoodie.upsert.shuffle.parallelism": parallelism,
+            "hoodie.bulkinsert.shuffle.parallelism": parallelism,
+        }}
+        combinedConf = {{**{str(combined_config)}, **hudi_parallelism_options, **{str(hudi_config)}}}
         {self.hudi_write(write_mode, session, target_relation, custom_location)}
 
 spark.sql("""REFRESH TABLE {target_relation.schema}.{target_relation.name}""")
