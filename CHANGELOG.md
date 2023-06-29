@@ -1,3 +1,9 @@
+## v1.5.0
+- add compatibility with dbt 1.5
+- add multithreading
+- add hudi bulk insert shuffle parallelism
+- fix hudi snapshots without parameters
+
 ## v1.4.23
 - run pre_hooks before create tmp table
 

@@ -606,13 +606,17 @@ PARTITIONED BY ({part_list})
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
 
     @available
-    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config = {}):
+    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config):
         session, client = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
             isTableExists = True
         else:
             isTableExists = False
+
+        # Test if variable hudi_config is NoneType
+        if hudi_config is None:
+            hudi_config = {}
 
         base_config = {
             'className' : 'org.apache.hudi',

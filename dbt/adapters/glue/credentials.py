@@ -34,7 +34,7 @@ class GlueCredentials(Credentials):
 
     @property
     def unique_field(self):
-        return self.host
+        return "glue"
 
     @classmethod
     def __pre_deserialize__(cls, data):

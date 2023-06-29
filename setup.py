@@ -3,9 +3,9 @@ import os
 import sys
 
 # require python 3.7 or newer
-if sys.version_info < (3, 7):
+if sys.version_info < (3, 8):
     print('Error: dbt does not support this version of Python.')
-    print('Please upgrade to Python 3.7 or higher.')
+    print('Please upgrade to Python 3.8 or higher.')
     sys.exit(1)
 
 # require version of setuptools that supports find_namespace_packages
@@ -38,7 +38,8 @@ def get_version(rel_path):
 
 package_name = "dbt-glue"
 package_version = get_version("dbt/adapters/glue/__version__.py")
-dbt_version = "1.4.1"
+dbt_version = "1.5.2"
+dbt_spark_version = "1.5.0"
 description = """dbt (data build tool) adapter for Aws Glue"""
 long_description = read('README.md')
 setup(
@@ -65,7 +66,7 @@ setup(
     },
     install_requires=[
         "dbt-core~={}".format(dbt_version),
-        "dbt-spark~={}".format(dbt_version),
+        "dbt-spark~={}".format(dbt_spark_version),
         "waiter",
         "boto3"
     ],
@@ -79,11 +80,10 @@ setup(
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: POSIX :: Linux',
 
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
     ],
-    python_requires=">=3.7",
+    python_requires=">=3.8",
 )
