@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import agate
-from typing import Any, List
+from typing import Any, List, Dict
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import AdapterResponse
 from dbt.exceptions import (
@@ -23,6 +23,8 @@ class ReturnCode:
 
 class GlueConnectionManager(SQLConnectionManager):
     TYPE = "glue"
+    GLUE_CONNECTIONS_BY_THREAD: Dict[str, GlueConnection] = {}
+
 
     @classmethod
     def open(cls, connection):
@@ -32,10 +34,13 @@ class GlueConnectionManager(SQLConnectionManager):
 
         credentials = connection.credentials
         try:
-            cls._connection: GlueConnection = GlueConnection(credentials=credentials)
-            cls._connection.connect()
+            key = cls.get_thread_identifier()
+            if not cls.GLUE_CONNECTIONS_BY_THREAD.get(key):
+                logger.debug(f"opening a new glue connection for thread : {key}")
+                cls.GLUE_CONNECTIONS_BY_THREAD[key]: GlueConnection = GlueConnection(credentials=credentials)
+                cls.GLUE_CONNECTIONS_BY_THREAD[key].connect()
             connection.state = GlueSessionState.OPEN
-            connection.handle = cls._connection
+            connection.handle = cls.GLUE_CONNECTIONS_BY_THREAD[key]
             return connection
         except Exception as e:
             logger.error(
@@ -103,7 +108,9 @@ class GlueConnectionManager(SQLConnectionManager):
 
     def cleanup_all(self):
         logger.debug("cleanup called")
-        try:
-            self._connection.close_session()
-        except:
-            logger.debug("connection not yet initialized")
+        for connection in self.GLUE_CONNECTIONS_BY_THREAD.values():
+            try:
+                connection.close_session()
+            except Exception as e:
+                logger.exception(f"failed to close session : {e}")
+                logger.debug("connection not yet initialized")
