@@ -1,3 +1,6 @@
+## v1.5.1
+- Replace delete session per stop session
+
 ## v1.5.0
 - add compatibility with dbt 1.5
 - add multithreading
