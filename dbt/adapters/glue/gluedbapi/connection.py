@@ -187,9 +187,9 @@ class GlueConnection:
             if self.state not in [GlueSessionState.PROVISIONING, GlueSessionState.READY, GlueSessionState.RUNNING]:
                 return
             
-            logger.debug(f"[elapsed {elapsed}s - calling delete_session for {self.session_id} in {self.state} state")
+            logger.debug(f"[elapsed {elapsed}s - calling stop_session for {self.session_id} in {self.state} state")
             try:
-                self.client.delete_session(Id=self.session_id)
+                self.client.stop_session(Id=self.session_id)
             except Exception as e:
                 if "Session is in PROVISIONING status" in str(e):
                     logger.debug(f"session is not yet initialised - retrying to close")
