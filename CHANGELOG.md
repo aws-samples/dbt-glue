@@ -1,3 +1,8 @@
+## v1.5.2
+- fix the naming for query execution timeout
+- add assumeRole feature for AWS API Call
+- fix get response for insert_overwrite issue
+
 ## v1.5.1
 - Replace delete session per stop session
 
