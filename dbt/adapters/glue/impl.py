@@ -71,10 +71,24 @@ class GlueAdapter(SQLAdapter):
 
     def get_connection(self):
         connection: GlueConnectionManager = self.connections.get_thread_connection()
-        session: GlueConnection = connection.handle
-        client = boto3.client("glue", region_name=session.credentials.region)
+        glueSession: GlueConnection = connection.handle
+        if glueSession.credentials.role_arn is not None:
+            if glueSession.credentials.use_interactive_session_role_for_api_calls is True:
+                sts_client = boto3.client('sts')
+                assumed_role_object = sts_client.assume_role(
+                    RoleArn=glueSession.credentials.role_arn,
+                    RoleSessionName="dbt"
+                )
+                credentials = assumed_role_object['Credentials']
+                session = boto3.Session(
+                    aws_access_key_id=credentials['AccessKeyId'],
+                    aws_secret_access_key=credentials['SecretAccessKey'],
+                    aws_session_token=credentials['SessionToken']
+                )
 
-        return session, client
+        client = boto3.client("glue", region_name=glueSession.credentials.region)
+
+        return glueSession, client
 
     def list_schemas(self, database: str) -> List[str]:
         session, client = self.get_connection()
@@ -203,27 +217,45 @@ class GlueAdapter(SQLAdapter):
                 .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
                 .getOrCreate()
             SqlWrapper2.execute("""describe glue_catalog.{relation.schema}.{relation.name}""")'''
-        else : 
+        else:
             code = f'''describe {relation.schema}.{relation.identifier}'''
         columns = []
         try:
-            session.cursor().execute(code)
-            for record in session.cursor().fetchall():
+            response = session.cursor().execute(code)
+            records = self.fetch_all_response(response)
+
+            for record in records:
                 column = Column(column=record[0], dtype=record[1])
                 if record[0][:1] != "#":
                     if column not in columns:
                         columns.append(column)
+
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
         except Exception as e:
             logger.error(e)
 
+        logger.debug("columns before strip:")
+        logger.debug(columns)
         # strip hudi metadata columns.
         columns = [x for x in columns
                    if x.name not in self.HUDI_METADATA_COLUMNS]
 
+        logger.debug("columns after strip:")
+        logger.debug(columns)
+
         return columns
-    
+
+    def fetch_all_response(self, response):
+        records = []
+        obj_columns = [column.get("name") for column in response.get("description")]
+        for item in response.get("results", []):
+            record = []
+            for column in obj_columns:
+                record.append(item.get("data", {}).get(column, None))
+            records.append(record)
+        return records
+
     def set_table_properties(self, table_properties):
         if table_properties=='empty':
             return ""
@@ -247,8 +279,9 @@ class GlueAdapter(SQLAdapter):
         session, client = self.get_connection()
         code = f'''SHOW CREATE TABLE {from_relation.schema}.{from_relation.identifier}'''
         try:
-            session.cursor().execute(code)
-            for record in session.cursor().fetchall():
+            response = session.cursor().execute(code)
+            records = self.fetch_all_response(response)
+            for record in records:
                 create_view_statement = record[0]
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueDuplicateViewFailed") from e

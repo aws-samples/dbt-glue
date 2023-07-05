@@ -27,6 +27,7 @@ class GlueCredentials(Credentials):
     seed_mode: Optional[str] = "overwrite"
     default_arguments: Optional[str] = None
     iceberg_glue_commit_lock_table: Optional[str] = "myGlueLockTable"
+    use_interactive_session_role_for_api_calls: bool = False
 
     @property
     def type(self):

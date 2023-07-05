@@ -8,6 +8,7 @@ from dbt.events import AdapterLogger
 
 logger = AdapterLogger("Glue")
 
+
 class GlueCursorState:
     WAITING = "WAITING"
     RUNNING = "RUNNING"
@@ -118,7 +119,7 @@ class GlueCursor:
                         logger.error("Could not parse " + json.loads(chunks[0]), ex)
                         self.state = GlueCursorState.ERROR
             else:
-                error_message=f"Glue returned `{status}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
+                error_message = f"Glue returned `{status}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
                 if output.get('ErrorValue').find("is not a view"):
                     self.state = GlueCursorState.ERROR
                     logger.error(error_message)
@@ -129,7 +130,7 @@ class GlueCursor:
         if self.state == GlueCursorState.ERROR:
             self._post()
             output = response.get("Statement", {}).get("Output", {})
-            error_message=f"Glue cursor returned `{output.get('Status')}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
+            error_message = f"Glue cursor returned `{output.get('Status')}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
             logger.debug(error_message)
             raise dbterrors.DbtDatabaseError(msg=error_message)
 
@@ -145,7 +146,6 @@ class GlueCursor:
     def columns(self):
         if self.response:
             return [column.get("name") for column in self.response.get("description")]
-        
 
     def fetchall(self):
         logger.debug("GlueCursor fetchall called")
