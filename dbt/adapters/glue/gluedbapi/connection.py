@@ -140,7 +140,8 @@ class GlueConnection:
             }
         )
         if not self._client:
-            self._client = boto3.client("glue", region_name=self.credentials.region, config=config)
+            session = boto3.session.Session()
+            self._client = session.client("glue", region_name=self.credentials.region, config=config)
         return self._client
 
     def cancel_statement(self, statement_id):
