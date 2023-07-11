@@ -702,6 +702,10 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 spark = SparkSession.builder \
 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+.config("hoodie.metadata.enable", "true") \
+.config("hoodie.enable.data.skipping", "true") \
+.config("hoodie.metadata.index.column.stats.enable", "true") \
+.config("hoodie.metadata.index.bloom.filter.enable", "true") \
 .getOrCreate()
 inputDf = spark.sql("""{request}""")
 outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
