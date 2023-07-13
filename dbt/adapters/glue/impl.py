@@ -639,7 +639,7 @@ PARTITIONED BY ({part_list})
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
 
     @available
-    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config):
+    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config, substitute_variables):
         session, client = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
@@ -703,7 +703,11 @@ from pyspark.sql.functions import *
 spark = SparkSession.builder \
 .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
 .getOrCreate()
-inputDf = spark.sql("""{request}""")
+request = """{request}"""
+substitute_variables = {str(substitute_variables)}
+for index, value in enumerate(substitute_variables):
+    request=eval(f"request.replace(f'<SUBSTITUTE_VARIABLE_{{index}}>',str(eval('{{value}}')))")
+inputDf = spark.sql(request)
 outputDf = inputDf.drop("dbt_unique_key").withColumn("update_hudi_ts",current_timestamp())
 if outputDf.count() > 0:
         parallelism = spark.conf.get("spark.default.parallelism")
