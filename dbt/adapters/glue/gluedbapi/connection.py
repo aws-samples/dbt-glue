@@ -7,6 +7,7 @@ from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 import time
+import threading
 import uuid
 from dbt.events import AdapterLogger
 
@@ -23,6 +24,7 @@ class GlueSessionState:
 
 @dataclass
 class GlueConnection:
+    _boto3_client_lock = threading.Lock()
 
     def __init__(self, credentials: GlueCredentials, session_id: str = None):
         self.credentials = credentials
@@ -140,7 +142,10 @@ class GlueConnection:
             }
         )
         if not self._client:
-            self._client = boto3.client("glue", region_name=self.credentials.region, config=config)
+            # refernce on why lock is required - https://stackoverflow.com/a/61943955/6034432
+            with self._boto3_client_lock:
+                session = boto3.session.Session()
+                self._client = session.client("glue", region_name=self.credentials.region, config=config)
         return self._client
 
     def cancel_statement(self, statement_id):
