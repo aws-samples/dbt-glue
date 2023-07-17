@@ -1,3 +1,8 @@
+## v1.5.3
+- use session to build client
+- enable data skipping using hudi metadata in read path
+- enable models to substitute sql with pyspark variables
+
 ## v1.5.2
 - fix the naming for query execution timeout
 - add assumeRole feature for AWS API Call
