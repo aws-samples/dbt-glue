@@ -34,10 +34,11 @@
   {% endcall %}
 
   {{ run_hooks(pre_hooks) }}
+  {%- set substitute_variables = config.get('substitute_variables', default=[]) -%}
 
   {% if file_format == 'hudi' %}
         {%- set hudi_options = config.get('hudi_options', default={}) -%}
-        {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location, hudi_options) }}
+        {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location, hudi_options, substitute_variables) }}
         {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
   {% elif file_format == 'iceberg' %}
         {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
