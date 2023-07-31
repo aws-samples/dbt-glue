@@ -28,7 +28,8 @@
   {% set existing_relation_type = adapter.get_table_type(target_relation)  %}
   {% set tmp_relation = make_temp_relation(target_relation, '_tmp') %}
   {% set is_incremental = 'False' %}
-
+  {% set lf_tags_config = config.get('lf_tags_config') %}
+  {% set lf_grants = config.get('lf_grants') %}
   {% call statement() %}
     set spark.sql.autoBroadcastJoinThreshold=-1
   {% endcall %}
@@ -80,6 +81,14 @@
 
   {{ run_hooks(post_hooks) }}
 
+  {% if lf_tags_config is not none %}
+    {{ adapter.add_lf_tags(target_relation, lf_tags_config) }}
+  {% endif %}
+
+  {% if lf_grants is not none %}
+    {{ adapter.apply_lf_grants(target_relation, lf_grants) }}
+  {% endif %}
+  
   {% if is_incremental == 'True' %}
     {{ glue__drop_relation(tmp_relation) }}
     {% if file_format == 'delta' %}

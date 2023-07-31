@@ -1,3 +1,7 @@
+## v1.5.4
+- adding support for AWS Lake Formation tag management
+- adding support for AWS Lake Formation data filtering and row, column, cell level security
+
 ## v1.5.3
 - use session to build client
 - enable data skipping using hudi metadata in read path

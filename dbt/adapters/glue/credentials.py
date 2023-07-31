@@ -78,5 +78,6 @@ class GlueCredentials(Credentials):
             'seed_format',
             'seed_mode',
             'default_arguments', 
-            'iceberg_glue_commit_lock_table'
+            'iceberg_glue_commit_lock_table', 
+            'lf_tags'
         ]

@@ -3,7 +3,7 @@ import os
 import re
 import uuid
 import boto3
-from typing import List
+from typing import Dict, List, Any
 
 import dbt
 import agate
@@ -16,6 +16,12 @@ from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
+from dbt.adapters.glue.lakeformation import (
+    LfGrantsConfig,
+    LfPermissions,
+    LfTagsConfig,
+    LfTagsManager,
+)
 from dbt.exceptions import DbtDatabaseError
 from dbt.adapters.base.impl import catch_as_completed
 from dbt.utils import executor
@@ -895,7 +901,33 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             raise DbtDatabaseError(msg="GlueIcebergExpireSnapshotsFailed") from e
         except Exception as e:
             logger.error(e)
+    
+    @available
+    def add_lf_tags(self, relation: SparkRelation, lf_tags_config: Dict[str, Any]) -> None:
+        config = LfTagsConfig(**lf_tags_config)
+        if config.enabled:
+            conn = self.connections.get_thread_connection()
+            client = conn.handle
+            lf = boto3.client("lakeformation", region_name=client.credentials.region)
+            manager = LfTagsManager(lf, relation, config)
+            manager.process_lf_tags()
+            return
+        logger.debug(f"Lakeformation is disabled for {relation}")
 
+    @available
+    def apply_lf_grants(self, relation: SparkRelation, lf_grants_config: Dict[str, Any]) -> None:
+        lf_config = LfGrantsConfig(**lf_grants_config)
+        if lf_config.data_cell_filters.enabled:
+            conn = self.connections.get_thread_connection()
+            client = conn.handle
+            lf = boto3.client("lakeformation", region_name=client.credentials.region)
+            sts = boto3.client("sts")
+            identity = sts.get_caller_identity()
+            account = identity.get("Account")
+            lf_permissions = LfPermissions(account, relation, lf)  # type: ignore
+            lf_permissions.process_filters(lf_config)
+            lf_permissions.process_permissions(lf_config)
+    
     @available
     def execute_pyspark(self, codeblock):
         session, client = self.get_connection()
