@@ -1,6 +1,8 @@
-## v1.5.4
+## v1.6.0
 - adding support for AWS Lake Formation tag management
 - adding support for AWS Lake Formation data filtering and row, column, cell level security
+- add compatibility with dbt 1.6
+- fix Snapshot for Hudi
 
 ## v1.5.3
 - use session to build client

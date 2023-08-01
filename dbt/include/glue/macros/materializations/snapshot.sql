@@ -143,8 +143,7 @@
   {%- set config = model['config'] -%}
 
   {%- set target_table = model.get('alias', model.get('name')) -%}
-  {%- set lf_tags_config = config.get('lf_tags_config') -%}
-  {%- set lf_grants = config.get('lf_grants') -%}
+
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
   {%- set file_format = config.get('file_format', 'parquet') -%}
@@ -188,7 +187,8 @@
       {%- set unique_key = 'dbt_scd_id' -%}
       {% set build_sql = build_snapshot_table(strategy, sql) %}
       {%- set hudi_options = config.get('hudi_options') -%}
-      {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location, hudi_options) }}
+      {%- set substitute_variables = config.get('substitute_variables', '[]') -%}
+      {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location, hudi_options, substitute_variables) }}
       {% set final_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
     {% elif file_format == 'iceberg'%}
       {%- set partition_by = None -%}
@@ -237,7 +237,8 @@
         {%- set build_sql = "select * from " + staging_table.schema + "." + staging_table.identifier -%}
         {%- set unique_key = 'dbt_scd_id' -%}
         {%- set hudi_options = config.get('hudi_options') -%}
-        {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location, hudi_options) }}
+      {%- set substitute_variables = config.get('substitute_variables', '[]') -%}
+        {{ adapter.hudi_merge_table(target_relation, build_sql, unique_key, partition_by, custom_location, hudi_options, substitute_variables) }}
         {% set final_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
       {% elif file_format == 'iceberg' %}
         {%- set partition_by = None -%}
@@ -260,15 +261,7 @@
   {% call statement('main') %}
       {{ final_sql }}
   {% endcall %}
-  
-  {% if lf_tags_config is not none %}
-  {{ adapter.add_lf_tags(target_relation, lf_tags_config) }}
-  {% endif %}
 
-  {% if lf_grants is not none %}
-    {{ adapter.apply_lf_grants(target_relation, lf_grants) }}
-  {% endif %}
-  
   {% set should_revoke = should_revoke(target_relation_exists, full_refresh_mode) %}
   {% do apply_grants(target_relation, grant_config, should_revoke) %}
 

@@ -38,8 +38,8 @@ def get_version(rel_path):
 
 package_name = "dbt-glue"
 package_version = get_version("dbt/adapters/glue/__version__.py")
-dbt_version = "1.5.2"
-dbt_spark_version = "1.5.0"
+dbt_version = "1.6.0"
+dbt_spark_version = "1.6.0"
 description = """dbt (data build tool) adapter for Aws Glue"""
 long_description = read('README.md')
 setup(
