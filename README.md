@@ -82,7 +82,16 @@ Please to update variables between **`<>`**, here are explanations of these argu
                 "glue:GetUserDefinedFunctions",
                 "lakeformation:ListResources",
                 "lakeformation:BatchGrantPermissions",
-                "lakeformation:ListPermissions"
+                "lakeformation:ListPermissions", 
+                "lakeformation:GetDataAccess",
+                "lakeformation:GrantPermissions",
+                "lakeformation:RevokePermissions",
+                "lakeformation:BatchRevokePermissions",
+                "lakeformation:AddLFTagsToResource",
+                "lakeformation:RemoveLFTagsFromResource",
+                "lakeformation:GetResourceLFTags",
+                "lakeformation:ListLFTags",
+                "lakeformation:GetLFTag",
             ],
             "Resource": [
                 "arn:aws:glue:<region>:<AWS Account>:catalog",
@@ -823,6 +832,131 @@ If you want to control the schema/database in which dbt will materialize models,
 use the `schema` config and `generate_schema_name` macro _only_.
 For more information, check the dbt documentation about [custom schemas](https://docs.getdbt.com/docs/build/custom-schemas).
 
+## AWS Lakeformation integration
+The adapter supports AWS Lakeformation tags management enabling you to associate existing tags defined out of dbt-glue to database objects built by dbt-glue (table, view, snapshot, incremental models, seeds).
+
+- You can enable or disable lf-tags management via config, at model and dbt-project level (disabled by default)
+- If enabled, lf-tags will be updated on every dbt run. There are table level lf-tags configs and column-level lf-tags configs. 
+- You can specify that you want to drop existing table lf-tags or column lf-tags by setting the drop_existing config field to True (False by default, meaning existing tags are kept)
+- Please note that if the tag you want to associate with the table does not exist, the dbt-glue execution will throw an error
+- dbt-glue does not manage database-level lf-tags, meaning :
+  - you can't associate database lf-tags within dbt-glue
+  - if the table inherits from a database lf-tags defined outside of dbt, dbt-glue does not drop this tag.
+
+The adapter also supports AWS Lakeformation data cell filtering. 
+- You can enable or disable data-cell filtering via config, at model and dbt-project level (disabled by default)
+- If enabled, data_cell_filters will be updated on every dbt run.
+- You can specify that you want to drop existing table data-cell filters by setting the drop_existing config field to True (False by default, meaning existing filters are kept)
+- You can leverage excluded_columns_names **OR** columns config fields to perform Column level security as well. **Please note that you can use one or the other but not both**.
+- By default, if you don't specify any column or excluded_columns, dbt-glue does not perform Column level filtering and let the principal access all the columns.
+
+The below configuration let the specified principal (lf-data-scientist IAM user) access rows that have a customer_lifetime_value > 15 and all the columns specified ('customer_id', 'first_order', 'most_recent_order', 'number_of_orders')
+
+```sql
+lf_grants={
+        'data_cell_filters': {
+            'enabled': True,
+            'drop_existing' : True,
+            'filters': {
+                'the_name_of_my_filter': {
+                    'row_filter': 'customer_lifetime_value>15',
+                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'], 
+                    'column_names': ['customer_id', 'first_order', 'most_recent_order', 'number_of_orders']
+                }
+            }, 
+        }
+    }
+```
+The below configuration let the specified principal (lf-data-scientist IAM user) access rows that have a customer_lifetime_value > 15 and all the columns *except* the one specified ('first_name')
+
+```sql
+lf_grants={
+        'data_cell_filters': {
+            'enabled': True,
+            'drop_existing' : True,
+            'filters': {
+                'the_name_of_my_filter': {
+                    'row_filter': 'customer_lifetime_value>15',
+                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'], 
+                    'excluded_column_names': ['first_name']
+                }
+            }, 
+        }
+    }
+```
+
+See below some examples of how you can integrate LF Tags management and data cell filtering to your configurations : 
+
+#### At model level
+This way of defining your Lakeformation rules is appropriate if you want to handle the tagging and filtering policy at object level. Remember that it overrides any configuration defined at dbt-project level. 
+
+```sql
+{{ config(
+    materialized='incremental',
+    unique_key="customer_id",
+    incremental_strategy='append',
+    lf_tags_config={
+          'enabled': true,
+          'drop_existing' : False,
+          'tags': 
+          {
+            'name_of_my_lf_tag': 'value_of_my_tag'          
+            }, 
+          'tags_columns': {
+            'name_of_my_lf_tag': {
+              'value_of_my_tag': ['customer_id', 'customer_lifetime_value', 'dt']
+            }}},
+    lf_grants={
+        'data_cell_filters': {
+            'enabled': True,
+            'drop_existing' : True,
+            'filters': {
+                'the_name_of_my_filter': {
+                    'row_filter': 'customer_lifetime_value>15',
+                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'], 
+                    'excluded_column_names': ['first_name']
+                }
+            }, 
+        }
+    }
+) }}
+
+    select
+        customers.customer_id,
+        customers.first_name,
+        customers.last_name,
+        customer_orders.first_order,
+        customer_orders.most_recent_order,
+        customer_orders.number_of_orders,
+        customer_payments.total_amount as customer_lifetime_value,
+        current_date() as dt
+        
+    from customers
+
+    left join customer_orders using (customer_id)
+
+    left join customer_payments using (customer_id)
+
+```
+
+#### At dbt-project level
+This way you can specify tags and data filtering policy for a particular path in your dbt project (eg. models, seeds, models/model_group1, etc.)
+This is especially useful for seeds, for which you can't define configuration in the file directly.
+
+```yml
+seeds:
+  +lf_tags_config:
+    enabled: true
+    tags: 
+      name_of_my_tag: 'value_of_my_tag'     
+models:
+  +lf_tags_config:
+    enabled: true
+    drop_existing: True
+    tags: 
+      name_of_my_tag: 'value_of_my_tag'
+```
+  
 ## Tests
 
 To perform a functional test:
