@@ -28,6 +28,8 @@ class GlueCredentials(Credentials):
     default_arguments: Optional[str] = None
     iceberg_glue_commit_lock_table: Optional[str] = "myGlueLockTable"
     use_interactive_session_role_for_api_calls: bool = False
+    glue_session_id:  Optional[str] = None
+    glue_session_reuse: Optional[bool] = False
 
     @property
     def type(self):
@@ -79,5 +81,8 @@ class GlueCredentials(Credentials):
             'seed_mode',
             'default_arguments', 
             'iceberg_glue_commit_lock_table', 
-            'lf_tags'
+            'lf_tags',
+            'glue_session_id',
+            'glue_session_reuse'
+
         ]
