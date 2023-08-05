@@ -49,7 +49,7 @@ class GlueConnection:
                     self._session = self._start_session()
                     return self.session_id
                 elif self.state in [GlueSessionState.PROVISIONING, GlueSessionState.STOPPING]:
-                        logger.info(
+                        logger.debug(
                             f"[elapsed {elapsed}s - waiting glue_session for {self.session_id} in {self.state}")
                 elif self.state == GlueSessionState.READY:
                     self._set_session_ready()
@@ -209,12 +209,12 @@ class GlueConnection:
         if not self._session:
             return
         if self.credentials.glue_session_reuse:
-            logger.info(f"reuse session, do not stop_session for {self.session_id} in {self.state} state")
+            logger.debug(f"reuse session, do not stop_session for {self.session_id} in {self.state} state")
             return
         for elapsed in wait(1):
             if self.state not in [GlueSessionState.PROVISIONING, GlueSessionState.READY , GlueSessionState.STOPPING]:
                 return
-            logger.info(f"[elapsed {elapsed}s - calling stop_session for {self.session_id} in {self.state} state")
+            logger.debug(f"[elapsed {elapsed}s - calling stop_session for {self.session_id} in {self.state} state")
             try:
                 self.client.stop_session(Id=self.session_id)
             except Exception as e:
