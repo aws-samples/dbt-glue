@@ -157,7 +157,7 @@ class GlueConnection:
 
     def cancel(self):
         logger.debug("GlueConnection cancel called")
-        response = self.client.get_statements(SessionId=self.session_id)
+        response = self.client.list_statements(SessionId=self.session_id)
         for statement in response["Statements"]:
             if statement["State"] in GlueSessionState.RUNNING:
                 self.cancel_statement(statement_id=statement["Id"])
