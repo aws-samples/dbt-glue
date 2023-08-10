@@ -19,5 +19,5 @@ pytest-dotenv
 pytest-csv
 flaky
 dbt-tests-adapter==1.5.3
-mypy==1.4.1
+mypy==1.5.0
 black==23.7.0
