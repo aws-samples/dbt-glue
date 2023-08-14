@@ -79,8 +79,7 @@ class GlueConnectionManager(SQLConnectionManager):
         )
 
     @classmethod
-    def get_result_from_cursor(cls, cursor: GlueCursor) -> agate.Table:
-        limit= 10
+    def get_result_from_cursor(cls, cursor: GlueCursor, limit:Optional[int]) -> agate.Table:
         data: List[Any] = []
         column_names: List[str] = []
         if cursor.description is not None:
