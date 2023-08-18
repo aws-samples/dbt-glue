@@ -92,7 +92,7 @@
   {% if is_incremental == 'True' %}
     {{ glue__drop_relation(tmp_relation) }}
     {% if file_format == 'delta' %}
-        {{ adapter.delta_update_manifest(target_relation, custom_location) }}
+        {{ adapter.delta_update_manifest(target_relation, custom_location, partition_by) }}
     {% endif %}
   {% endif %}
 

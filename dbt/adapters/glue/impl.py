@@ -509,7 +509,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             logger.error(e)
 
     @available
-    def delta_update_manifest(self, target_relation, custom_location):
+    def delta_update_manifest(self, target_relation, custom_location, partition_by):
         session, client = self.get_connection()
         if custom_location == "empty":
             location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
@@ -517,15 +517,21 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             location = custom_location
 
         if {session.credentials.delta_athena_prefix} is not None:
-            update_manifest_code = f'''
+            run_msck_repair = f'''
+            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+            SqlWrapper2.execute("""select 1""")
+            '''
+            generate_symlink = f'''
             custom_glue_code_for_dbt_adapter
             from delta.tables import DeltaTable
             deltaTable = DeltaTable.forPath(spark, "{location}")
             deltaTable.generate("symlink_format_manifest")
-            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
             SqlWrapper2.execute("""select 1""")
             '''
-
+            if partition_by is not None:
+                update_manifest_code = generate_symlink + run_msck_repair
+            else:
+                update_manifest_code = generate_symlink
             try:
                 session.cursor().execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
             except DbtDatabaseError as e:
@@ -576,7 +582,6 @@ STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat'
 OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
 LOCATION '{location}/_symlink_format_manifest/'"""
 spark.sql(ddl)
-spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
 SqlWrapper2.execute("""select 1""")
                         '''
         if partition_key is not None:
@@ -585,8 +590,12 @@ SqlWrapper2.execute("""select 1""")
             create_athena_table_partition = f'''
 PARTITIONED BY ({part_list})
             '''
+            run_msck_repair = f'''
+                spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+                SqlWrapper2.execute("""select 1""")
+            '''
             write_data_code = write_data_header + write_data_partition + write_data_footer
-            create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer
+            create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer + run_msck_repair
         else:
             write_data_code = write_data_header + write_data_footer
             create_athena_table = create_athena_table_header + create_athena_table_footer
