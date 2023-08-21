@@ -526,12 +526,12 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             from delta.tables import DeltaTable
             deltaTable = DeltaTable.forPath(spark, "{location}")
             deltaTable.generate("symlink_format_manifest")
-            SqlWrapper2.execute("""select 1""")
+            
             '''
             if partition_by is not None:
                 update_manifest_code = generate_symlink + run_msck_repair
             else:
-                update_manifest_code = generate_symlink
+                update_manifest_code = generate_symlink + f'''SqlWrapper2.execute("""select 1""")'''
             try:
                 session.cursor().execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
             except DbtDatabaseError as e:
@@ -581,7 +581,7 @@ STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat'
 OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
 LOCATION '{location}/_symlink_format_manifest/'"""
 spark.sql(ddl)
-SqlWrapper2.execute("""select 1""")
+
                         '''
         if partition_key is not None:
             part_list = (', '.join(['`{}`'.format(field) for field in partition_key])).replace('`', '')
@@ -597,7 +597,7 @@ SqlWrapper2.execute("""select 1""")
             create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer + run_msck_repair
         else:
             write_data_code = write_data_header + write_data_footer
-            create_athena_table = create_athena_table_header + create_athena_table_footer
+            create_athena_table = create_athena_table_header + create_athena_table_footer + f'''SqlWrapper2.execute("""select 1""")'''
 
 
 
