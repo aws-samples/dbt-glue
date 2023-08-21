@@ -573,8 +573,7 @@ deltaTable.generate("symlink_format_manifest")
 schema = deltaTable.toDF().schema
 columns = (','.join([field.simpleString() for field in schema])).replace(':', ' ')
 ddl = """CREATE EXTERNAL TABLE {target_relation.schema}.headertoberepalced_{target_relation.name} (""" + columns + """) 
-
-                '''
+'''
 
         create_athena_table_footer = f'''
 ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
@@ -591,8 +590,8 @@ SqlWrapper2.execute("""select 1""")
 PARTITIONED BY ({part_list})
             '''
             run_msck_repair = f'''
-                spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
-                SqlWrapper2.execute("""select 1""")
+spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+SqlWrapper2.execute("""select 1""")
             '''
             write_data_code = write_data_header + write_data_partition + write_data_footer
             create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer + run_msck_repair
