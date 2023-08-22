@@ -68,7 +68,7 @@ setup(
         "dbt-core~={}".format(dbt_version),
         "dbt-spark~={}".format(dbt_spark_version),
         "waiter",
-        "boto3"
+        "boto3 >= 1.28.16"
     ],
     zip_safe=False,
     classifiers=[
