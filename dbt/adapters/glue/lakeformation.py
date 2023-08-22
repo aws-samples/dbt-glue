@@ -10,27 +10,39 @@ logger = AdapterLogger("Glue")
 
 
 class LfTagsConfig:
-    def __init__(self, enabled: bool = False, drop_existing: bool = False, tags: Optional[Dict[str, str]] = None, tags_columns: Optional[Dict[str, Dict[str, List[str]]]] = None):
+    def __init__(self, enabled: bool = False, drop_existing: bool = False, tags: Optional[Dict[str, str]] = None, tags_database: Optional[Dict[str, str]] = None, tags_columns: Optional[Dict[str, Dict[str, List[str]]]] = None):
         self.enabled = enabled
-        self.override = drop_existing
+        self.drop_existing = drop_existing
         self.tags = tags
         self.tags_columns = tags_columns
+        self.tags_database = tags_database
 
 
 class LfTagsManager:
-    def __init__(self, lf_client, relation: SparkRelation, lf_tags_config: LfTagsConfig):
+    def __init__(self, lf_client, catalog_id, relation: SparkRelation, lf_tags_config: LfTagsConfig):
         self.lf_client = lf_client
+        self.catalog_id = catalog_id
         self.database = relation.schema
         self.table = relation.identifier
+        self.drop_existing = lf_tags_config.drop_existing
         self.lf_tags = lf_tags_config.tags
+        self.lf_tags_database = lf_tags_config.tags_database
         self.lf_tags_columns = lf_tags_config.tags_columns
 
     def process_lf_tags(self) -> None:
+        if self.lf_tags_database:
+            db_resource = {
+            "Database": {"CatalogId": self.catalog_id, "Name": self.database}}
+            existing_lf_tags_database = self.lf_client.get_resource_lf_tags(
+            Resource=db_resource)
+            if self.drop_existing:
+                self._remove_lf_tags_database(existing_lf_tags_database)
+            self._apply_lf_tags_database(db_resource)
         table_resource = {
             "Table": {"DatabaseName": self.database, "Name": self.table}}
         existing_lf_tags = self.lf_client.get_resource_lf_tags(
             Resource=table_resource)
-        if self.lf_tags.get('drop_existing'):
+        if self.drop_existing:
             self._remove_lf_tags_columns(existing_lf_tags)
         self._apply_lf_tags_table(table_resource, existing_lf_tags)
         self._apply_lf_tags_columns()
@@ -62,13 +74,40 @@ class LfTagsManager:
                     )
                     logger.debug(self._parse_lf_response(
                         response, columns, {tag_key: tag_value}, "remove"))
-
+    
+    def _remove_lf_tags_database(self, db_resource, existing_lf_tags) -> None:
+        lf_tags_database = existing_lf_tags.get("LFTagOnDatabase", [])
+        logger.debug(f"DATABASE TAGS: {lf_tags_database}")
+        to_remove = {
+                tag["TagKey"]: tag["TagValues"]
+                for tag in lf_tags_database
+                if tag["TagKey"] not in self.lf_tags  # type: ignore
+            }
+        logger.debug(f"TAGS TO REMOVE: {to_remove}")
+        if to_remove:
+                response = self.lf_client.remove_lf_tags_from_resource(
+                    Resource=db_resource, LFTags=[
+                        {"TagKey": k, "TagValues": v} for k, v in to_remove.items()]
+                )
+                logger.debug(self._parse_lf_response(
+                    response, None, to_remove, "remove"))
+    
+    def _apply_lf_tags_database(
+            self, db_resource) -> None:
+        if self.lf_tags_database:
+            self.lf_client
+            response = self.lf_client.add_lf_tags_to_resource(
+                Resource=db_resource, LFTags=[
+                    {"TagKey": k, "TagValues": [v]} for k, v in self.lf_tags_database.items()]
+            )
+            logger.debug(self._parse_lf_response(response, None, self.lf_tags))
+            
     def _apply_lf_tags_table(
             self, table_resource, existing_lf_tags) -> None:
         lf_tags_table = existing_lf_tags.get("LFTagsOnTable", [])
         logger.debug(f"EXISTING TABLE TAGS: {lf_tags_table}")
         logger.debug(f"CONFIG TAGS: {self.lf_tags}")
-        if self.lf_tags.get('drop_existing'):
+        if self.drop_existing:
             to_remove = {
                 tag["TagKey"]: tag["TagValues"]
                 for tag in lf_tags_table
