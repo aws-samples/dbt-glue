@@ -515,24 +515,39 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
                 DatabaseName=f'{target_relation.schema}',
                 Name=f'{session.credentials.delta_athena_prefix}_{target_relation.name}',
             ).get("Table", {})
+        except client.exceptions.EntityNotFoundException as e:
+            logger.debug(e)
+            pass
+        except Exception as e:
+            logger.error(e)
+
+        try:
             # removing redundant keys from table_input
-            del table_input['DatabaseName'], table_input['CreateTime'], table_input['UpdateTime'], \
-                table_input['CreatedBy'], table_input['IsRegisteredWithLakeFormation'], table_input['CatalogId'], \
+            del table_input['DatabaseName'], \
+                table_input['CreateTime'], \
+                table_input['UpdateTime'], \
+                table_input['CreatedBy'], \
+                table_input['IsRegisteredWithLakeFormation'], \
+                table_input['CatalogId'], \
                 table_input['VersionId']
 
-            if 'AdditionalLocations' not in table_input.get("StorageDescriptor", {}):
+            if 'AdditionalLocations' not in table_input['StorageDescriptor']:
                 table_input['StorageDescriptor']['AdditionalLocations'] = [location]
             else:
                 if location not in table_input['StorageDescriptor']['AdditionalLocations']:
                     table_input['StorageDescriptor']['AdditionalLocations'] += location
-
+        except KeyError as e:
+            logger.debug(e)
+            pass
+        try:
             client.update_table(
                 DatabaseName=f'{target_relation.schema}',
                 TableInput=table_input,
                 SkipArchive=True
             )
-        except DbtDatabaseError as e:
-            raise DbtDatabaseError(msg="GlueDeltaCreateTableFailed") from e
+        except client.exceptions.EntityNotFoundException as e:
+            logger.debug(e)
+            pass
         except Exception as e:
             logger.error(e)
 
