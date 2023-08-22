@@ -661,7 +661,6 @@ PARTITIONED BY ({part_list})
             'className' : 'org.apache.hudi',
             'hoodie.datasource.hive_sync.use_jdbc':'false',
             'hoodie.datasource.write.precombine.field': 'update_hudi_ts',
-            'hoodie.consistency.check.enabled': 'true',
             'hoodie.datasource.write.recordkey.field': primary_key,
             'hoodie.table.name': target_relation.name,
             'hoodie.datasource.hive_sync.database': target_relation.schema,
