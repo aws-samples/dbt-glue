@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import agate
-from typing import Any, List, Dict
+from typing import Any, List, Dict,Optional
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import AdapterResponse
 from dbt.exceptions import (
@@ -79,15 +79,16 @@ class GlueConnectionManager(SQLConnectionManager):
         )
 
     @classmethod
-    def get_result_from_cursor(cls, cursor: GlueCursor) -> agate.Table:
+    def get_result_from_cursor(cls, cursor: GlueCursor, limit:Optional[int]) -> agate.Table:
         data: List[Any] = []
         column_names: List[str] = []
-
         if cursor.description is not None:
-            column_names = cursor.columns
-            rows = cursor.fetchall()
+            column_names = [col[0] for col in cursor.description()]
+            if limit:
+                rows = cursor.fetchmany(limit)
+            else:
+                rows = cursor.fetchall()
             data = cls.process_results(column_names, rows)
-
         return dbt.clients.agate_helper.table_from_data_flat(
             data,
             column_names
