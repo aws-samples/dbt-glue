@@ -908,7 +908,10 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             conn = self.connections.get_thread_connection()
             client = conn.handle
             lf = boto3.client("lakeformation", region_name=client.credentials.region)
-            manager = LfTagsManager(lf, relation, config)
+            sts = boto3.client("sts")
+            identity = sts.get_caller_identity()
+            account = identity.get("Account")
+            manager = LfTagsManager(lf, account, relation, config)
             manager.process_lf_tags()
             return
         logger.debug(f"Lakeformation is disabled for {relation}")

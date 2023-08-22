@@ -1,3 +1,6 @@
+## v1.6.1
+- adding support for database AWS Lake Formation tag management
+
 ## v1.6.0
 - adding support for AWS Lake Formation tag management
 - adding support for AWS Lake Formation data filtering and row, column, cell level security

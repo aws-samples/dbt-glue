@@ -833,15 +833,12 @@ use the `schema` config and `generate_schema_name` macro _only_.
 For more information, check the dbt documentation about [custom schemas](https://docs.getdbt.com/docs/build/custom-schemas).
 
 ## AWS Lakeformation integration
-The adapter supports AWS Lakeformation tags management enabling you to associate existing tags defined out of dbt-glue to database objects built by dbt-glue (table, view, snapshot, incremental models, seeds).
+The adapter supports AWS Lake Formation tags management enabling you to associate existing tags defined out of dbt-glue to database objects built by dbt-glue (database, table, view, snapshot, incremental models, seeds).
 
 - You can enable or disable lf-tags management via config, at model and dbt-project level (disabled by default)
 - If enabled, lf-tags will be updated on every dbt run. There are table level lf-tags configs and column-level lf-tags configs. 
-- You can specify that you want to drop existing table lf-tags or column lf-tags by setting the drop_existing config field to True (False by default, meaning existing tags are kept)
+- You can specify that you want to drop existing database, table column Lake Formation tags by setting the drop_existing config field to True (False by default, meaning existing tags are kept)
 - Please note that if the tag you want to associate with the table does not exist, the dbt-glue execution will throw an error
-- dbt-glue does not manage database-level lf-tags, meaning :
-  - you can't associate database lf-tags within dbt-glue
-  - if the table inherits from a database lf-tags defined outside of dbt, dbt-glue does not drop this tag.
 
 The adapter also supports AWS Lakeformation data cell filtering. 
 - You can enable or disable data-cell filtering via config, at model and dbt-project level (disabled by default)
@@ -898,9 +895,13 @@ This way of defining your Lakeformation rules is appropriate if you want to hand
     lf_tags_config={
           'enabled': true,
           'drop_existing' : False,
-          'tags': 
+          'tags_database': 
           {
-            'name_of_my_lf_tag': 'value_of_my_tag'          
+            'name_of_my_db_tag': 'value_of_my_db_tag'          
+            }, 
+          'tags_table': 
+          {
+            'name_of_my_table_tag': 'value_of_my_table_tag'          
             }, 
           'tags_columns': {
             'name_of_my_lf_tag': {
@@ -947,16 +948,20 @@ This is especially useful for seeds, for which you can't define configuration in
 seeds:
   +lf_tags_config:
     enabled: true
-    tags: 
-      name_of_my_tag: 'value_of_my_tag'     
+    tags_table: 
+      name_of_my_table_tag: 'value_of_my_table_tag'  
+    tags_database: 
+      name_of_my_database_tag: 'value_of_my_database_tag'
 models:
   +lf_tags_config:
     enabled: true
     drop_existing: True
-    tags: 
-      name_of_my_tag: 'value_of_my_tag'
+    tags_database: 
+      name_of_my_database_tag: 'value_of_my_database_tag'
+    tags_table: 
+      name_of_my_table_tag: 'value_of_my_table_tag'
 ```
-  
+
 ## Tests
 
 To perform a functional test:
