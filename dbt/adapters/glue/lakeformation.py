@@ -10,10 +10,10 @@ logger = AdapterLogger("Glue")
 
 
 class LfTagsConfig:
-    def __init__(self, enabled: bool = False, drop_existing: bool = False, tags: Optional[Dict[str, str]] = None, tags_database: Optional[Dict[str, str]] = None, tags_columns: Optional[Dict[str, Dict[str, List[str]]]] = None):
+    def __init__(self, enabled: bool = False, drop_existing: bool = False, tags_table: Optional[Dict[str, str]] = None, tags_database: Optional[Dict[str, str]] = None, tags_columns: Optional[Dict[str, Dict[str, List[str]]]] = None):
         self.enabled = enabled
         self.drop_existing = drop_existing
-        self.tags = tags
+        self.tags_table = tags_table
         self.tags_columns = tags_columns
         self.tags_database = tags_database
 
@@ -25,7 +25,7 @@ class LfTagsManager:
         self.database = relation.schema
         self.table = relation.identifier
         self.drop_existing = lf_tags_config.drop_existing
-        self.lf_tags = lf_tags_config.tags
+        self.lf_tags_table = lf_tags_config.tags_table
         self.lf_tags_database = lf_tags_config.tags_database
         self.lf_tags_columns = lf_tags_config.tags_columns
 
@@ -81,7 +81,7 @@ class LfTagsManager:
         to_remove = {
                 tag["TagKey"]: tag["TagValues"]
                 for tag in lf_tags_database
-                if tag["TagKey"] not in self.lf_tags  # type: ignore
+                if tag["TagKey"] not in self.lf_tags_database  # type: ignore
             }
         logger.debug(f"TAGS TO REMOVE: {to_remove}")
         if to_remove:
@@ -100,18 +100,18 @@ class LfTagsManager:
                 Resource=db_resource, LFTags=[
                     {"TagKey": k, "TagValues": [v]} for k, v in self.lf_tags_database.items()]
             )
-            logger.debug(self._parse_lf_response(response, None, self.lf_tags))
+            logger.debug(self._parse_lf_response(response, None, self.lf_tags_database))
             
     def _apply_lf_tags_table(
             self, table_resource, existing_lf_tags) -> None:
-        lf_tags_table = existing_lf_tags.get("LFTagsOnTable", [])
-        logger.debug(f"EXISTING TABLE TAGS: {lf_tags_table}")
-        logger.debug(f"CONFIG TAGS: {self.lf_tags}")
+        existing_lf_tags_table = existing_lf_tags.get("LFTagsOnTable", [])
+        logger.debug(f"EXISTING TABLE TAGS: {existing_lf_tags_table}")
+        logger.debug(f"CONFIG TAGS: {self.lf_tags_table}")
         if self.drop_existing:
             to_remove = {
                 tag["TagKey"]: tag["TagValues"]
-                for tag in lf_tags_table
-                if tag["TagKey"] not in self.lf_tags  # type: ignore
+                for tag in existing_lf_tags_table
+                if tag["TagKey"] not in self.lf_tags_table  # type: ignore
             }
             logger.debug(f"TAGS TO REMOVE: {to_remove}")
             if to_remove:
@@ -122,13 +122,13 @@ class LfTagsManager:
                 logger.debug(self._parse_lf_response(
                     response, None, to_remove, "remove"))
 
-        if self.lf_tags:
+        if self.lf_tags_table:
             self.lf_client
             response = self.lf_client.add_lf_tags_to_resource(
                 Resource=table_resource, LFTags=[
-                    {"TagKey": k, "TagValues": [v]} for k, v in self.lf_tags.items()]
+                    {"TagKey": k, "TagValues": [v]} for k, v in self.lf_tags_table.items()]
             )
-            logger.debug(self._parse_lf_response(response, None, self.lf_tags))
+            logger.debug(self._parse_lf_response(response, None, self.lf_tags_table))
 
     def _apply_lf_tags_columns(self) -> None:
         if self.lf_tags_columns:
