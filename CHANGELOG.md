@@ -1,3 +1,9 @@
+## v1.6.1
+- adding support for database AWS Lake Formation tag management
+- fix the boto3 version to use lakeformation tags 
+- Fixed msck repair call for Delta non-partitioned tables
+- re-use the glue-session to run multiple dbt run commands
+
 ## v1.6.0
 - adding support for AWS Lake Formation tag management
 - adding support for AWS Lake Formation data filtering and row, column, cell level security

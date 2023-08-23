@@ -18,17 +18,17 @@ class GlueSessionState:
     READY = "READY"
     FAILED = "FAILED"
     PROVISIONING = "PROVISIONING"
-    RUNNING = "RUNNING"
-    CLOSED = "CLOSED"
+    TIMEOUT = "TIMEOUT"
+    STOPPING = "STOPPING"
+    STOPPED = "STOPPED"
 
 
 @dataclass
 class GlueConnection:
     _boto3_client_lock = threading.Lock()
-
     def __init__(self, credentials: GlueCredentials, session_id: str = None):
         self.credentials = credentials
-        self._session_id = session_id
+        self._session_id = credentials.glue_session_id
         self._client = None
         self._session = None
         self._state = None
@@ -43,8 +43,17 @@ class GlueConnection:
                 "Session": {"Id": self._session_id}
             }
             logger.debug("Existing session with status : " + self.state)
-            if self.state == GlueSessionState.CLOSED:
-                self._session = self._start_session()
+            for elapsed in wait(1):
+                if self.state in [GlueSessionState.FAILED, GlueSessionState.STOPPED, GlueSessionState.TIMEOUT]:
+                    self.delete_session(session_id=self._session_id)
+                    self._session = self._start_session()
+                    return self.session_id
+                elif self.state in [GlueSessionState.PROVISIONING, GlueSessionState.STOPPING]:
+                        logger.debug(
+                            f"[elapsed {elapsed}s - waiting glue_session for {self.session_id} in {self.state}")
+                elif self.state == GlueSessionState.READY:
+                    self._set_session_ready()
+                    return self.session_id
 
         return self.session_id
 
@@ -90,7 +99,8 @@ class GlueConnection:
         session_uuidStr = str(session_uuid)
         session_prefix = self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
         id = f"{session_prefix}-dbt-glue-{session_uuidStr}"
-
+        if self.session_id:
+            id = self.session_id
         try:
             self._session = self.client.create_session(
                 Id=id,
@@ -157,10 +167,20 @@ class GlueConnection:
 
     def cancel(self):
         logger.debug("GlueConnection cancel called")
-        response = self.client.get_statements(SessionId=self.session_id)
+        response = self.client.list_statements(SessionId=self.session_id)
         for statement in response["Statements"]:
-            if statement["State"] in GlueSessionState.RUNNING:
+            if statement["State"] in GlueSessionState.READY:
                 self.cancel_statement(statement_id=statement["Id"])
+
+    def delete_session(self, session_id):
+        try:
+            self.client.delete_session(
+                Id=session_id,
+                RequestOrigin='dbt-glue-'+self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
+            )
+        except Exception as e:
+            logger.debug(f"delete session {session_id} error")
+            raise e
 
     def close(self):
         logger.debug("NotImplemented: close")
@@ -170,12 +190,13 @@ class GlueConnection:
         logger.debug("NotImplemented: rollback")
 
     def cursor(self, as_dict=False) -> GlueCursor:
-        logger.debug("GlueConnection cursor called")
+        # logger.debug(f"GlueConnection cursor called, current session: {self.session_id}, state: {self.state}")
         if self.state == GlueSessionState.READY:
             self._init_session()
             return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
         else:
             for elapsed in wait(1):
+                logger.debug(f"[elapsed {elapsed}s - cursor waiting glue session state to ready for {self.session_id} in {self.state} state")
                 if self.state == GlueSessionState.READY:
                     self._init_session()
                     return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
@@ -187,11 +208,12 @@ class GlueConnection:
         logger.debug("GlueConnection close_session called")
         if not self._session:
             return
-
+        if self.credentials.glue_session_reuse:
+            logger.debug(f"reuse session, do not stop_session for {self.session_id} in {self.state} state")
+            return
         for elapsed in wait(1):
-            if self.state not in [GlueSessionState.PROVISIONING, GlueSessionState.READY, GlueSessionState.RUNNING]:
+            if self.state not in [GlueSessionState.PROVISIONING, GlueSessionState.READY , GlueSessionState.STOPPING]:
                 return
-            
             logger.debug(f"[elapsed {elapsed}s - calling stop_session for {self.session_id} in {self.state} state")
             try:
                 self.client.stop_session(Id=self.session_id)
@@ -207,12 +229,27 @@ class GlueConnection:
         if self._state in [GlueSessionState.FAILED]:
             return self._state
         try:
+            if not self.session_id:
+                self._session = {
+                    "Session": {"Id": self._session_id}
+                }
             response = self.client.get_session(Id=self.session_id)
             session = response.get("Session", {})
             self._state = session.get("Status")
-        except:
-            self._state = GlueSessionState.CLOSED
+        except Exception as e:
+            logger.debug(f"get session state error session_id: {self._session_id}, {self.session_id}")
+            logger.debug(e)
+            self._state = GlueSessionState.STOPPED
         return self._state
+
+    def _set_session_ready(self):
+        try:
+            response = self.client.get_session(Id=self._session_id)
+            self._session = response
+            self._session_create_time = response.get("Session", {}).get("CreatedOn")
+        except Exception as e:
+            logger.debug(f"set session ready error")
+            raise e
 
     def _string_to_dict(self, value_to_convert):
         value_in_dictionary = {}

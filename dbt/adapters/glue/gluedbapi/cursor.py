@@ -5,6 +5,7 @@ from dbt.contracts.connection import AdapterResponse
 from dbt import exceptions as dbterrors
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 from dbt.events import AdapterLogger
+from typing import Optional
 
 logger = AdapterLogger("Glue")
 
@@ -162,6 +163,22 @@ class GlueCursor:
 
             return records
 
+    def fetchmany(self, limit: Optional[int]):
+        logger.debug("GlueCursor fetchall called")
+        if self.closed:
+            raise Exception("CursorClosed")
+
+        if self.response:
+            records = []
+            i = 0
+            for item in self.response.get("results", []):
+                record = []
+                for column in self.columns:
+                    record.append(item.get("data", {}).get(column, None))
+                if i < limit:
+                    records.append(record)
+                    i = i+1
+            return records
     def fetchone(self):
         logger.debug("GlueCursor fetchone called")
         if self.closed:

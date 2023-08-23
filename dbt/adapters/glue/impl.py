@@ -516,7 +516,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             logger.error(e)
 
     @available
-    def delta_update_manifest(self, target_relation, custom_location):
+    def delta_update_manifest(self, target_relation, custom_location, partition_by):
         session, client = self.get_connection()
         if custom_location == "empty":
             location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
@@ -524,15 +524,21 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             location = custom_location
 
         if {session.credentials.delta_athena_prefix} is not None:
-            update_manifest_code = f'''
+            run_msck_repair = f'''
+            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+            SqlWrapper2.execute("""select 1""")
+            '''
+            generate_symlink = f'''
             custom_glue_code_for_dbt_adapter
             from delta.tables import DeltaTable
             deltaTable = DeltaTable.forPath(spark, "{location}")
             deltaTable.generate("symlink_format_manifest")
-            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
-            SqlWrapper2.execute("""select 1""")
+            
             '''
-
+            if partition_by is not None:
+                update_manifest_code = generate_symlink + run_msck_repair
+            else:
+                update_manifest_code = generate_symlink + f'''SqlWrapper2.execute("""select 1""")'''
             try:
                 session.cursor().execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
             except DbtDatabaseError as e:
@@ -574,8 +580,7 @@ deltaTable.generate("symlink_format_manifest")
 schema = deltaTable.toDF().schema
 columns = (','.join([field.simpleString() for field in schema])).replace(':', ' ')
 ddl = """CREATE EXTERNAL TABLE {target_relation.schema}.headertoberepalced_{target_relation.name} (""" + columns + """) 
-
-                '''
+'''
 
         create_athena_table_footer = f'''
 ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
@@ -583,20 +588,22 @@ STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.SymlinkTextInputFormat'
 OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
 LOCATION '{location}/_symlink_format_manifest/'"""
 spark.sql(ddl)
-spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
-SqlWrapper2.execute("""select 1""")
-                        '''
+'''
         if partition_key is not None:
             part_list = (', '.join(['`{}`'.format(field) for field in partition_key])).replace('`', '')
             write_data_partition = f'''.partitionBy("{part_list}")'''
             create_athena_table_partition = f'''
 PARTITIONED BY ({part_list})
             '''
+            run_msck_repair = f'''
+spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+SqlWrapper2.execute("""select 1""")
+            '''
             write_data_code = write_data_header + write_data_partition + write_data_footer
-            create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer
+            create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer + run_msck_repair
         else:
             write_data_code = write_data_header + write_data_footer
-            create_athena_table = create_athena_table_header + create_athena_table_footer
+            create_athena_table = create_athena_table_header + create_athena_table_footer + f'''SqlWrapper2.execute("""select 1""")'''
 
 
 
@@ -668,7 +675,6 @@ PARTITIONED BY ({part_list})
             'className' : 'org.apache.hudi',
             'hoodie.datasource.hive_sync.use_jdbc':'false',
             'hoodie.datasource.write.precombine.field': 'update_hudi_ts',
-            'hoodie.consistency.check.enabled': 'true',
             'hoodie.datasource.write.recordkey.field': primary_key,
             'hoodie.table.name': target_relation.name,
             'hoodie.datasource.hive_sync.database': target_relation.schema,
@@ -937,7 +943,10 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             conn = self.connections.get_thread_connection()
             client = conn.handle
             lf = boto3.client("lakeformation", region_name=client.credentials.region)
-            manager = LfTagsManager(lf, relation, config)
+            sts = boto3.client("sts")
+            identity = sts.get_caller_identity()
+            account = identity.get("Account")
+            manager = LfTagsManager(lf, account, relation, config)
             manager.process_lf_tags()
             return
         logger.debug(f"Lakeformation is disabled for {relation}")
