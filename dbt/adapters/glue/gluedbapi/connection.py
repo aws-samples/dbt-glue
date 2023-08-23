@@ -152,7 +152,7 @@ class GlueConnection:
             }
         )
         if not self._client:
-            # refernce on why lock is required - https://stackoverflow.com/a/61943955/6034432
+            # reference on why lock is required - https://stackoverflow.com/a/61943955/6034432
             with self._boto3_client_lock:
                 session = boto3.session.Session()
                 self._client = session.client("glue", region_name=self.credentials.region, config=config)

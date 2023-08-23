@@ -15,7 +15,7 @@ class GlueCredentials(Credentials):
     extra_jars: Optional[str] = None
     idle_timeout: int = 10
     query_timeout_in_minutes: int = 300
-    glue_version: Optional[str] = "3.0"
+    glue_version: Optional[str] = "4.0"
     security_configuration: Optional[str] = None
     connections: Optional[str] = None
     conf: Optional[str] = None
