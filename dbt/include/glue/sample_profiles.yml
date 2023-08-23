@@ -3,7 +3,7 @@ default:
 
     dev:
       type: glue
-      role_arn: arn:aws:iam::<awss account>:role/GlueInteractiveSessionRole
+      role_arn: arn:aws:iam::<aws account>:role/GlueInteractiveSessionRole
       region: eu-west-1
       workers: 5
       worker_type: G.1X

@@ -42,7 +42,7 @@ def session_id(client, role, region):
 
         attempts += 1
         if attempts > 16:
-            raise Exception("Timeout waiting for session provisonning")
+            raise Exception("Timeout waiting for session provisioning")
         time.sleep(1)
 
     yield _session_id

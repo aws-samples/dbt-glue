@@ -231,7 +231,7 @@ The table below describes all the options.
 | location	                               | The Amazon S3 location of your target data.	                                                                                                                                                                                                                                                      |yes|
 | query_timeout_in_minutes	               | The timeout in minutes for a signle query. Default is 300                                                                                                                                                                                                                                         |no|
 | idle_timeout	                           | The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time)	                                                                                                                                                                              |no|
-| glue_version	                           | The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 3.0.	                                                                                                                                                                    |no|
+| glue_version	                           | The version of AWS Glue for this session to use. Currently, the only valid options are 2.0, 3.0 and 4.0. The default value is 4.0.	                                                                                                                                                               |no|
 | security_configuration	                 | The security configuration to use with this session.	                                                                                                                                                                                                                                             |no|
 | connections	                            | A comma-separated list of connections to use in the session.	                                                                                                                                                                                                                                     |no|
 | conf	                                   | Specific configuration used at the startup of the Glue Interactive Session (arg --conf)	                                                                                                                                                                                                          |no|
@@ -533,7 +533,7 @@ group by 1
 ```yaml
 iceberg_glue_commit_lock_table: "MyDynamoDbTable"
 ```
-- the latest connector for icerberg in AWS marketplace uses Ver 0.14.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546)
+- the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546)
 
 Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.table=<YourDynamoDBLockTableName>` and, you change the below iam permission with your correct table name.
 ```
@@ -565,7 +565,7 @@ Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.
 - To add a connections in your profile : `connections: name_of_your_iceberg_connector` (
   - For Athena version 3: 
     - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
-    - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
+    - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
   - For Athena version 2: The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
 - To add the following config in your Interactive Session Config (in your profile):  
 ```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
