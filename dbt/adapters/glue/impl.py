@@ -510,6 +510,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
     def _update_additional_location(self, target_relation, location):
         session, client = self.get_connection()
+        table_input = {}
         try:
             table_input = client.get_table(
                 DatabaseName=f'{target_relation.schema}',
