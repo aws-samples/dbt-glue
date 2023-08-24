@@ -408,7 +408,8 @@ This [blog post](https://aws.amazon.com/blogs/big-data/part-1-integrate-apache-h
 
 **Usage notes:** The `merge` with Hudi incremental strategy requires:
 - To add `file_format: hudi` in your table configuration
-- To add a connections in your profile : `connections: name_of_your_hudi_connector`
+- To add a datalake_formats in your profile : `datalake_formats: hudi`
+  - Alternatively, to add a connections in your profile : `connections: name_of_your_hudi_connector`
 - To add Kryo serializer in your Interactive Session Config (in your profile):  `conf: "spark.serializer=org.apache.spark.serializer.KryoSerializer"`
 
 dbt will run an [atomic `merge` statement](https://hudi.apache.org/docs/writing_data#spark-datasource-writer) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. If a `unique_key` is specified (recommended), dbt will update old records with values from new records that match on the key column. If a `unique_key` is not specified, dbt will forgo match criteria and simply insert all new records (similar to `append` strategy).
@@ -423,13 +424,13 @@ test_project:
       query-comment: my comment
       role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
       region: eu-west-1
-      glue_version: "3.0"
+      glue_version: "4.0"
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
       session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
-      connections: name_of_your_hudi_connector
+      datalake_formats: hudi
       conf: "spark.serializer=org.apache.spark.serializer.KryoSerializer"
 ```
 
@@ -469,11 +470,13 @@ You can also use Delta Lake to be able to use merge feature on tables.
 
 **Usage notes:** The `merge` with Delta incremental strategy requires:
 - To add `file_format: delta` in your table configuration
-- To add a connections in your profile : `connections: name_of_your_delta_connector`
+- To add a datalake_formats in your profile : `datalake_formats: delta`
+  - Alternatively, to add a connections in your profile : `connections: name_of_your_delta_connector`
 - To add the following config in your Interactive Session Config (in your profile):  `conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog`
 
 **Athena:** Athena is not compatible by default with delta tables, but you can configure the adapter to create Athena tables on top of your delta table. To do so, you need to configure the two following options in your profile:
-- `extra_py_files: "/tmp/delta-core_2.12-1.0.0.jar"`
+- For Delta Lake 2.1.0 supported natively in Glue 4.0: `extra_py_files: "/opt/aws_glue_connectors/selected/datalake/delta-core_2.12-2.1.0.jar"`
+- For Delta Lake 1.0.0 supported natively in Glue 3.0: `extra_py_files: "/opt/aws_glue_connectors/selected/datalake/delta-core_2.12-1.0.0.jar"`
 - `delta_athena_prefix: "the_prefix_of_your_choice"`
 - If your table is partitioned, then the add of new partition is not automatic, you need to perform an `MSCK REPAIR TABLE your_delta_table` after each new partition adding
 
@@ -487,15 +490,15 @@ test_project:
       query-comment: my comment
       role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
       region: eu-west-1
-      glue_version: "3.0"
+      glue_version: "4.0"
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
       session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
-      connections: name_of_your_delta_connector
+      datalake_formats: delta
       conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
-      extra_py_files: "/tmp/delta-core_2.12-1.0.0.jar"
+      extra_py_files: "/opt/aws_glue_connectors/selected/datalake/delta-core_2.12-2.1.0.jar"
       delta_athena_prefix: "delta"
 ```
 
@@ -565,11 +568,12 @@ Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.
 }
 ```
 - To add `file_format: Iceberg` in your table configuration
-- To add a connections in your profile : `connections: name_of_your_iceberg_connector` (
-  - For Athena version 3: 
-    - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
-    - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
-  - For Athena version 2: The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
+- To add a datalake_formats in your profile : `datalake_formats: iceberg`
+  - Alternatively, to add a connections in your profile : `connections: name_of_your_iceberg_connector` (
+    - For Athena version 3: 
+      - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
+      - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
+    - For Athena version 2: The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
 - To add the following config in your Interactive Session Config (in your profile):  
 ```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
     --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
@@ -577,10 +581,11 @@ Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.
     --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
     --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
     --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
-    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager 
+    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager
     --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
 ```
+  - For Glue 3.0, set `spark.sql.catalog.glue_catalog.lock-impl` to `org.apache.iceberg.aws.glue.DynamoLockManager` instead
 
 dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/latest/spark-writes/) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. You need to provide a `unique_key` to perform merge operation otherwise it will fail. This key is to provide in a Python list format and can contains multiple column name to create a composite unique_key. 
 
@@ -618,14 +623,14 @@ test_project:
       query-comment: my comment
       role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
       region: eu-west-1
-      glue_version: "3.0"
+      glue_version: "4.0"
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
       session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
-      connections: name_of_your_iceberg_connector
-      conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
+      datalake_formats: iceberg
+      conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
 ```
 
 #### Source Code example
@@ -734,7 +739,7 @@ test_project:
       query-comment: my comment
       role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
       region: eu-west-1
-      glue_version: "3.0"
+      glue_version: "4.0"
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"

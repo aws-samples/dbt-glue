@@ -3,6 +3,8 @@
 - fix the boto3 version to use lakeformation tags 
 - Fixed msck repair call for Delta non-partitioned tables
 - re-use the glue-session to run multiple dbt run commands
+- support Hudi, Delta, Iceberg natively supported in Glue through datalake_format parameter
+- upgrade default Glue version to 4.0
 
 ## v1.6.0
 - adding support for AWS Lake Formation tag management

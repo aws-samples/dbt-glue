@@ -95,6 +95,9 @@ class GlueConnection:
         if (self.credentials.tags is not None):
             additional_args["Tags"] = self._string_to_dict(self.credentials.tags)
 
+        if (self.credentials.datalake_formats is not None):
+            args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
+
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
         session_prefix = self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn

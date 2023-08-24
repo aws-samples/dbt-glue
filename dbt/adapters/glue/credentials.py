@@ -30,6 +30,7 @@ class GlueCredentials(Credentials):
     use_interactive_session_role_for_api_calls: bool = False
     glue_session_id:  Optional[str] = None
     glue_session_reuse: Optional[bool] = False
+    datalake_formats: Optional[str] = None
 
     @property
     def type(self):
@@ -83,6 +84,6 @@ class GlueCredentials(Credentials):
             'iceberg_glue_commit_lock_table', 
             'lf_tags',
             'glue_session_id',
-            'glue_session_reuse'
-
+            'glue_session_reuse',
+            'datalake_formats'
         ]
