@@ -515,6 +515,50 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
         except Exception as e:
             logger.error(e)
 
+    def _update_additional_location(self, target_relation, location):
+        session, client = self.get_connection()
+        table_input = {}
+        try:
+            table_input = client.get_table(
+                DatabaseName=f'{target_relation.schema}',
+                Name=f'{session.credentials.delta_athena_prefix}_{target_relation.name}',
+            ).get("Table", {})
+        except client.exceptions.EntityNotFoundException as e:
+            logger.debug(e)
+            pass
+        except Exception as e:
+            logger.error(e)
+
+        try:
+            # removing redundant keys from table_input
+            del table_input['DatabaseName'], \
+                table_input['CreateTime'], \
+                table_input['UpdateTime'], \
+                table_input['CreatedBy'], \
+                table_input['IsRegisteredWithLakeFormation'], \
+                table_input['CatalogId'], \
+                table_input['VersionId']
+
+            if 'AdditionalLocations' not in table_input['StorageDescriptor']:
+                table_input['StorageDescriptor']['AdditionalLocations'] = [location]
+            else:
+                if location not in table_input['StorageDescriptor']['AdditionalLocations']:
+                    table_input['StorageDescriptor']['AdditionalLocations'] += location
+        except KeyError as e:
+            logger.debug(e)
+            pass
+        try:
+            client.update_table(
+                DatabaseName=f'{target_relation.schema}',
+                TableInput=table_input,
+                SkipArchive=True
+            )
+        except client.exceptions.EntityNotFoundException as e:
+            logger.debug(e)
+            pass
+        except Exception as e:
+            logger.error(e)
+
     @available
     def delta_update_manifest(self, target_relation, custom_location, partition_by):
         session, client = self.get_connection()
@@ -545,6 +589,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
                 raise DbtDatabaseError(msg="GlueDeltaUpdateManifestFailed") from e
             except Exception as e:
                 logger.error(e)
+            self._update_additional_location(target_relation, location)
     @available
     def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client = self.get_connection()
@@ -628,6 +673,7 @@ SqlWrapper2.execute("""select 1""")
                 raise DbtDatabaseError(msg="GlueDeltaCreateTableFailed") from e
             except Exception as e:
                 logger.error(e)
+            self._update_additional_location(target_relation, location)
 
     @available
     def get_table_type(self, relation):
