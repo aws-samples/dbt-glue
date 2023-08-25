@@ -18,6 +18,6 @@ pytest-xdist
 pytest-dotenv
 pytest-csv
 flaky
-dbt-tests-adapter==1.6.0
+dbt-tests-adapter==1.6.1
 mypy==1.5.1
 black==23.7.0
