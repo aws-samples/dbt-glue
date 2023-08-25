@@ -243,7 +243,7 @@ The table below describes all the options.
 | default_arguments	                      | The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: `--enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true` | no        |
 | glue_session_id                         | re-use the glue-session to run multiple dbt run commands: set a glue session id you need to use                                                                                                                                                                                                   | no        | 
 | glue_session_reuse                      | re-use the glue-session to run multiple dbt run commands: If set to true, the glue session will not be closed for re-use. If set to false, the session will be closed                                                                                                                             | no        | 
-| default_arguments	                      | The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: `--enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true` |no|
+| datalake_formats	                      | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `ìceberg` or `delta`                                                                                                                                                                                          |no|
 
 ## Configs
 
@@ -381,7 +381,11 @@ Specifying `insert_overwrite` as the incremental strategy is optional, since it'
 - Iceberg : OK
 - Lake Formation Governed Tables : On going
 
-The simpliest way to work with theses advanced features is to install theses using [Glue connectors](https://docs.aws.amazon.com/glue/latest/ug/connectors-chapter.html).
+NB: 
+
+- For Glue 3: you have to setup a [Glue connectors](https://docs.aws.amazon.com/glue/latest/ug/connectors-chapter.html).
+
+- For Glue 4: use the `datalake_formats` option in your profile.yml
 
 When using a connector be sure that your IAM role has these policies:
 ```
@@ -410,7 +414,7 @@ This [blog post](https://aws.amazon.com/blogs/big-data/part-1-integrate-apache-h
 - To add `file_format: hudi` in your table configuration
 - To add a datalake_formats in your profile : `datalake_formats: hudi`
   - Alternatively, to add a connections in your profile : `connections: name_of_your_hudi_connector`
-- To add Kryo serializer in your Interactive Session Config (in your profile):  `conf: "spark.serializer=org.apache.spark.serializer.KryoSerializer"`
+- To add Kryo serializer in your Interactive Session Config (in your profile):  `conf: spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.hive.convertMetastoreParquet=false`
 
 dbt will run an [atomic `merge` statement](https://hudi.apache.org/docs/writing_data#spark-datasource-writer) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. If a `unique_key` is specified (recommended), dbt will update old records with values from new records that match on the key column. If a `unique_key` is not specified, dbt will forgo match criteria and simply insert all new records (similar to `append` strategy).
 
@@ -430,8 +434,8 @@ test_project:
       schema: "dbt_test_project"
       session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
+      conf: spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.hive.convertMetastoreParquet=false
       datalake_formats: hudi
-      conf: "spark.serializer=org.apache.spark.serializer.KryoSerializer"
 ```
 
 #### Source Code example
