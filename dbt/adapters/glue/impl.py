@@ -541,9 +541,8 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
             if 'AdditionalLocations' not in table_input['StorageDescriptor']:
                 table_input['StorageDescriptor']['AdditionalLocations'] = [location]
-            else:
-                if location not in table_input['StorageDescriptor']['AdditionalLocations']:
-                    table_input['StorageDescriptor']['AdditionalLocations'] += location
+            elif location not in table_input['StorageDescriptor']['AdditionalLocations']:
+                table_input['StorageDescriptor']['AdditionalLocations'].append(location)
         except KeyError as e:
             logger.debug(e)
             pass
