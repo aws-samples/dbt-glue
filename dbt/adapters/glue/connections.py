@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import agate
 from typing import Any, List, Dict
+from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.sql import SQLConnectionManager
 from dbt.contracts.connection import AdapterResponse
 from dbt.exceptions import (
@@ -10,6 +11,7 @@ from dbt.exceptions import (
 import dbt
 from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
 from dbt.events import AdapterLogger
+from dbt.events.contextvars import get_node_info
 
 logger = AdapterLogger("Glue")
 
@@ -23,7 +25,7 @@ class ReturnCode:
 
 class GlueConnectionManager(SQLConnectionManager):
     TYPE = "glue"
-    GLUE_CONNECTIONS_BY_THREAD: Dict[str, GlueConnection] = {}
+    GLUE_CONNECTIONS_BY_KEY: Dict[str, GlueConnection] = {}
 
 
     @classmethod
@@ -32,14 +34,30 @@ class GlueConnectionManager(SQLConnectionManager):
             logger.debug("Connection is already open, skipping open.")
             return connection
 
-        credentials = connection.credentials
+        credentials: GlueCredentials = connection.credentials
         try:
-            key = cls.get_thread_identifier()
-            if not cls.GLUE_CONNECTIONS_BY_THREAD.get(key):
+            connection_args = {
+                "credentials": credentials
+            }
+            
+            if credentials.enable_session_per_model:
+                key = get_node_info().get("unique_id", "no-node")
+                connection_args['session_id_suffix'] = key
+
+                session_config_overrides = {}
+                for session_config in credentials._connection_keys():
+                    if get_node_info().get("meta", {}).get(session_config):
+                        session_config_overrides[session_config] = get_node_info().get("meta", {}).get(session_config)
+                connection_args['session_config_overrides'] = session_config_overrides
+
+            else:
+                key = cls.get_thread_identifier()
+
+            if not cls.GLUE_CONNECTIONS_BY_KEY.get(key):
                 logger.debug(f"opening a new glue connection for thread : {key}")
-                cls.GLUE_CONNECTIONS_BY_THREAD[key]: GlueConnection = GlueConnection(credentials=credentials)
+                cls.GLUE_CONNECTIONS_BY_KEY[key]: GlueConnection = GlueConnection(**connection_args)
             connection.state = GlueSessionState.OPEN
-            connection.handle = cls.GLUE_CONNECTIONS_BY_THREAD[key]
+            connection.handle = cls.GLUE_CONNECTIONS_BY_KEY[key]
             return connection
         except Exception as e:
             logger.error(
@@ -107,7 +125,7 @@ class GlueConnectionManager(SQLConnectionManager):
 
     def cleanup_all(self):
         logger.debug("cleanup called")
-        for connection in self.GLUE_CONNECTIONS_BY_THREAD.values():
+        for connection in self.GLUE_CONNECTIONS_BY_KEY.values():
             try:
                 connection.close_session()
             except Exception as e:

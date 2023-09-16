@@ -24,75 +24,89 @@ class GlueSessionState:
 @dataclass
 class GlueConnection:
 
-    def __init__(self, credentials: GlueCredentials, session_id: str = None):
+    def __init__(self, credentials: GlueCredentials, session_id_suffix: str = None, session_config_overrides = {}):
         self.credentials = credentials
-        self._session_id = session_id
+        self._session_id_suffix = session_id_suffix
+        self._session_config_overrides = session_config_overrides
+
         self._client = None
         self._session = None
         self._state = None
 
     def _connect(self):
         logger.debug("GlueConnection connect called")
-        if not (self._session_id or self.session_id):
+        if not self.session_id:
             logger.debug("No session present, starting one")
             self._start_session()
         else:
             self._session = {
-                "Session": {"Id": self._session_id or self.session_id}
+                "Session": {"Id": self.session_id}
             }
             logger.debug("Existing session with status : " + self.state)
             if self.state == GlueSessionState.CLOSED:
                 self._session = self._start_session()
 
         return self.session_id
+    
+    def _create_session_config(self):
+        logger.debug("GlueConnection _create_session_config called")
+        create_session_config = {}
+        for key in self.credentials._connection_keys():
+            create_session_config[key] = self._session_config_overrides.get(key) or getattr(self.credentials, key)
+        return create_session_config
 
     def _start_session(self):
         logger.debug("GlueConnection _start_session called")
+
+        create_session_config = self._create_session_config()
 
         args = {
             "--enable-glue-datacatalog": "true"
         }
 
-        if (self.credentials.default_arguments is not None):
-            args.update(self._string_to_dict(self.credentials.default_arguments.replace(' ', '')))
+        if (create_session_config["default_arguments"] is not None):
+            args.update(self._string_to_dict(create_session_config["default_arguments"].replace(' ', '')))
 
-        if (self.credentials.extra_jars is not None):
-            args["--extra-jars"] = f"{self.credentials.extra_jars}"
+        if (create_session_config["extra_jars"] is not None):
+            args["--extra-jars"] = f"{create_session_config['extra_jars']}"
 
-        if (self.credentials.conf is not None):
-            args["--conf"] = f"{self.credentials.conf}"
+        if (create_session_config["conf"] is not None):
+            args["--conf"] = f"{create_session_config['conf']}"
 
-        if (self.credentials.extra_py_files is not None):
-            args["--extra-py-files"] = f"{self.credentials.extra_py_files}"
+        if (create_session_config["extra_py_files"] is not None):
+            args["--extra-py-files"] = f"{create_session_config['extra_py_files']}"
 
         additional_args = {}
-        additional_args["NumberOfWorkers"] = self.credentials.workers
-        additional_args["WorkerType"] = self.credentials.worker_type
-        additional_args["IdleTimeout"] = self.credentials.idle_timeout
-        additional_args["Timeout"] = self.credentials.query_timeout_in_minutes
+        additional_args["NumberOfWorkers"] = create_session_config["workers"]
+        additional_args["WorkerType"] = create_session_config["worker_type"]
+        additional_args["IdleTimeout"] = create_session_config["idle_timeout"]
+        additional_args["Timeout"] = create_session_config["query_timeout_in_minutes"]
         additional_args["RequestOrigin"] = 'dbt-glue'
         
-        if (self.credentials.glue_version is not None):
-            additional_args["GlueVersion"] = f"{self.credentials.glue_version}"
+        if (create_session_config['glue_version'] is not None):
+            additional_args["GlueVersion"] = f"{create_session_config['glue_version']}"
         
-        if (self.credentials.security_configuration is not None):
-            additional_args["SecurityConfiguration"] = f"{self.credentials.security_configuration}"
+        if (create_session_config['security_configuration'] is not None):
+            additional_args["SecurityConfiguration"] = f"{create_session_config['security_configuration']}"
         
-        if (self.credentials.connections is not None):
-            additional_args["Connections"] = {"Connections": list(set(self.credentials.connections.split(',')))}
+        if (create_session_config["connections"] is not None):
+            additional_args["Connections"] = {"Connections": list(set(create_session_config["connections"].split(',')))}
 
-        if (self.credentials.tags is not None):
-            additional_args["Tags"] = self._string_to_dict(self.credentials.tags)
+        if (create_session_config["tags"] is not None):
+            additional_args["Tags"] = self._string_to_dict(create_session_config["tags"])
 
         session_uuid = uuid.uuid4()
         session_uuidStr = str(session_uuid)
-        session_prefix = self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
+        session_prefix = create_session_config["role_arn"].partition('/')[2] or create_session_config["role_arn"]
         id = f"{session_prefix}-dbt-glue-{session_uuidStr}"
+
+        if self._session_id_suffix:
+            id = f"{id}-{self._session_id_suffix}"
 
         try:
             self._session = self.client.create_session(
                 Id=id,
-                Role=self.credentials.role_arn,
+                Role=create_session_config["role_arn"],
                 DefaultArguments=args,
                 Command={
                     "Name": "glueetl",
@@ -158,7 +172,11 @@ class GlueConnection:
                 self.cancel_statement(statement_id=statement["Id"])
 
     def close(self):
-        logger.debug("NotImplemented: close")
+        if not self.credentials.enable_session_per_model:
+            logger.debug("NotImplemented: close")
+            return
+        logger.debug("GlueConnection close called")
+        self.close_session()
 
     @staticmethod
     def rollback():
@@ -175,8 +193,8 @@ class GlueConnection:
                 if self.state == GlueSessionState.READY:
                     self._init_session()
                     return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
-                if ((time.time() - self._session_create_time) if self._session_create_time else elapsed) > self.credentials.session_provisioning_timeout_in_seconds:
-                    raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to start")
+                if ((time.time() - self._session_create_time) if self._session_create_time else elapsed) > self._create_session_config()["session_provisioning_timeout_in_seconds"]:
+                    raise TimeoutError(f"GlueSession took more than {self._create_session_config()['session_provisioning_timeout_in_seconds']} seconds to start")
         
 
     def close_session(self):
