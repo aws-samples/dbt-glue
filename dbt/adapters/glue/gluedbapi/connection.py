@@ -33,9 +33,9 @@ class GlueConnection:
         self._session = None
         self._state = None
 
-    def connect(self):
+    def _connect(self):
         logger.debug("GlueConnection connect called")
-        if not self._session_id:
+        if not self.session_id and self._session_id:
             logger.debug("No session present, starting one")
             self._start_session()
         else:
@@ -193,7 +193,8 @@ class GlueConnection:
         logger.debug("NotImplemented: rollback")
 
     def cursor(self, as_dict=False) -> GlueCursor:
-        # logger.debug(f"GlueConnection cursor called, current session: {self.session_id}, state: {self.state}")
+        logger.debug("GlueConnection cursor called")
+        self._connect()
         if self.state == GlueSessionState.READY:
             self._init_session()
             return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
