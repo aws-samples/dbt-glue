@@ -3,6 +3,7 @@ from typing import Optional
 from dbt.adapters.base import Credentials
 import dbt.exceptions
 
+
 @dataclass
 class GlueCredentials(Credentials):
     """ Required connections for a Glue connection"""
@@ -22,13 +23,13 @@ class GlueCredentials(Credentials):
     extra_py_files: Optional[str] = None
     delta_athena_prefix: Optional[str] = None
     tags: Optional[str] = None
-    database: Optional[str] # type: ignore
+    database: Optional[str]  # type: ignore
     seed_format: Optional[str] = "parquet"
     seed_mode: Optional[str] = "overwrite"
     default_arguments: Optional[str] = None
     iceberg_glue_commit_lock_table: Optional[str] = "myGlueLockTable"
     use_interactive_session_role_for_api_calls: bool = False
-    glue_session_id:  Optional[str] = None
+    glue_session_id: Optional[str] = None
     glue_session_reuse: Optional[bool] = False
     datalake_formats: Optional[str] = None
     enable_session_per_model = False
@@ -81,7 +82,7 @@ class GlueCredentials(Credentials):
             'tags',
             'seed_format',
             'seed_mode',
-            'default_arguments', 
+            'default_arguments',
             'iceberg_glue_commit_lock_table',
             'lf_tags',
             'glue_session_id',
