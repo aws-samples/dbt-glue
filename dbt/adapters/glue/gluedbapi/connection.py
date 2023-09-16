@@ -33,7 +33,7 @@ class GlueConnection:
 
     def _connect(self):
         logger.debug("GlueConnection connect called")
-        if not self.session_id and self._session_id:
+        if self._session_id or self.session_id:
             logger.debug("No session present, starting one")
             self._start_session()
         else:
