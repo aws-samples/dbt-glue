@@ -40,7 +40,7 @@ class GlueConnection:
             self._start_session()
         else:
             self._session = {
-                "Session": {"Id": self._session_id}
+                "Session": {"Id": self._session_id or self.session_id}
             }
             logger.debug("Existing session with status : " + self.state)
             for elapsed in wait(1):
