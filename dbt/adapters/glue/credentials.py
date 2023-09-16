@@ -28,7 +28,7 @@ class GlueCredentials(Credentials):
     default_arguments: Optional[str] = None
     iceberg_glue_commit_lock_table: Optional[str] = "myGlueLockTable"
     use_interactive_session_role_for_api_calls: bool = False
-    enable_session_per_model = False
+    enable_session_per_model: bool = False
 
     @property
     def type(self):
