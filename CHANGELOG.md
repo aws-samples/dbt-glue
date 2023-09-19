@@ -1,3 +1,5 @@
+## v1.6.3
+- support Glue Optimistic Locking for Iceberg models
 ## v1.6.2
 - support Hudi, Delta, Iceberg natively supported in Glue through datalake_format parameter
 - upgrade default Glue version to 4.0
