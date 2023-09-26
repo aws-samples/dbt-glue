@@ -564,10 +564,10 @@ group by 1
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
 ```
 
-- Also note that for Glue 4.0, you can choose between Glue Optimistic Locking(enabled by default) and DynamoDB Lock Manager for concurrent update to a table.
+- Also note that for Glue 4.0, you can choose between Glue Optimistic Locking (enabled by default) and DynamoDB Lock Manager for concurrent update to a table.
     - If you want to activate DynamoDB Lock Manager set the below config in your profiles. A DynamoDB would be created on your behalf (if it does not exist). 
 ```
-    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager
+    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager
     --conf spark.sql.catalog.glue_catalog.lock.table=<DYNAMODB_TABLE_NAME>
 ```
     You'll also need to grant the dbt-glue execution role with the appropriate permissions on DynamoDB

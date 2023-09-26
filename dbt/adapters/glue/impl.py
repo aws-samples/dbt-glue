@@ -212,7 +212,6 @@ class GlueAdapter(SQLAdapter):
             from pyspark.sql.functions import *
             warehouse_path = f"{session.credentials.location}/{relation.schema}"
             dynamodb_table = f"{session.credentials.iceberg_glue_commit_lock_table}"
-            iceberg_optimistic_locking = f"{session.credentials.iceberg_optimistic_locking}"
             spark = SparkSession.builder \\
                 .config("spark.sql.warehouse.dir", warehouse_path) \\
                 .config(f"spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog") \\
@@ -223,10 +222,6 @@ class GlueAdapter(SQLAdapter):
                 # DynamoDB lock manager's class name and package has been changed and the old one has been deprecated in Iceberg 1.1.
                 code += f'''
                 .config(f"spark.sql.catalog.glue_catalog.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager") \\
-                .config(f"spark.sql.catalog.glue_catalog.lock.table", dynamodb_table) \\'''
-            elif session.credentials.iceberg_optimistic_locking == False:
-                code += f'''
-                .config(f"spark.sql.catalog.glue_catalog.lock-impl", "org.apache.iceberg.aws.dynamodb.DynamoDbLockManager") \\
                 .config(f"spark.sql.catalog.glue_catalog.lock.table", dynamodb_table) \\'''
             code += f'''
             .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \\
@@ -889,7 +884,6 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 warehouse_path = f"{session.credentials.location}/{target_relation.schema}"
 dynamodb_table = f"{session.credentials.iceberg_glue_commit_lock_table}"
-iceberg_optimistic_locking = f"{session.credentials.iceberg_optimistic_locking}"
 spark = SparkSession.builder \\
     .config("spark.sql.warehouse.dir", warehouse_path) \\
     .config(f"spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog") \\
@@ -900,11 +894,7 @@ spark = SparkSession.builder \\
             # DynamoDB lock manager's class name and package has been changed and the old one has been deprecated in Iceberg 1.1.
             head_code += f'''
     .config(f"spark.sql.catalog.glue_catalog.lock-impl", "org.apache.iceberg.aws.glue.DynamoLockManager") \\
-    .config(f"spark.sql.catalog.glue_catalog.lock.table", dynamodb_table)\\'''
-        elif session.credentials.iceberg_optimistic_locking == False:
-            head_code += f'''
-    .config(f"spark.sql.catalog.glue_catalog.lock-impl", "org.apache.iceberg.aws.dynamodb.DynamoDbLockManager") \\
-    .config(f"spark.sql.catalog.glue_catalog.lock.table", dynamodb_table)\\'''
+    .config(f"spark.sql.catalog.glue_catalog.lock.table", dynamodb_table) \\'''
         head_code += f'''
     .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \\
     .getOrCreate()
