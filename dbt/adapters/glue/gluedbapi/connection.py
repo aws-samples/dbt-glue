@@ -261,7 +261,7 @@ class GlueConnection:
 
     def _set_session_ready(self):
         try:
-            response = self.client.get_session(Id=self._session_id_suffix)
+            response = self.client.get_session(Id=self.session_id)
             self._session = response
             self._session_create_time = response.get("Session", {}).get("CreatedOn")
         except Exception as e:
