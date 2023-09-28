@@ -1,3 +1,7 @@
+## v1.6.3
+- Fix unintended session at end
+- Fix glue session per model
+
 ## v1.6.2
 - support Hudi, Delta, Iceberg natively supported in Glue through datalake_format parameter
 - upgrade default Glue version to 4.0
