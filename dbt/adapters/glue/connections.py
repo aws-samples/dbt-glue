@@ -29,6 +29,7 @@ class GlueConnectionManager(SQLConnectionManager):
     TYPE = "glue"
     GLUE_CONNECTIONS_BY_KEY: Dict[str, GlueConnection] = {}
 
+
     @classmethod
     def open(cls, connection):
         if connection.state == "open":

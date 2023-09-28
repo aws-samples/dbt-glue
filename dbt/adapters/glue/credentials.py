@@ -35,6 +35,7 @@ class GlueCredentials(Credentials):
     datalake_formats: Optional[str] = None
     enable_session_per_model = False
 
+
     @property
     def type(self):
         return "glue"
