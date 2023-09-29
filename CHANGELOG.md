@@ -1,5 +1,13 @@
-## v1.6.3
+## v1.6.5
 - support Glue Optimistic Locking for Iceberg models
+
+## v1.6.4
+- Fix session reuse
+
+## v1.6.3
+- Fix unintended session at end
+- Fix glue session per model
+
 ## v1.6.2
 - support Hudi, Delta, Iceberg natively supported in Glue through datalake_format parameter
 - upgrade default Glue version to 4.0
