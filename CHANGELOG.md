@@ -1,3 +1,6 @@
+## v1.6.4
+- Fix session reuse
+
 ## v1.6.3
 - Fix unintended session at end
 - Fix glue session per model
