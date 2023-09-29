@@ -67,70 +67,84 @@ class GlueConnection:
     def _start_session(self):
         logger.debug("GlueConnection _start_session called")
 
-        args = {
-            "--enable-glue-datacatalog": "true"
-        }
+        if self.credentials.glue_session_id:
+            try:
+                self._session = self.client.get_session(
+                    Id=self.credentials.glue_session_id,
+                    RequestOrigin='string'
+                )
+            except Exception as e:
+                logger.error(
+                    f"Got an error when attempting to open a GlueSession : {e}"
+                )
+                raise dbterrors.FailedToConnectError(str(e))
 
-        if (self._create_session_config["default_arguments"] is not None):
-            args.update(self._string_to_dict(self._create_session_config["default_arguments"].replace(' ', '')))
+            self._session_create_time = time.time()
+        else:
+            args = {
+                "--enable-glue-datacatalog": "true"
+            }
 
-        if (self._create_session_config["extra_jars"] is not None):
-            args["--extra-jars"] = f"{self._create_session_config['extra_jars']}"
+            if (self._create_session_config["default_arguments"] is not None):
+                args.update(self._string_to_dict(self._create_session_config["default_arguments"].replace(' ', '')))
 
-        if (self._create_session_config["conf"] is not None):
-            args["--conf"] = f"{self._create_session_config['conf']}"
+            if (self._create_session_config["extra_jars"] is not None):
+                args["--extra-jars"] = f"{self._create_session_config['extra_jars']}"
 
-        if (self._create_session_config["extra_py_files"] is not None):
-            args["--extra-py-files"] = f"{self._create_session_config['extra_py_files']}"
+            if (self._create_session_config["conf"] is not None):
+                args["--conf"] = f"{self._create_session_config['conf']}"
 
-        additional_args = {}
-        additional_args["NumberOfWorkers"] = self._create_session_config["workers"]
-        additional_args["WorkerType"] = self._create_session_config["worker_type"]
-        additional_args["IdleTimeout"] = self._create_session_config["idle_timeout"]
-        additional_args["Timeout"] = self._create_session_config["query_timeout_in_minutes"]
-        additional_args["RequestOrigin"] = 'dbt-glue'
-        
-        if (self._create_session_config['glue_version'] is not None):
-            additional_args["GlueVersion"] = f"{self._create_session_config['glue_version']}"
-        
-        if (self._create_session_config['security_configuration'] is not None):
-            additional_args["SecurityConfiguration"] = f"{self._create_session_config['security_configuration']}"
-        
-        if (self._create_session_config["connections"] is not None):
-            additional_args["Connections"] = {"Connections": list(set(self._create_session_config["connections"].split(',')))}
+            if (self._create_session_config["extra_py_files"] is not None):
+                args["--extra-py-files"] = f"{self._create_session_config['extra_py_files']}"
 
-        if (self._create_session_config["tags"] is not None):
-            additional_args["Tags"] = self._string_to_dict(self._create_session_config["tags"])
+            additional_args = {}
+            additional_args["NumberOfWorkers"] = self._create_session_config["workers"]
+            additional_args["WorkerType"] = self._create_session_config["worker_type"]
+            additional_args["IdleTimeout"] = self._create_session_config["idle_timeout"]
+            additional_args["Timeout"] = self._create_session_config["query_timeout_in_minutes"]
+            additional_args["RequestOrigin"] = 'dbt-glue'
 
-        if (self.credentials.datalake_formats is not None):
-            args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
+            if (self._create_session_config['glue_version'] is not None):
+                additional_args["GlueVersion"] = f"{self._create_session_config['glue_version']}"
+
+            if (self._create_session_config['security_configuration'] is not None):
+                additional_args["SecurityConfiguration"] = f"{self._create_session_config['security_configuration']}"
+
+            if (self._create_session_config["connections"] is not None):
+                additional_args["Connections"] = {"Connections": list(set(self._create_session_config["connections"].split(',')))}
+
+            if (self._create_session_config["tags"] is not None):
+                additional_args["Tags"] = self._string_to_dict(self._create_session_config["tags"])
+
+            if (self.credentials.datalake_formats is not None):
+                args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
 
 
-        session_uuid = uuid.uuid4()
-        session_uuidStr = str(session_uuid)
-        session_prefix = self._create_session_config["role_arn"].partition('/')[2] or self._create_session_config["role_arn"]
-        id = f"{session_prefix}-dbt-glue-{session_uuidStr}"
+            session_uuid = uuid.uuid4()
+            session_uuidStr = str(session_uuid)
+            session_prefix = self._create_session_config["role_arn"].partition('/')[2] or self._create_session_config["role_arn"]
+            id = f"{session_prefix}-dbt-glue-{session_uuidStr}"
 
-        if self._session_id_suffix:
-            id = f"{id}-{self._session_id_suffix}"
+            if self._session_id_suffix:
+                id = f"{id}-{self._session_id_suffix}"
 
-        try:
-            self._session = self.client.create_session(
-                Id=id,
-                Role=self._create_session_config["role_arn"],
-                DefaultArguments=args,
-                Command={
-                    "Name": "glueetl",
-                    "PythonVersion": "3"
-                },
-                **additional_args)
-        except Exception as e:
-            logger.error(
-                f"Got an error when attempting to open a GlueSession : {e}"
-            )
-            raise dbterrors.FailedToConnectError(str(e))
-        
-        self._session_create_time = time.time()
+            try:
+                self._session = self.client.create_session(
+                    Id=id,
+                    Role=self._create_session_config["role_arn"],
+                    DefaultArguments=args,
+                    Command={
+                        "Name": "glueetl",
+                        "PythonVersion": "3"
+                    },
+                    **additional_args)
+            except Exception as e:
+                logger.error(
+                    f"Got an error when attempting to open a GlueSession : {e}"
+                )
+                raise dbterrors.FailedToConnectError(str(e))
+
+            self._session_create_time = time.time()
 
     def _init_session(self):
         logger.debug("GlueConnection _init_session called")
