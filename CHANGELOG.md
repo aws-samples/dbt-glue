@@ -1,3 +1,6 @@
+## v1.6.5
+- support Glue Optimistic Locking for Iceberg models
+
 ## v1.6.4
 - Fix session reuse
 

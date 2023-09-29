@@ -538,14 +538,39 @@ group by 1
 #### Iceberg
 
 **Usage notes:** The `merge` with Iceberg incremental strategy requires:
-- To attach the AmazonEC2ContainerRegistryReadOnly Manged policy to your execution role :
-- To add the following policy to your execution role to enable commit locking in a dynamodb table (more info [here](https://iceberg.apache.org/docs/latest/aws/#dynamodb-lock-manager)). Note that the DynamoDB table specified in the ressource field of this policy should be the one that is mentionned in your dbt profiles (`--conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable`). By default, this table is named `myGlueLockTable` and is created automatically (with On-Demand Pricing) when running a dbt-glue model with Incremental Materialization and Iceberg file format. If you want to name the table differently or to create your own table without letting Glue do it on your behalf, please provide the `iceberg_glue_commit_lock_table` parameter with your table name (eg. `MyDynamoDbTable`) in your dbt profile.
-```yaml
-iceberg_glue_commit_lock_table: "MyDynamoDbTable"
+- To add `file_format: Iceberg` in your table configuration
+- To add a datalake_formats in your profile : `datalake_formats: iceberg`
+  - Alternatively, if you use Glue 3.0, to add a connections in your profile : `connections: name_of_your_iceberg_connector` (
+    - For Athena version 3: 
+      - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
+      - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
+    - For Athena version 2: The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
+- For Glue 4.0, to add the following configurations in dbt-profile:  
+```--conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog  
+    --conf spark.sql.catalog.glue_catalog.warehouse=s3://<PATH_TO_YOUR_WAREHOUSE>
+    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
+    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions  
 ```
-- the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546)
+- For Glue 3.0, you need to set up more configurations : 
+```
+    --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
+    --conf spark.sql.warehouse=s3://<your-bucket-name>
+    --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
+    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
+    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
+    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoDbLockManager
+    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+```
 
-Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.table=<YourDynamoDBLockTableName>` and, you change the below iam permission with your correct table name.
+- Also note that for Glue 4.0, you can choose between Glue Optimistic Locking (enabled by default) and DynamoDB Lock Manager for concurrent update to a table.
+    - If you want to activate DynamoDB Lock Manager set the below config in your profiles. A DynamoDB would be created on your behalf (if it does not exist). 
+```
+    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager
+    --conf spark.sql.catalog.glue_catalog.lock.table=<DYNAMODB_TABLE_NAME>
+```
+    You'll also need to grant the dbt-glue execution role with the appropriate permissions on DynamoDB
 ```
 {
     "Version": "2012-10-17",
@@ -566,30 +591,16 @@ Make sure you update your conf with `--conf spark.sql.catalog.glue_catalog.lock.
                 "dynamodb:Query",
                 "dynamodb:UpdateItem"
             ],
-            "Resource": "arn:aws:dynamodb:<AWS_REGION>:<AWS_ACCOUNT_ID>:table/myGlueLockTable"
+            "Resource": "arn:aws:dynamodb:<AWS_REGION>:<AWS_ACCOUNT_ID>:table/<DYNAMODB_TABLE_NAME>"
         }
     ]
 }
 ```
-- To add `file_format: Iceberg` in your table configuration
-- To add a datalake_formats in your profile : `datalake_formats: iceberg`
-  - Alternatively, to add a connections in your profile : `connections: name_of_your_iceberg_connector` (
-    - For Athena version 3: 
-      - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
-      - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
-    - For Athena version 2: The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
-- To add the following config in your Interactive Session Config (in your profile):  
-```--conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
-    --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
-    --conf spark.sql.warehouse=s3://<your-bucket-name>
-    --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
-    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
-    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
-    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager
-    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
-    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+- Note that if you use Glue 3.0 DynamoDB Lock Manager is the only option available and you need to set `org.apache.iceberg.aws.glue.DynamoLockManager` instead : 
 ```
-  - For Glue 3.0, set `spark.sql.catalog.glue_catalog.lock-impl` to `org.apache.iceberg.aws.glue.DynamoLockManager` instead
+    --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoDbLockManager
+    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
+```
 
 dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/latest/spark-writes/) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. You need to provide a `unique_key` to perform merge operation otherwise it will fail. This key is to provide in a Python list format and can contains multiple column name to create a composite unique_key. 
 
