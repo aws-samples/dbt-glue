@@ -1,3 +1,6 @@
+## v1.6.6
+- Replace retry logic with WaiterModel
+
 ## v1.6.5
 - support Glue Optimistic Locking for Iceberg models
 
