@@ -2,7 +2,9 @@ from dataclasses import dataclass
 from dbt import exceptions as dbterrors
 import boto3
 from botocore.config import Config
-from waiter import wait
+from botocore.waiter import WaiterModel
+from botocore.waiter import create_waiter_with_client
+from botocore.exceptions import WaiterError
 from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
@@ -34,6 +36,7 @@ class GlueConnection:
         self._session_config_overrides = session_config_overrides
 
         self._client = None
+        self._session_waiter = None
         self._session = None
         self._state = None
 
@@ -50,17 +53,20 @@ class GlueConnection:
                 "Session": {"Id": self.session_id}
             }
             logger.debug("Existing session with status : " + self.state)
-            for elapsed in wait(1):
-                if self.state in [GlueSessionState.FAILED, GlueSessionState.STOPPED, GlueSessionState.TIMEOUT]:
-                    self.delete_session(session_id=self._session_id_suffix)
+            try:
+                self._session_waiter.wait(Id=self.session_id)
+                self._set_session_ready()
+                return self.session_id
+            except WaiterError as e:
+                if "Max attempts exceeded" in str(e):
+                    raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to be ready")
+                else:
+                    logger.debug(f"session is already stopped or failed")
+                    self.delete_session(session_id=self.session_id)
                     self._session = self._start_session()
                     return self.session_id
-                elif self.state in [GlueSessionState.PROVISIONING, GlueSessionState.STOPPING]:
-                        logger.debug(
-                            f"[elapsed {elapsed}s - waiting glue_session for {self.session_id} in {self.state}")
-                elif self.state == GlueSessionState.READY:
-                    self._set_session_ready()
-                    return self.session_id
+            except Exception as e:
+                raise e
 
         return self.session_id
 
@@ -183,7 +189,51 @@ class GlueConnection:
             with self._boto3_client_lock:
                 session = boto3.session.Session()
                 self._client = session.client("glue", region_name=self.credentials.region, config=config)
+                waiter_name = "SessionReady"
+                waiter_model = self.configure_waiter_model()
+                self._session_waiter = create_waiter_with_client(waiter_name, waiter_model, self._client)
         return self._client
+
+    def configure_waiter_model(self):
+        delay = 3
+        max_attempts = self.credentials.session_provisioning_timeout_in_seconds / delay + 1
+        waiter_config = {
+            "version": 2,
+            "waiters": {
+                "SessionReady": {
+                    "operation": "GetSession",
+                    "delay": delay,
+                    "maxAttempts": max_attempts,
+                    "acceptors": [
+                        {
+                            "matcher": "path",
+                            "expected": "READY",
+                            "argument": "Session.Status",
+                            "state": "success"
+                        },
+                        {
+                            "matcher": "path",
+                            "expected": "STOPPED",
+                            "argument": "Session.Status",
+                            "state": "failure"
+                        },
+                        {
+                            "matcher": "path",
+                            "expected": "TIMEOUT",
+                            "argument": "Session.Status",
+                            "state": "failure"
+                        },
+                        {
+                            "matcher": "path",
+                            "expected": "FAILED",
+                            "argument": "Session.Status",
+                            "state": "failure"
+                        }
+                    ]
+                }
+            }
+        }
+        return WaiterModel(waiter_config)
 
     def cancel_statement(self, statement_id):
         logger.debug("GlueConnection cancel_statement called")
@@ -227,13 +277,18 @@ class GlueConnection:
             self._init_session()
             return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
         else:
-            for elapsed in wait(1):
-                logger.debug(f"[elapsed {elapsed}s - cursor waiting glue session state to ready for {self.session_id} in {self.state} state")
-                if self.state == GlueSessionState.READY:
-                    self._init_session()
-                    return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
-                if ((time.time() - self._session_create_time) if self._session_create_time else elapsed) > self._create_session_config["session_provisioning_timeout_in_seconds"]:
-                    raise TimeoutError(f"GlueSession took more than {self._create_session_config['session_provisioning_timeout_in_seconds']} seconds to start")
+            try:
+                logger.debug(f"[cursor waiting glue session state to ready for {self.session_id} in {self.state} state")
+                self._session_waiter.wait(Id=self.session_id)
+                self._init_session()
+                return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
+            except WaiterError as e:
+                if "Max attempts exceeded" in str(e):
+                    raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to start")
+                else:
+                    logger.debug(f"session is already stopped or failed")
+            except Exception as e:
+                raise e
         
 
     def close_session(self):
@@ -243,18 +298,17 @@ class GlueConnection:
         if self.credentials.glue_session_reuse:
             logger.debug(f"reuse session, do not stop_session for {self.session_id} in {self.state} state")
             return
-        for elapsed in wait(1):
-            if self.state not in [GlueSessionState.PROVISIONING, GlueSessionState.READY , GlueSessionState.STOPPING]:
-                return
-            logger.debug(f"[elapsed {elapsed}s - calling stop_session for {self.session_id} in {self.state} state")
-            try:
-                self.client.stop_session(Id=self.session_id)
-            except Exception as e:
-                if "Session is in PROVISIONING status" in str(e):
-                    logger.debug(f"session is not yet initialised - retrying to close")
-                else:
-                    raise e
-
+        try:
+            self._session_waiter.wait(Id=self.session_id)
+            logger.debug(f"[calling stop_session for {self.session_id} in {self.state} state")
+            self.client.stop_session(Id=self.session_id)
+        except WaiterError as e:
+            if "Max attempts exceeded" in str(e):
+                raise e
+            else:
+                logger.debug(f"session is already stopped or failed")
+        except Exception as e:
+            raise e
 
     @property
     def state(self):

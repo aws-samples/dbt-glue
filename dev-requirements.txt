@@ -20,4 +20,4 @@ pytest-csv
 flaky
 dbt-tests-adapter==1.6.3
 mypy==1.6.1
-black==23.9.1
+black==23.10.1
