@@ -47,6 +47,9 @@
         {% if file_format == 'delta' %}
             {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
             {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 " %}
+        {% elif file_format == 'iceberg' %}
+            {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
+            {% set build_sql = "select * from glue_catalog." + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
         {% else %}
             {% set build_sql = create_table_as(False, target_relation, sql) %}
         {% endif %}
