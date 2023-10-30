@@ -31,12 +31,13 @@
         drop {{ rel_type }} if exists {{ relation }}
     {%- elif rel_type is not none and rel_type == 'iceberg_table' %}
     	{%- set default_catalog = 'glue_catalog' -%}
-        drop table if exists {{ default_catalog }}.{{ relation }}
+        drop table if exists `{{default_catalog}}.{{ relation.schema }}`.`{{ relation.table }}`
   	{%- else -%}
         drop table if exists {{ relation }}
     {%- endif %}
   {%- endcall %}
 {% endmacro %}
+
 
 {% macro glue__make_temp_relation(base_relation, suffix) %}
     {% set tmp_identifier = base_relation.identifier ~ suffix %}
