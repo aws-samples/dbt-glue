@@ -20,10 +20,6 @@
   {%- set expire_snapshots = config.get('iceberg_expire_snapshots', 'True') -%}
   {%- set table_properties = config.get('table_properties', default='empty') -%}
 
-
-  {%- set full_refresh_config = config.get('full_refresh', default=False) -%}
-  {%- set full_refresh_mode = (flags.FULL_REFRESH == 'True' or full_refresh_config == 'True') -%}
-
   {% set target_relation = this %}
   {% set existing_relation_type = adapter.get_table_type(target_relation)  %}
   {% set tmp_relation = make_temp_relation(target_relation, '_tmp') %}
@@ -41,12 +37,6 @@
         {%- set hudi_options = config.get('hudi_options', default={}) -%}
         {{ adapter.hudi_merge_table(target_relation, sql, unique_key, partition_by, custom_location, hudi_options, substitute_variables) }}
         {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
-  {% elif file_format == 'iceberg' %}
-        {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
-        {% set build_sql = "select * from glue_catalog." + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
-        {%- if expire_snapshots == 'True' -%}
-  	      {%- set result = adapter.iceberg_expire_snapshots(target_relation) -%}
-        {%- endif -%}
   {% else %}
       {% if strategy == 'insert_overwrite' and partition_by %}
         {% call statement() %}
@@ -60,14 +50,23 @@
         {% else %}
             {% set build_sql = create_table_as(False, target_relation, sql) %}
         {% endif %}
-      {% elif existing_relation_type == 'view' or full_refresh_mode %}
-        {{ drop_relation(target_relation) }}
+      {% elif existing_relation_type == 'view' or should_full_refresh() %}
+        {{ glue__drop_relation(target_relation) }}
         {% if file_format == 'delta' %}
             {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
             {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 " %}
+        {% elif file_format == 'iceberg' %}
+            {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
+            {% set build_sql = "select * from glue_catalog." + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
         {% else %}
             {% set build_sql = create_table_as(False, target_relation, sql) %}
         {% endif %}
+      {% elif file_format == 'iceberg' %}
+        {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
+        {% set build_sql = "select * from glue_catalog." + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
+        {%- if expire_snapshots == 'True' -%}
+  	      {%- set result = adapter.iceberg_expire_snapshots(target_relation) -%}
+        {%- endif -%}
       {% else %}
         {{ glue__create_tmp_table_as(tmp_relation, sql) }}
         {% set is_incremental = 'True' %}
