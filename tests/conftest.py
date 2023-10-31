@@ -12,13 +12,15 @@ def dbt_profile_target():
     return {
         'type': 'glue',
         'query-comment': 'test-glue-adapter',
-        'role_arn': os.getenv('DBT_ROLE_ARN'),
-        'user': os.getenv('DBT_ROLE_ARN'),
-        'region': os.getenv("AWS_REGION", 'eu-west-1'),
+        'role_arn': os.getenv('DBT_GLUE_ROLE_ARN'),
+        'user': os.getenv('DBT_GLUE_ROLE_ARN'),
+        'region': os.getenv("DBT_GLUE_REGION", 'eu-west-1'),
         'workers': 2,
         'worker_type': 'G.1X',
         'schema': 'dbt_functional_test_01',
         'database': 'dbt_functional_test_01',
         'session_provisioning_timeout_in_seconds': 120,
-        'location': os.getenv('DBT_S3_LOCATION')
+        'location': os.getenv('DBT_S3_LOCATION'),
+        'conf': "spark.sql.legacy.allowNonEmptyLocationInCTAS=true",
+        'glue_session_reuse': True
     }

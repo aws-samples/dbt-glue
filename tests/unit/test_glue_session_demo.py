@@ -88,7 +88,7 @@ def session_id(client, role, region):
         if "Max attempts exceeded" in str(e):
             raise Exception(f"Timeout waiting for session provisioning: {str(e)}")
         else:
-            logger.debug(f"session is already stopped or failed")
+            logger.debug(f"session {_session_id} is already stopped or failed")
 
     yield _session_id
 

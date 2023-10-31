@@ -1,7 +1,7 @@
 import os
 
 
-DEFAULT_REGION = "us-east-1"
+DEFAULT_REGION = "eu-west-1"
 
 
 def get_account_id():

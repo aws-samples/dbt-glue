@@ -47,8 +47,8 @@ def credentials():
         database=None,
         schema="airbotinigo",
         worker_type="G.1X",
-        session_provisioning_timeout_in_seconds=30,
-        workers=3,
+        session_provisioning_timeout_in_seconds=120,
+        workers=3
     )
 
 

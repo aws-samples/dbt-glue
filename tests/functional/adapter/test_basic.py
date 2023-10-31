@@ -22,6 +22,16 @@ s3bucket = get_s3_location()
 region = get_region()
 schema_name = "dbt_functional_test_01"
 
+
+def cleanup_s3_location():
+    # client = boto3.client("s3", region_name=region)
+    # S3Url(s3bucket + schema_name + "/base/").delete_all_keys_v2(client)
+    # S3Url(s3bucket + schema_name + "/table_model/").delete_all_keys_v2(client)
+    # S3Url(s3bucket + schema_name + "/added/").delete_all_keys_v2(client)
+    # S3Url(s3bucket + schema_name + "/swappable/").delete_all_keys_v2(client)
+    print("do nothing")
+
+
 class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
     # all tests within this test has the same schema
     @pytest.fixture(scope="class")
@@ -30,9 +40,8 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
 
     @pytest.fixture(scope='module', autouse=True)
     def cleanup(self):
-        client = boto3.client("s3", region_name=region)
-        S3Url(s3bucket + schema_name + "/base/").delete_all_keys_v2(client)
         yield
+        cleanup_s3_location()
 
     pass
 
@@ -61,9 +70,8 @@ class TestEphemeralGlue(BaseEphemeral):
 
     @pytest.fixture(scope='module', autouse=True)
     def cleanup(self):
-        client = boto3.client("s3", region_name=region)
-        S3Url(s3bucket + schema_name + "/base/").delete_all_keys_v2(client)
         yield
+        cleanup_s3_location()
 
     pass
 
@@ -77,9 +85,8 @@ class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
 class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope='module', autouse=True)
     def cleanup(self):
-        client = boto3.client("s3", region_name=region)
-        S3Url(s3bucket + schema_name + "/base/").delete_all_keys_v2(client)
         yield
+        cleanup_s3_location()
 
     @pytest.fixture(scope="class")
     def models(self):

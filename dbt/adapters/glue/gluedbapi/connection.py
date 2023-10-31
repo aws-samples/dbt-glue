@@ -45,14 +45,14 @@ class GlueConnection:
 
     def _connect(self):
         logger.debug("GlueConnection connect called")
-        if not self.session_id:
+        if not self.session_id or self.session_id is None:
             logger.debug("No session present, starting one")
             self._start_session()
         else:
             self._session = {
                 "Session": {"Id": self.session_id}
             }
-            logger.debug("Existing session with status : " + self.state)
+            logger.debug(f"Existing session {self.session_id} with status : {self.state}")
             try:
                 self._session_waiter.wait(Id=self.session_id)
                 self._set_session_ready()
@@ -61,7 +61,7 @@ class GlueConnection:
                 if "Max attempts exceeded" in str(e):
                     raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to be ready")
                 else:
-                    logger.debug(f"session is already stopped or failed")
+                    logger.debug(f"session {self.session_id} is already stopped or failed")
                     self.delete_session(session_id=self.session_id)
                     self._session = self._start_session()
                     return self.session_id
@@ -276,7 +276,7 @@ class GlueConnection:
         if self.state == GlueSessionState.READY:
             self._init_session()
             return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
-        else:
+        elif not self.session_id or self.session_id is not None:
             try:
                 logger.debug(f"[cursor waiting glue session state to ready for {self.session_id} in {self.state} state")
                 self._session_waiter.wait(Id=self.session_id)
@@ -286,14 +286,15 @@ class GlueConnection:
                 if "Max attempts exceeded" in str(e):
                     raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to start")
                 else:
-                    logger.debug(f"session is already stopped or failed")
+                    logger.debug(f"session {self.session_id} is already stopped or failed")
             except Exception as e:
                 raise e
         
 
     def close_session(self):
         logger.debug("GlueConnection close_session called")
-        if not self._session:
+        if not self._session or not self.session_id or self.session_id is None:
+            logger.debug("session is not set to close_session")
             return
         if self.credentials.glue_session_reuse:
             logger.debug(f"reuse session, do not stop_session for {self.session_id} in {self.state} state")
@@ -306,7 +307,7 @@ class GlueConnection:
             if "Max attempts exceeded" in str(e):
                 raise e
             else:
-                logger.debug(f"session is already stopped or failed")
+                logger.debug(f"session {self.session_id} is already stopped or failed")
         except Exception as e:
             raise e
 
@@ -315,16 +316,16 @@ class GlueConnection:
         if self._state in [GlueSessionState.FAILED]:
             return self._state
         try:
-            if not self.session_id:
+            if not self.session_id or self.session_id is None:
                 self._session = {
                     "Session": {"Id": self._session_id_suffix}
                 }
+                logger.debug(f"session_id is set to : {self.session_id} using suffix: {self._session_id_suffix}")
             response = self.client.get_session(Id=self.session_id)
             session = response.get("Session", {})
             self._state = session.get("Status")
         except Exception as e:
-            logger.debug(f"get session state error session_id: {self._session_id_suffix}, {self.session_id}")
-            logger.debug(e)
+            logger.debug(f"get session state error session_id: {self._session_id_suffix}, {self.session_id}. Exception: {e}")
             self._state = GlueSessionState.STOPPED
         return self._state
 
