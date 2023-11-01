@@ -30,7 +30,6 @@ class TestDocsGenerate(BaseDocsGenerate):
         view_type = "view"
         table_type = "table"
         model_stats = no_stats()
-        bigint_type = None
         seed_stats = None
         case = None
         case_columns = False
@@ -48,23 +47,7 @@ class TestDocsGenerate(BaseDocsGenerate):
         if view_summary_stats is None:
             view_summary_stats = model_stats
 
-        model_database = project.database
         my_schema_name = case(project.test_schema)
-
-        summary_columns = {
-            "first_name": {
-                "name": "first_name",
-                "index": 1,
-                "type": text_type,
-                "comment": None,
-            },
-            "ct": {
-                "name": "ct",
-                "index": 2,
-                "type": bigint_type,
-                "comment": None,
-            },
-        }
 
         seed_columns = {
             "id": {
@@ -104,7 +87,7 @@ class TestDocsGenerate(BaseDocsGenerate):
                     "unique_id": "seed.test.seed",
                     "metadata": {
                         "schema": my_schema_name,
-                        "database": project.database,
+                        "database": my_schema_name,
                         "name": case("seed"),
                         "type": table_type,
                         "comment": None,
@@ -113,48 +96,21 @@ class TestDocsGenerate(BaseDocsGenerate):
                     "stats": seed_stats,
                     "columns": seed_columns,
                 },
-                "model.test.ephemeral_summary": {
-                    "unique_id": "model.test.ephemeral_summary",
+                "model.test.model": {
+                    "unique_id": "model.test.model",
                     "metadata": {
                         "schema": my_schema_name,
-                        "database": model_database,
-                        "name": case("ephemeral_summary"),
-                        "type": table_type,
-                        "comment": None,
-                        "owner": role,
-                    },
-                    "stats": model_stats,
-                    "columns": summary_columns,
-                },
-                "model.test.view_summary": {
-                    "unique_id": "model.test.view_summary",
-                    "metadata": {
-                        "schema": my_schema_name,
-                        "database": model_database,
-                        "name": case("view_summary"),
+                        "database": my_schema_name,
+                        "name": case("model"),
                         "type": view_type,
                         "comment": None,
                         "owner": role,
                     },
-                    "stats": view_summary_stats,
-                    "columns": summary_columns,
-                },
-            },
-            "sources": {
-                "source.test.my_source.my_table": {
-                    "unique_id": "source.test.my_source.my_table",
-                    "metadata": {
-                        "schema": my_schema_name,
-                        "database": project.database,
-                        "name": case("seed"),
-                        "type": table_type,
-                        "comment": None,
-                        "owner": role,
-                    },
-                    "stats": seed_stats,
+                    "stats": model_stats,
                     "columns": seed_columns,
                 },
             },
+            "sources": {}
         }
 
     pass
