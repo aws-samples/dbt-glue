@@ -353,6 +353,7 @@ class SqlWrapper2:
     dfs = {}
     @classmethod
     def execute(cls,sql,output=True):
+        sql = sql.replace('"', '')
         if "dbt_next_query" in sql:
                 response=None
                 queries = sql.split("dbt_next_query")
@@ -364,7 +365,7 @@ class SqlWrapper2:
                             cls.execute(q,output=False)
                 return  response   
                 
-        spark.conf.set("spark.sql.crossJoin.enabled", "true")    
+        spark.conf.set("spark.sql.crossJoin.enabled", "true")
         df = spark.sql(sql)
         if len(df.schema.fields) == 0:
             dumped_empty_result = json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None})

@@ -21,6 +21,8 @@ def dbt_profile_target():
         'database': 'dbt_functional_test_01',
         'session_provisioning_timeout_in_seconds': 120,
         'location': os.getenv('DBT_S3_LOCATION'),
-        'conf': "spark.sql.legacy.allowNonEmptyLocationInCTAS=true",
+        'datalake_formats': 'delta',
+        'conf': "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog",
+#        'conf': "spark.sql.legacy.allowNonEmptyLocationInCTAS=true",
         'glue_session_reuse': True
     }
