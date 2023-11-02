@@ -34,6 +34,12 @@ class GlueStatement:
         for elasped in wait(1):
             response = self._get_statement()
             state = response.get("Statement", {}).get("State", GlueStatement.WAITING)
-            if state in [GlueStatement.AVAILABLE, GlueStatement.ERROR,GlueStatement.CANCELLING, GlueStatement.WAITING, GlueStatement.TIMEOUT]:
+
+            if state == GlueStatement.WAITING:
+                # if in waiting state, continue to wait
+                # TODO this could potentially wait forever?
+                continue
+
+            if state in [GlueStatement.AVAILABLE, GlueStatement.ERROR,GlueStatement.CANCELLING, GlueStatement.TIMEOUT]:
                 break
         return response
