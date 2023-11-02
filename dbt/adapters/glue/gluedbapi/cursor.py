@@ -254,7 +254,7 @@ class GlueCursor:
         if self.statement:
             r = self.statement._get_statement()
             return AdapterResponse(
-                _message=f'r["State"]',
+                _message=r.get('Statement', {}).get("State", ""),
                 code=self.sql,
                 **r
             )

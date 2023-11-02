@@ -40,6 +40,11 @@ class GlueStatement:
             response = self._get_statement()
             logger.debug(f"GetStatement (session_id={self.session_id}, statement_id={self._statement_id}) response: {response}")
             state = response.get("Statement", {}).get("State", GlueStatement.WAITING)
-            if state in [GlueStatement.AVAILABLE, GlueStatement.ERROR, GlueStatement.CANCELLING, GlueStatement.WAITING, GlueStatement.TIMEOUT]:
+            if state == GlueStatement.WAITING:
+                # if in waiting state, continue to wait
+                # TODO this could potentially wait forever?
+                continue
+
+            if state in [GlueStatement.AVAILABLE, GlueStatement.ERROR,GlueStatement.CANCELLING, GlueStatement.TIMEOUT]:
                 break
         return response
