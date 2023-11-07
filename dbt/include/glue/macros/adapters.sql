@@ -91,7 +91,7 @@
 {%- endmacro -%}
 
 {% macro glue__snapshot_get_time() -%}
-  datetime()
+    current_timestamp()
 {%- endmacro %}
 
 {% macro glue__drop_view(relation) -%}

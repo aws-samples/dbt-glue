@@ -1,10 +1,54 @@
 import time
 import boto3
+from botocore.waiter import WaiterModel
+from botocore.waiter import create_waiter_with_client
+from botocore.exceptions import WaiterError
 import pytest
 import logging
+import uuid
+
 
 logger = logging.getLogger()
 
+
+waiter_config = {
+    "version": 2,
+    "waiters": {
+        "SessionReady": {
+            "operation": "GetSession",
+            "delay": 60,
+            "maxAttempts": 10,
+            "acceptors": [
+                {
+                    "matcher": "path",
+                    "expected": "READY",
+                    "argument": "Session.Status",
+                    "state": "success"
+                },
+                {
+                    "matcher": "path",
+                    "expected": "STOPPED",
+                    "argument": "Session.Status",
+                    "state": "failure"
+                },
+                {
+                    "matcher": "path",
+                    "expected": "TIMEOUT",
+                    "argument": "Session.Status",
+                    "state": "failure"
+                },
+                {
+                    "matcher": "path",
+                    "expected": "FAILED",
+                    "argument": "Session.Status",
+                    "state": "failure"
+                }
+            ]
+        }
+    }
+}
+waiter_name = "SessionReady"
+waiter_model = WaiterModel(waiter_config)
 
 @pytest.fixture(scope="module", autouse=True)
 def client(region):
@@ -16,11 +60,16 @@ def session_id(client, role, region):
     args = {
         "--enable-glue-datacatalog": "true",
     }
-    additional_args = {}
-    additional_args["NumberOfWorkers"] = 5
-    additional_args["WorkerType"] = "G.1X"
+    additional_args = {"NumberOfWorkers": 5, "WorkerType": "G.1X"}
+
+    session_waiter = create_waiter_with_client(waiter_name, waiter_model, client)
+
+    session_uuid = uuid.uuid4()
+    session_uuid_str = str(session_uuid)
+    id = f"test-dbt-glue-{session_uuid_str}"
 
     session = client.create_session(
+        Id=id,
         Role=role,
         DefaultArguments=args,
         Command={
@@ -32,18 +81,14 @@ def session_id(client, role, region):
     _session_id = session.get("Session", {}).get("Id")
     logger.warning(f"Session Id = {_session_id}")
     logger.warning("Clearing sessions")
-    ready = False
-    attempts = 0
-    while not ready:
-        session = client.get_session(Id=_session_id)
-        if session.get("Session", {}).get("Status") != "PROVISIONING":
-            client.delete_session(Id=_session_id)
-            break
 
-        attempts += 1
-        if attempts > 16:
-            raise Exception("Timeout waiting for session provisioning")
-        time.sleep(1)
+    try:
+        session_waiter.wait(Id=_session_id)
+    except WaiterError as e:
+        if "Max attempts exceeded" in str(e):
+            raise Exception(f"Timeout waiting for session provisioning: {str(e)}")
+        else:
+            logger.debug(f"session {_session_id} is already stopped or failed")
 
     yield _session_id
 

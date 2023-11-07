@@ -52,7 +52,7 @@ class GlueConnection:
             self._session = {
                 "Session": {"Id": self.session_id}
             }
-            logger.debug("Existing session with status : " + self.state)
+            logger.debug(f"Existing session {self.session_id} with status : {self.state}")
             try:
                 self._session_waiter.wait(Id=self.session_id)
                 self._set_session_ready()
@@ -61,7 +61,7 @@ class GlueConnection:
                 if "Max attempts exceeded" in str(e):
                     raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to be ready")
                 else:
-                    logger.debug(f"session is already stopped or failed")
+                    logger.debug(f"session {self.session_id} is already stopped or failed")
                     self.delete_session(session_id=self.session_id)
                     self._session = self._start_session()
                     return self.session_id
@@ -74,6 +74,7 @@ class GlueConnection:
         logger.debug("GlueConnection _start_session called")
 
         if self.credentials.glue_session_id:
+            logger.debug(f"The existing session {self.credentials.glue_session_id} is used")
             try:
                 self._session = self.client.get_session(
                     Id=self.credentials.glue_session_id,
@@ -125,18 +126,18 @@ class GlueConnection:
             if (self.credentials.datalake_formats is not None):
                 args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
 
-
             session_uuid = uuid.uuid4()
-            session_uuidStr = str(session_uuid)
+            session_uuid_str = str(session_uuid)
             session_prefix = self._create_session_config["role_arn"].partition('/')[2] or self._create_session_config["role_arn"]
-            id = f"{session_prefix}-dbt-glue-{session_uuidStr}"
+            new_id = f"{session_prefix}-dbt-glue-{session_uuid_str}"
 
             if self._session_id_suffix:
-                id = f"{id}-{self._session_id_suffix}"
+                new_id = f"{new_id}-{self._session_id_suffix}"
 
             try:
+                logger.debug(f"A new session {new_id} is created")
                 self._session = self.client.create_session(
-                    Id=id,
+                    Id=new_id,
                     Role=self._create_session_config["role_arn"],
                     DefaultArguments=args,
                     Command={
@@ -153,10 +154,10 @@ class GlueConnection:
             self._session_create_time = time.time()
 
     def _init_session(self):
-        logger.debug("GlueConnection _init_session called")
-        logger.debug("GlueConnection session_id : " + self.session_id)
+        logger.debug("GlueConnection _init_session called for session_id : " + self.session_id)
         statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY)
         try:
+            logger.debug(f"Executing statement (SQLPROXY): {statement}")
             statement.execute()
         except Exception as e:
             logger.error("Error in GlueCursor execute " + str(e))
@@ -165,6 +166,7 @@ class GlueConnection:
         statement = GlueStatement(client=self.client, session_id=self.session_id,
                                   code=f"spark.sql('use {self.credentials.database}')")
         try:
+            logger.debug(f"Executing statement (use database) : {statement}")
             statement.execute()
         except Exception as e:
             logger.error("Error in GlueCursor execute " + str(e))
@@ -276,7 +278,7 @@ class GlueConnection:
         if self.state == GlueSessionState.READY:
             self._init_session()
             return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
-        else:
+        elif self.session_id:
             try:
                 logger.debug(f"[cursor waiting glue session state to ready for {self.session_id} in {self.state} state")
                 self._session_waiter.wait(Id=self.session_id)
@@ -286,14 +288,16 @@ class GlueConnection:
                 if "Max attempts exceeded" in str(e):
                     raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to start")
                 else:
-                    logger.debug(f"session is already stopped or failed")
+                    raise ValueError(f"session {self.session_id} is already stopped or failed")
             except Exception as e:
                 raise e
-        
+        else:
+            raise ValueError("Failed to get cursor")
 
     def close_session(self):
         logger.debug("GlueConnection close_session called")
-        if not self._session:
+        if not self._session or not self.session_id:
+            logger.debug("session is not set to close_session")
             return
         if self.credentials.glue_session_reuse:
             logger.debug(f"reuse session, do not stop_session for {self.session_id} in {self.state} state")
@@ -306,7 +310,7 @@ class GlueConnection:
             if "Max attempts exceeded" in str(e):
                 raise e
             else:
-                logger.debug(f"session is already stopped or failed")
+                logger.debug(f"session {self.session_id} is already stopped or failed")
         except Exception as e:
             raise e
 
@@ -316,15 +320,14 @@ class GlueConnection:
             return self._state
         try:
             if not self.session_id:
-                self._session = {
-                    "Session": {"Id": self._session_id_suffix}
-                }
-            response = self.client.get_session(Id=self.session_id)
-            session = response.get("Session", {})
-            self._state = session.get("Status")
+                logger.debug(f"session is set defined")
+                self._state = GlueSessionState.STOPPED
+            else:
+                response = self.client.get_session(Id=self.session_id)
+                session = response.get("Session", {})
+                self._state = session.get("Status")
         except Exception as e:
-            logger.debug(f"get session state error session_id: {self._session_id_suffix}, {self.session_id}")
-            logger.debug(e)
+            logger.debug(f"get session state error session_id: {self._session_id_suffix}, {self.session_id}. Exception: {e}")
             self._state = GlueSessionState.STOPPED
         return self._state
 
@@ -352,6 +355,7 @@ class SqlWrapper2:
     dfs = {}
     @classmethod
     def execute(cls,sql,output=True):
+        sql = sql.replace('"', '')
         if "dbt_next_query" in sql:
                 response=None
                 queries = sql.split("dbt_next_query")
@@ -363,7 +367,7 @@ class SqlWrapper2:
                             cls.execute(q,output=False)
                 return  response   
                 
-        spark.conf.set("spark.sql.crossJoin.enabled", "true")    
+        spark.conf.set("spark.sql.crossJoin.enabled", "true")
         df = spark.sql(sql)
         if len(df.schema.fields) == 0:
             dumped_empty_result = json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None})

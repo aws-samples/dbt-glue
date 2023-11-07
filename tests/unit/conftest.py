@@ -4,21 +4,20 @@ import pytest
 import logging
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.credentials import GlueCredentials
+from tests.util import get_role_arn, get_region
 
 logger = logging.getLogger(name="dbt-glue-tes")
-account = "xxxxxxxxxxxx"
-region = "eu-west-1"
 
 
 @pytest.fixture(scope="module")
 def role():
-    arn = os.environ.get("DBT_GLUE_ROLE_ARN", f"arn:aws:iam::{account}:role/GlueInteractiveSessionRole")
+    arn = get_role_arn()
     yield arn
 
 
 @pytest.fixture(scope="module")
 def region():
-    r = os.environ.get("DBT_GLUE_REGION", region)
+    r = get_region()
     yield r
 
 
@@ -26,8 +25,8 @@ def region():
 def clean():
     yield
     return
-    logger.warning("cleanup ")
-    r = os.environ.get("DBT_GLUE_REGION", region)
+    logger.warning("cleanup")
+    r = get_region()
     client = boto3.client("glue", region_name=r)
     sessions = client.list_sessions()
     logger.warning(f"Found {len(sessions['Ids'])} {'-'.join(sessions['Ids'])}")
@@ -43,20 +42,20 @@ def clean():
 @pytest.fixture(scope="module")
 def credentials():
     return GlueCredentials(
-        role_arn=f"arn:aws:iam::{account}:role/GlueInteractiveSessionRole",
-        region=region,
+        role_arn=get_role_arn(),
+        region=get_region(),
         database=None,
         schema="airbotinigo",
         worker_type="G.1X",
-        session_provisioning_timeout_in_seconds=30,
-        workers=3,
+        session_provisioning_timeout_in_seconds=120,
+        workers=3
     )
 
 
 @pytest.fixture(scope="module", autouse=False)
 def session(role, region, credentials) -> GlueConnection:
     s = GlueConnection(credentials=credentials)
-    s.connect()
+    s._connect()
     yield s
     # s.client.delete_session(Id=s.session_id)
     # logger.warning(f"Deleted session {s.session_id}`")

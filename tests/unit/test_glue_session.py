@@ -1,9 +1,12 @@
-from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor, GlueDictCursor
+from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
 import boto3
 import uuid
+from tests.util import get_account_id, get_s3_location
 
-account = "xxxxxxxxxxxx"
-s3bucket = "s3://dbtbucket/dbttessample/"
+
+account = get_account_id()
+s3bucket = get_s3_location()
+
 
 def __test_connect(session: GlueConnection):
     print(session.session_id)
@@ -59,6 +62,7 @@ def __test_query_with_comments(session):
 def test_create_database(session, region):
     client = boto3.client("glue", region_name=region)
     schema = "testdb111222333"
+    table_name = "test123"
     try:
         response = client.create_database(
             DatabaseInput={
@@ -70,17 +74,13 @@ def test_create_database(session, region):
 
         lf = boto3.client("lakeformation", region_name=region)
         Entries = []
-        for i, role_arn in enumerate([
-            session.credentials.role_arn,
-            f"arn:aws:iam::{account}:role/GlueInteractiveSessionRole",
-            f"arn:aws:iam::{account}:user/cdkuser"]):
+        for i, role_arn in enumerate([session.credentials.role_arn]):
             Entries.append(
                 {
                     "Id": str(uuid.uuid4()),
                     "Principal": {"DataLakePrincipalIdentifier": role_arn},
                     "Resource": {
                         "Database": {
-                            # 'CatalogId': AWS_ACCOUNT,
                             "Name": schema,
                         }
                     },
@@ -118,8 +118,19 @@ def test_create_database(session, region):
 
     cursor: GlueCursor = session.cursor()
     response = cursor.execute(f"""
-    create table {schema}.test(a string) 
+    create table {schema}.{table_name}(a string)
      USING CSV
-     LOCATION '{s3bucket}/table1/'
+     LOCATION '{s3bucket}/{table_name}/'
     """)
     print(response)
+
+    response = cursor.execute(f"""
+        describe table {schema}.{table_name}
+        """)
+    print(response)
+
+    response = cursor.execute(f"""
+    drop table {schema}.{table_name}
+    """)
+    print(response)
+

@@ -1000,9 +1000,13 @@ $ python3 setup.py build && python3 setup.py install_lib
 
 3. Export variables
 ```bash
+$ export DBT_AWS_ACCOUNT=123456789101
+$ export DBT_GLUE_REGION=us-east-1
 $ export DBT_S3_LOCATION=s3://mybucket/myprefix
-$ export DBT_ROLE_ARN=arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
+$ export DBT_GLUE_ROLE_ARN=arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
 ```
+Caution: Be careful not to set S3 path containing important files. 
+dbt-glue's test suite automatically deletes all the existing files under the S3 path specified in `DBT_S3_LOCATION`.
 
 4. Run the test
 ```bash
