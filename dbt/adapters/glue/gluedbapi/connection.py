@@ -125,18 +125,17 @@ class GlueConnection:
             if (self.credentials.datalake_formats is not None):
                 args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
 
-
             session_uuid = uuid.uuid4()
-            session_uuidStr = str(session_uuid)
+            session_uuid_str = str(session_uuid)
             session_prefix = self._create_session_config["role_arn"].partition('/')[2] or self._create_session_config["role_arn"]
-            id = f"{session_prefix}-dbt-glue-{session_uuidStr}"
+            new_id = f"{session_prefix}-dbt-glue-{session_uuid_str}"
 
             if self._session_id_suffix:
-                id = f"{id}-{self._session_id_suffix}"
+                new_id = f"{new_id}-{self._session_id_suffix}"
 
             try:
                 self._session = self.client.create_session(
-                    Id=id,
+                    Id=new_id,
                     Role=self._create_session_config["role_arn"],
                     DefaultArguments=args,
                     Command={
@@ -289,7 +288,6 @@ class GlueConnection:
                     logger.debug(f"session {self.session_id} is already stopped or failed")
             except Exception as e:
                 raise e
-        
 
     def close_session(self):
         logger.debug("GlueConnection close_session called")
@@ -317,13 +315,12 @@ class GlueConnection:
             return self._state
         try:
             if not self.session_id or self.session_id is None:
-                self._session = {
-                    "Session": {"Id": self._session_id_suffix}
-                }
-                logger.debug(f"session_id is set to : {self.session_id} using suffix: {self._session_id_suffix}")
-            response = self.client.get_session(Id=self.session_id)
-            session = response.get("Session", {})
-            self._state = session.get("Status")
+                logger.debug(f"session is set defined")
+                self._state = GlueSessionState.STOPPED
+            else:
+                response = self.client.get_session(Id=self.session_id)
+                session = response.get("Session", {})
+                self._state = session.get("Status")
         except Exception as e:
             logger.debug(f"get session state error session_id: {self._session_id_suffix}, {self.session_id}. Exception: {e}")
             self._state = GlueSessionState.STOPPED

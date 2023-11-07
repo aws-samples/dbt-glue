@@ -22,6 +22,7 @@ def get_s3_location():
     else:
         raise ValueError("DBT_S3_LOCATION must be configured")
 
+
 def get_role_arn():
     return os.environ.get("DBT_GLUE_ROLE_ARN", f"arn:aws:iam::{get_account_id()}:role/GlueInteractiveSessionRole")
 
