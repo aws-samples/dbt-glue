@@ -45,7 +45,7 @@ class GlueConnection:
 
     def _connect(self):
         logger.debug("GlueConnection connect called")
-        if not self.session_id or self.session_id is None:
+        if not self.session_id:
             logger.debug("No session present, starting one")
             self._start_session()
         else:
@@ -74,6 +74,7 @@ class GlueConnection:
         logger.debug("GlueConnection _start_session called")
 
         if self.credentials.glue_session_id:
+            logger.debug(f"The existing session {self.credentials.glue_session_id} is used")
             try:
                 self._session = self.client.get_session(
                     Id=self.credentials.glue_session_id,
@@ -134,6 +135,7 @@ class GlueConnection:
                 new_id = f"{new_id}-{self._session_id_suffix}"
 
             try:
+                logger.debug(f"A new session {new_id} is created")
                 self._session = self.client.create_session(
                     Id=new_id,
                     Role=self._create_session_config["role_arn"],
@@ -152,10 +154,10 @@ class GlueConnection:
             self._session_create_time = time.time()
 
     def _init_session(self):
-        logger.debug("GlueConnection _init_session called")
-        logger.debug("GlueConnection session_id : " + self.session_id)
+        logger.debug("GlueConnection _init_session called for session_id : " + self.session_id)
         statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY)
         try:
+            logger.debug(f"Executing statement (SQLPROXY): {statement}")
             statement.execute()
         except Exception as e:
             logger.error("Error in GlueCursor execute " + str(e))
@@ -164,6 +166,7 @@ class GlueConnection:
         statement = GlueStatement(client=self.client, session_id=self.session_id,
                                   code=f"spark.sql('use {self.credentials.database}')")
         try:
+            logger.debug(f"Executing statement (use database) : {statement}")
             statement.execute()
         except Exception as e:
             logger.error("Error in GlueCursor execute " + str(e))
@@ -275,7 +278,7 @@ class GlueConnection:
         if self.state == GlueSessionState.READY:
             self._init_session()
             return GlueDictCursor(connection=self) if as_dict else GlueCursor(connection=self)
-        elif not self.session_id or self.session_id is not None:
+        elif self.session_id:
             try:
                 logger.debug(f"[cursor waiting glue session state to ready for {self.session_id} in {self.state} state")
                 self._session_waiter.wait(Id=self.session_id)
@@ -285,13 +288,15 @@ class GlueConnection:
                 if "Max attempts exceeded" in str(e):
                     raise TimeoutError(f"GlueSession took more than {self.credentials.session_provisioning_timeout_in_seconds} seconds to start")
                 else:
-                    logger.debug(f"session {self.session_id} is already stopped or failed")
+                    raise ValueError(f"session {self.session_id} is already stopped or failed")
             except Exception as e:
                 raise e
+        else:
+            raise ValueError("Failed to get cursor")
 
     def close_session(self):
         logger.debug("GlueConnection close_session called")
-        if not self._session or not self.session_id or self.session_id is None:
+        if not self._session or not self.session_id:
             logger.debug("session is not set to close_session")
             return
         if self.credentials.glue_session_reuse:
@@ -314,7 +319,7 @@ class GlueConnection:
         if self._state in [GlueSessionState.FAILED]:
             return self._state
         try:
-            if not self.session_id or self.session_id is None:
+            if not self.session_id:
                 logger.debug(f"session is set defined")
                 self._state = GlueSessionState.STOPPED
             else:
