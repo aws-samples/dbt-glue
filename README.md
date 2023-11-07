@@ -1012,7 +1012,10 @@ dbt-glue's test suite automatically deletes all the existing files under the S3 
 ```bash
 $ python3 -m pytest tests/functional
 ```
-
+or
+```bash
+$ python3 -m pytest -s 
+```
 For more information, check the dbt documentation about [testing a new adapter](https://docs.getdbt.com/docs/contributing/testing-a-new-adapter).
 
 ## Caveats

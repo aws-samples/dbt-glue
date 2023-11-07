@@ -7,10 +7,10 @@ import dbt.exceptions
 @dataclass
 class GlueCredentials(Credentials):
     """ Required connections for a Glue connection"""
-    role_arn: str
-    region: str
-    workers: int
-    worker_type: str
+    role_arn: Optional[str] = None  # type: ignore
+    region: Optional[str] = None  # type: ignore
+    workers: Optional[int] = None  # type: ignore
+    worker_type: Optional[str] = None  # type: ignore
     session_provisioning_timeout_in_seconds: int = 120
     location: Optional[str] = None
     extra_jars: Optional[str] = None
@@ -23,7 +23,8 @@ class GlueCredentials(Credentials):
     extra_py_files: Optional[str] = None
     delta_athena_prefix: Optional[str] = None
     tags: Optional[str] = None
-    database: Optional[str]  # type: ignore
+    database: Optional[str] = None  # type: ignore
+    schema: Optional[str] = None  # type: ignore
     seed_format: Optional[str] = "parquet"
     seed_mode: Optional[str] = "overwrite"
     default_arguments: Optional[str] = None

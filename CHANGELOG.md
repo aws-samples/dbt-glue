@@ -1,3 +1,7 @@
+## v1.7.0
+- add compatibility with dbt 1.6
+- fixed tests 
+
 ## v1.6.6
 - Replace retry logic with WaiterModel
 
