@@ -247,6 +247,32 @@ class TestGenericTestsGlue(BaseGenericTests):
     @pytest.fixture(scope="class")
     def unique_schema(request, prefix) -> str:
         return schema_name
+
+    @pytest.fixture(scope='class', autouse=True)
+    def cleanup(self):
+        cleanup_s3_location()
+        yield
+
+    def test_generic_tests(self, project):
+        # seed command
+        results = run_dbt(["seed"])
+
+        relation = relation_from_name(project.adapter, "base")
+        # run refresh table to disable the previous parquet file paths
+        project.run_sql(f"refresh table {relation}")
+
+        # test command selecting base model
+        results = run_dbt(["test", "-m", "base"])
+        assert len(results) == 1
+
+        # run command
+        results = run_dbt(["run"])
+        assert len(results) == 2
+
+        # test command, all tests
+        results = run_dbt(["test"])
+        assert len(results) == 3
+
     pass
 
 # To test
