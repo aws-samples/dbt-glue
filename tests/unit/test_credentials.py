@@ -3,7 +3,7 @@ import unittest
 from dbt.adapters.glue.connections import GlueCredentials
 
 
-class TestGlueRelation(unittest.TestCase):
+class TestGlueCredentials(unittest.TestCase):
     def test_credentials(self) -> None:
         credentials = GlueCredentials(
             database="tests",
