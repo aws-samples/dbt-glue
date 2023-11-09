@@ -1,6 +1,8 @@
 from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
 import boto3
 import uuid
+import string
+import random
 from tests.util import get_account_id, get_s3_location
 
 
@@ -62,7 +64,8 @@ def __test_query_with_comments(session):
 def test_create_database(session, region):
     client = boto3.client("glue", region_name=region)
     schema = "testdb111222333"
-    table_name = "test123"
+    table_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+    table_name = f"test123_{table_suffix}"
     try:
         response = client.create_database(
             DatabaseInput={

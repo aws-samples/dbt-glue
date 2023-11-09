@@ -20,4 +20,11 @@ pytest-csv
 flaky
 dbt-tests-adapter==1.7.1
 mypy==1.6.1
-black==23.10.1
+black==23.11.0
+
+# Adapter specific dependencies
+waiter
+boto3
+
+dbt-core==1.7.0
+dbt-spark==1.7.0
