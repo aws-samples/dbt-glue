@@ -9,5 +9,5 @@ Plugin = AdapterPlugin(
     adapter=GlueAdapter,
     credentials=GlueCredentials,
     include_path=glue.PACKAGE_PATH,
-    dependencies = ["spark"],
+    dependencies=["spark"],
 )
