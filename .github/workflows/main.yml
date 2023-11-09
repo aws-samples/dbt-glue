@@ -20,6 +20,9 @@ on:
       - "main"
       - "*.latest"
       - "releases/*"
+    paths-ignore:
+      - "**.MD"
+      - "**.md"
   pull_request:
   workflow_dispatch:
 
@@ -104,26 +107,8 @@ jobs:
           python -m pip install tox
           tox --version
 
-      - name: Generate session name
-        id: session
-        run: |
-          repo="${GITHUB_REPOSITORY#${GITHUB_REPOSITORY_OWNER}/}"
-          echo "name=${repo}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-session-name: ${{ steps.session.outputs.name }}
-          role-to-assume: arn:aws:iam::421396179189:role/dbt-glue
-          aws-region: us-east-1
-
       - name: Run tox
-        run: |
-          export DBT_AWS_ACCOUNT=421396179189
-          export DBT_S3_LOCATION=s3://dbt-glue-ci/data/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${{ matrix.python-version }}/
-          export DBT_GLUE_ROLE_ARN=arn:aws:iam::421396179189:role/GlueServiceRole
-          export DBT_GLUE_REGION=us-east-1
-          tox
+        run: tox
 
       - name: Get current date
         if: always()
@@ -135,6 +120,7 @@ jobs:
         with:
           name: unit_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
           path: unit_results.csv
+
 
   build:
     name: build packages
