@@ -33,7 +33,6 @@ jobs:
       TOXENV: "integration"
       PYTEST_ADDOPTS: "-v --color=yes --csv unit_results.csv"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
-      DBT_S3_LOCATION: ${{ secrets.DBT_S3_LOCATION }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
 
@@ -71,7 +70,7 @@ jobs:
 
       - name: Run tox
         run: |
-          export DBT_S3_LOCATION=${DBT_S3_LOCATION}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${{ matrix.python-version }}/
+          export DBT_S3_LOCATION=${{ secrets.DBT_S3_LOCATION }}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${{ matrix.python-version }}
           tox
 
       - name: Get current date
