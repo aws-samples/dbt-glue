@@ -264,13 +264,12 @@ class TestGenericTestsGlue(BaseGenericTests):
 
     pass
 
-# To test
-#class TestDocsGenerate(BaseDocsGenerate):
-#    pass
+class TestDocsGenerateGlue(BaseDocsGenerate):
+   pass
 
 
-#class TestDocsGenReferences(BaseDocsGenReferences):
-#    pass
+class TestDocsGenReferencesGlue(BaseDocsGenReferences):
+   pass
 
 
 # To Dev
