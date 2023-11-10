@@ -24,6 +24,7 @@ black==23.11.0
 # Adapter specific dependencies
 waiter
 boto3
+moto~=4.2.7
 
 dbt-core~=1.7.1
 dbt-spark~=1.7.1
