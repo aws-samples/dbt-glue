@@ -21,6 +21,8 @@ from dbt.tests.adapter.basic.test_snapshot_timestamp import \
     BaseSnapshotTimestamp
 from dbt.tests.adapter.basic.test_table_materialization import \
     BaseTableMaterialization
+from dbt.tests.adapter.basic.test_validate_connection import \
+    BaseValidateConnection
 from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
                             get_manifest, relation_from_name, run_dbt)
 from tests.util import cleanup_s3_location, get_region, get_s3_location
@@ -284,3 +286,6 @@ class TestDocsGenReferencesGlue(BaseDocsGenReferences):
 
 class TestTableMatGlue(BaseTableMaterialization):
    pass
+
+class TestValidateConnectionGlue(BaseValidateConnection):
+    pass
