@@ -276,13 +276,12 @@ class TestDocsGenReferencesGlue(BaseDocsGenReferences):
    pass
 
 
-# To Dev
-#class TestSnapshotCheckColsGlue(BaseSnapshotCheckCols):
-#    pass
+class TestSnapshotCheckColsGlue(BaseSnapshotCheckCols):
+   pass
 
 
-#class TestSnapshotTimestampGlue(BaseSnapshotTimestamp):
-#    pass
+class TestSnapshotTimestampGlue(BaseSnapshotTimestamp):
+   pass
 
 class TestTableMatGlue(BaseTableMaterialization):
    pass
