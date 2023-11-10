@@ -9,7 +9,7 @@ import dbt.flags as flags
 from dbt.adapters.glue import GlueAdapter
 from dbt.adapters.glue.relation import SparkRelation
 from tests.util import config_from_parts_or_dicts
-from .utils import MockAWSService
+from .util import MockAWSService
 
 
 class TestGlueAdapter(unittest.TestCase):
