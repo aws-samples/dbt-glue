@@ -1,34 +1,26 @@
-import pytest
-
 import os
+
+import pytest
+from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
+                                           base_view_sql, ephemeral_table_sql,
+                                           ephemeral_view_sql)
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
-from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
-from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTestsEphemeral
+from dbt.tests.adapter.basic.test_docs_generate import (BaseDocsGenerate,
+                                                        BaseDocsGenReferences)
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
 from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.basic.test_incremental import BaseIncremental
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
-from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
-from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
-from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
-from dbt.tests.adapter.basic.files import (
-    base_view_sql,
-    base_table_sql,
-    base_ephemeral_sql,
-    ephemeral_view_sql,
-    ephemeral_table_sql
-)
-
-from dbt.tests.util import (
-    run_dbt,
-    get_manifest,
-    check_result_nodes_by_name,
-    relation_from_name,
-    check_relations_equal,
-)
-
-from tests.util import get_s3_location, get_region, cleanup_s3_location
-
+from dbt.tests.adapter.basic.test_incremental import BaseIncremental
+from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
+from dbt.tests.adapter.basic.test_singular_tests_ephemeral import \
+    BaseSingularTestsEphemeral
+from dbt.tests.adapter.basic.test_snapshot_check_cols import \
+    BaseSnapshotCheckCols
+from dbt.tests.adapter.basic.test_snapshot_timestamp import \
+    BaseSnapshotTimestamp
+from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
+                            get_manifest, relation_from_name, run_dbt)
+from tests.util import cleanup_s3_location, get_region, get_s3_location
 
 s3bucket = get_s3_location()
 region = get_region()
