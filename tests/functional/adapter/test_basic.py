@@ -4,6 +4,7 @@ import pytest
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
                                            ephemeral_view_sql)
+from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_docs_generate import (BaseDocsGenerate,
                                                         BaseDocsGenReferences)
@@ -50,6 +51,8 @@ model_base = """
 """
 base_materialized_var_sql = config_materialized_var + config_incremental_strategy + model_base
 
+class TestBaseCachingGlue(BaseAdapterMethod):
+    pass
 
 class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
     # all tests within this test has the same schema
