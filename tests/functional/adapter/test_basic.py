@@ -1,8 +1,6 @@
 import pytest
 
-import boto3
 import os
-from urllib.parse import urlparse
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
 from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTestsEphemeral
@@ -29,7 +27,7 @@ from dbt.tests.util import (
     check_relations_equal,
 )
 
-from tests.util import get_s3_location, get_region
+from tests.util import get_s3_location, get_region, cleanup_s3_location
 
 
 s3bucket = get_s3_location()
@@ -61,11 +59,6 @@ model_base = """
 base_materialized_var_sql = config_materialized_var + config_incremental_strategy + model_base
 
 
-def cleanup_s3_location():
-    client = boto3.client("s3", region_name=region)
-    S3Url(s3bucket + schema_name).delete_all_keys_v2(client)
-
-
 class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
     # all tests within this test has the same schema
     @pytest.fixture(scope="class")
@@ -92,7 +85,7 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
 
     @pytest.fixture(scope='class', autouse=True)
     def cleanup(self):
-        cleanup_s3_location()
+        cleanup_s3_location(s3bucket + schema_name, region)
         yield
 
     pass
@@ -131,7 +124,7 @@ class TestEphemeralGlue(BaseEphemeral):
 
     @pytest.fixture(scope='class', autouse=True)
     def cleanup(self):
-        cleanup_s3_location()
+        cleanup_s3_location(s3bucket + schema_name, region)
         yield
 
     # test_ephemeral with refresh table
@@ -184,7 +177,7 @@ class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
 class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope='class', autouse=True)
     def cleanup(self):
-        cleanup_s3_location()
+        cleanup_s3_location(s3bucket + schema_name, region)
         yield
 
     @pytest.fixture(scope="class")
@@ -250,7 +243,7 @@ class TestGenericTestsGlue(BaseGenericTests):
 
     @pytest.fixture(scope='class', autouse=True)
     def cleanup(self):
-        cleanup_s3_location()
+        cleanup_s3_location(s3bucket + schema_name, region)
         yield
 
     def test_generic_tests(self, project):
@@ -258,8 +251,10 @@ class TestGenericTestsGlue(BaseGenericTests):
         results = run_dbt(["seed"])
 
         relation = relation_from_name(project.adapter, "base")
+        relation_table_model = relation_from_name(project.adapter, "table_model")
         # run refresh table to disable the previous parquet file paths
         project.run_sql(f"refresh table {relation}")
+        project.run_sql(f"refresh table {relation_table_model}")
 
         # test command selecting base model
         results = run_dbt(["test", "-m", "base"])
@@ -291,33 +286,3 @@ class TestGenericTestsGlue(BaseGenericTests):
 
 #class TestSnapshotTimestampGlue(BaseSnapshotTimestamp):
 #    pass
-
-class S3Url(object):
-    def __init__(self, url):
-        self._parsed = urlparse(url, allow_fragments=False)
-
-    @property
-    def bucket(self):
-        return self._parsed.netloc
-
-    @property
-    def key(self):
-        if self._parsed.query:
-            return self._parsed.path.lstrip("/") + "?" + self._parsed.query
-        else:
-            return self._parsed.path.lstrip("/")
-
-    @property
-    def url(self):
-        return self._parsed.geturl()
-
-    def delete_all_keys_v2(self, client):
-        bucket = self.bucket
-        prefix = self.key
-
-        for response in client.get_paginator('list_objects_v2').paginate(Bucket=bucket, Prefix=prefix):
-            if 'Contents' not in response:
-                continue
-            for content in response['Contents']:
-                print("Deleting: s3://" + bucket + "/" + content['Key'])
-                client.delete_object(Bucket=bucket, Key=content['Key'])
