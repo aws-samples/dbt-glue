@@ -479,8 +479,6 @@ You can also use Delta Lake to be able to use merge feature on tables.
 - To add the following config in your Interactive Session Config (in your profile):  `conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog`
 
 **Athena:** Athena is not compatible by default with delta tables, but you can configure the adapter to create Athena tables on top of your delta table. To do so, you need to configure the two following options in your profile:
-- For Delta Lake 2.1.0 supported natively in Glue 4.0: `extra_py_files: "/opt/aws_glue_connectors/selected/datalake/delta-core_2.12-2.1.0.jar"`
-- For Delta Lake 1.0.0 supported natively in Glue 3.0: `extra_py_files: "/opt/aws_glue_connectors/selected/datalake/delta-core_2.12-1.0.0.jar"`
 - `delta_athena_prefix: "the_prefix_of_your_choice"`
 - If your table is partitioned, then the add of new partition is not automatic, you need to perform an `MSCK REPAIR TABLE your_delta_table` after each new partition adding
 
@@ -502,7 +500,6 @@ test_project:
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       datalake_formats: delta
       conf: "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog"
-      extra_py_files: "/opt/aws_glue_connectors/selected/datalake/delta-core_2.12-2.1.0.jar"
       delta_athena_prefix: "delta"
 ```
 
