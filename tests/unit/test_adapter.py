@@ -36,8 +36,8 @@ class TestGlueAdapter(unittest.TestCase):
                     "region": "us-east-1",
                     "workers": 2,
                     "worker_type": "G.1X",
-                    "schema": "dbt_functional_test_01",
-                    "database": "dbt_functional_test_01",
+                    "schema": "dbt_unit_test_01",
+                    "database": "dbt_unit_test_01",
                 }
             },
             "target": "test",
@@ -59,7 +59,7 @@ class TestGlueAdapter(unittest.TestCase):
 
             self.assertEqual(connection.state, "open")
             self.assertEqual(connection.type, "glue")
-            self.assertEqual(connection.credentials.schema, "dbt_functional_test_01")
+            self.assertEqual(connection.credentials.schema, "dbt_unit_test_01")
             self.assertIsNotNone(connection.handle)
 
 
@@ -87,7 +87,7 @@ class TestGlueAdapter(unittest.TestCase):
         config = self._get_config()
         adapter = GlueAdapter(config)
         target_relation = SparkRelation.create(
-            schema="dbt_functional_test_01",
+            schema="dbt_unit_test_01",
             name="test_hudi_merge_table",
         )
         with mock.patch("dbt.adapters.glue.connections.open"):
