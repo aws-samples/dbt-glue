@@ -249,6 +249,7 @@ class TestGenericTestsGlue(BaseGenericTests):
     def test_generic_tests(self, project):
         # seed command
         results = run_dbt(["seed"])
+        assert len(results) == 1
 
         relation = relation_from_name(project.adapter, "base")
         # run refresh table to disable the previous parquet file paths
