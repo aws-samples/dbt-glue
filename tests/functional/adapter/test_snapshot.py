@@ -1,37 +1,32 @@
 import pytest
 
-from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
-from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
-from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTestsEphemeral
-from dbt.tests.adapter.basic.test_empty import BaseEmpty
-from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.basic.test_incremental import BaseIncremental
-from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
-from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
 from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
-from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
-from dbt.tests.adapter.basic.files import (
-    schema_base_yml
-)
-from dbt.tests.util import run_dbt, update_rows, relation_from_name
-from dbt.tests.adapter.basic.test_snapshot_check_cols import check_relation_rows
+from dbt.tests.util import run_dbt, relation_from_name
 
-# To test
-#class TestDocsGenerate(BaseDocsGenerate):
-#    pass
+from tests.util import get_s3_location, get_region, cleanup_s3_location
 
 
-#class TestDocsGenReferences(BaseDocsGenReferences):
-#    pass
+s3bucket = get_s3_location()
+region = get_region()
+schema_name = "dbt_functional_test_snapshot01"
 
 
-schema_name = "dbt_functional_test_01"
+def check_relation_rows(project, snapshot_name, count):
+    relation = relation_from_name(project.adapter, snapshot_name)
+    project.run_sql(f"refresh table {relation}")
+    result = project.run_sql(f"select count(*) as num_rows from {relation}", fetch="one")
+    assert result[0] == count
 
 
 class TestSnapshotCheckColsGlue(BaseSnapshotCheckCols):
     @pytest.fixture(scope="class")
     def unique_schema(request, prefix) -> str:
         return schema_name
+
+    @pytest.fixture(scope='class', autouse=True)
+    def cleanup(self):
+        cleanup_s3_location(s3bucket + schema_name, region)
+        yield
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -68,6 +63,7 @@ class TestSnapshotCheckColsGlue(BaseSnapshotCheckCols):
         check_relation_rows(project, "cc_date_snapshot", 10)
 
         relation = relation_from_name(project.adapter, "cc_all_snapshot")
+        project.run_sql(f"refresh table {relation}")
         result = project.run_sql(f"select * from {relation}", fetch="all")
 
         # point at the "added" seed so the snapshot sees 10 new rows

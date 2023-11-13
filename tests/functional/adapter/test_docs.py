@@ -1,25 +1,17 @@
 import pytest
-import os
 
-from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
-from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
-from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTestsEphemeral
-from dbt.tests.adapter.basic.test_empty import BaseEmpty
-from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.basic.test_incremental import BaseIncremental
-from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
-from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
-from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
-from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
-from dbt.tests.adapter.basic.expected_catalog import base_expected_catalog, no_stats, expected_references_catalog
-from dbt.tests.fixtures.project import write_project_files
-from dbt.tests.util import run_dbt, rm_file, get_artifact, check_datetime_between
+from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate
+from dbt.tests.adapter.basic.expected_catalog import no_stats
+
+
+schema_name = "dbt_functional_test_docs01"
+
 
 class TestDocsGenerate(BaseDocsGenerate):
     # all tests within this test has the same schema
     @pytest.fixture(scope="class")
     def unique_schema(request, prefix) -> str:
-        return "dbt_functional_test_01"
+        return schema_name
 
     @pytest.fixture(scope="class")
     def expected_catalog(self, project, profile_user):
