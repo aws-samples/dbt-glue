@@ -55,7 +55,6 @@
         {% endif %}
       {% elif existing_relation_type == 'view' or should_full_refresh() %}
         {{ glue__drop_relation(target_relation) }}
-        {% do glue__drop_relation(existing_relation) %}
         {% if file_format == 'delta' %}
             {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
             {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 " %}
