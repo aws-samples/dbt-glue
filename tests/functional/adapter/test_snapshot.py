@@ -2,14 +2,13 @@ import pytest
 
 from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
 from dbt.tests.util import run_dbt, relation_from_name
-from dbt.tests.adapter.basic.test_snapshot_check_cols import check_relation_rows
 
 from tests.util import get_s3_location, get_region, cleanup_s3_location
 
 
 s3bucket = get_s3_location()
 region = get_region()
-schema_name = "dbt_functional_test_01"
+schema_name = "dbt_functional_test_snapshot01"
 
 
 def check_relation_rows(project, snapshot_name, count):
