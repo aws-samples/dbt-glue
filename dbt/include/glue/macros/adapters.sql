@@ -38,7 +38,6 @@
   {%- endcall %}
 {% endmacro %}
 
-
 {% macro glue__make_temp_relation(base_relation, suffix) %}
     {% set tmp_identifier = base_relation.identifier ~ suffix %}
     {% set tmp_relation = base_relation.incorporate(path={"schema": base_relation.schema, "identifier": tmp_identifier}) -%}
