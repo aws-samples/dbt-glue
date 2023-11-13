@@ -269,20 +269,3 @@ class TestGenericTestsGlue(BaseGenericTests):
         assert len(results) == 3
 
     pass
-
-# To test
-#class TestDocsGenerate(BaseDocsGenerate):
-#    pass
-
-
-#class TestDocsGenReferences(BaseDocsGenReferences):
-#    pass
-
-
-# To Dev
-#class TestSnapshotCheckColsGlue(BaseSnapshotCheckCols):
-#    pass
-
-
-#class TestSnapshotTimestampGlue(BaseSnapshotTimestamp):
-#    pass
