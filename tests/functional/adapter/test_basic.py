@@ -252,8 +252,10 @@ class TestGenericTestsGlue(BaseGenericTests):
         assert len(results) == 1
 
         relation = relation_from_name(project.adapter, "base")
+        relation_table_model = relation_from_name(project.adapter, "table_model")
         # run refresh table to disable the previous parquet file paths
         project.run_sql(f"refresh table {relation}")
+        project.run_sql(f"refresh table {relation_table_model}")
 
         # test command selecting base model
         results = run_dbt(["test", "-m", "base"])
