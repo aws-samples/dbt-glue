@@ -4,7 +4,7 @@ from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate
 from dbt.tests.adapter.basic.expected_catalog import no_stats
 
 
-schema_name = "dbt_functional_test_snapshot01"
+schema_name = "dbt_functional_test_docs01"
 
 
 class TestDocsGenerate(BaseDocsGenerate):
