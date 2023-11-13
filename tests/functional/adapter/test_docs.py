@@ -1,8 +1,8 @@
 import pytest
 
-from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate
+from dbt.tests.adapter.basic.test_docs_generate import (BaseDocsGenerate,
+                                                        BaseDocsGenReferences)
 from dbt.tests.adapter.basic.expected_catalog import no_stats
-
 
 schema_name = "dbt_functional_test_docs01"
 
@@ -107,3 +107,10 @@ class TestDocsGenerate(BaseDocsGenerate):
 
     pass
 
+
+class TestDocsGenReferencesGlue(BaseDocsGenReferences):
+    @pytest.fixture(scope="class")
+    def unique_schema(request, prefix) -> str:
+        return schema_name
+
+    pass
