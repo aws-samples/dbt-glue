@@ -48,6 +48,10 @@ base_materialized_var_sql = config_materialized_var + config_incremental_strateg
 
 
 class TestBaseCachingGlue(BaseAdapterMethod):
+    @pytest.fixture(scope="class")
+    def unique_schema(request, prefix) -> str:
+        return schema_name
+
     pass
 
 
@@ -265,8 +269,17 @@ class TestGenericTestsGlue(BaseGenericTests):
 
 
 class TestTableMatGlue(BaseTableMaterialization):
+    @pytest.fixture(scope="class")
+    def unique_schema(request, prefix) -> str:
+        return schema_name
+
     pass
 
 
 class TestValidateConnectionGlue(BaseValidateConnection):
+    @pytest.fixture(scope="class")
+    def unique_schema(request, prefix) -> str:
+        return schema_name
+
     pass
+
