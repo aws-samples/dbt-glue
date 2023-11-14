@@ -7,7 +7,7 @@ from tests.util import get_s3_location, get_region, cleanup_s3_location
 
 s3bucket = get_s3_location()
 region = get_region()
-schema_name = "dbt_functional_test_snapshot01"
+schema_name = "dbt_functional_test_01"
 
 
 def check_relation_rows(project, snapshot_name, count):
@@ -82,5 +82,47 @@ class TestSnapshotTimestampGlue(BaseSnapshotTimestamp):
     @pytest.fixture(scope="class")
     def unique_schema(request, prefix) -> str:
         return schema_name
+
+    @pytest.fixture(scope='class', autouse=True)
+    def cleanup(self):
+        cleanup_s3_location(s3bucket + schema_name, region)
+        yield
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "seeds": {
+                "+file_format": "delta",
+                "quote_columns": False,
+            },
+            "snapshots": {
+                "+file_format": "delta",
+                "+updated_at": "current_timestamp()",
+                "quote_columns": False,
+            },
+            "quoting": {
+                "database": False,
+                "schema": False,
+                "identifier": False
+            },
+        }
+
+    def test_snapshot_timestamp(self, project):
+        # seed command
+        results = run_dbt(["seed"])
+        assert len(results) == 3
+
+        # snapshot command
+        results = run_dbt(["snapshot"])
+        assert len(results) == 1
+
+        # snapshot has 10 rows
+        check_relation_rows(project, "ts_snapshot", 10)
+
+        # point at the "added" seed so the snapshot sees 10 new rows
+        results = run_dbt(["snapshot", "--vars", "seed_name: added"])
+
+        # snapshot now has 20 rows
+        check_relation_rows(project, "ts_snapshot", 20)
 
     pass
