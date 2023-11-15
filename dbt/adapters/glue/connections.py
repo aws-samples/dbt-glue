@@ -102,7 +102,7 @@ class GlueConnectionManager(SQLConnectionManager):
         logger.debug("get_result_from_cursor called")
         data: List[Any] = []
         column_names: List[str] = []
-        if not cursor.description:
+        if cursor.description is not None:
             column_names = [col[0] for col in cursor.description()]
             if limit:
                 rows = cursor.fetchmany(limit)
