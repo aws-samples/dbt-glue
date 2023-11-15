@@ -42,14 +42,6 @@ def dbt_profile_target(unique_schema):
     }
 
 
-@pytest.fixture(scope="class")
-def profiles_config_update(dbt_profile_target, unique_schema):
-    outputs = {"default": dbt_profile_target}
-    outputs["default"]["database"] = unique_schema
-    outputs["default"]["schema"] = unique_schema
-    return {"test": {"outputs": outputs, "target": "default"}}
-
-
 @pytest.fixture(scope='class', autouse=True)
 def cleanup(unique_schema):
     cleanup_s3_location(s3bucket + unique_schema, region)
