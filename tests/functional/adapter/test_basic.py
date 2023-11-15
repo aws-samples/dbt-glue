@@ -1,6 +1,4 @@
 import os
-import random
-import string
 import pytest
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
@@ -17,12 +15,7 @@ from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterial
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
                             get_manifest, relation_from_name, run_dbt)
-from tests.util import get_s3_location, get_region, cleanup_s3_location
 
-s3bucket = get_s3_location()
-region = get_region()
-database_suffix = ''.join(random.choices(string.digits, k=4))
-schema_name = f"dbt_functional_test_{database_suffix}"
 
 # override schema_base_yml to set missing database
 schema_base_yml = """
@@ -54,33 +47,10 @@ base_materialized_var_sql = config_materialized_var + config_incremental_strateg
     "before the models are actually run. Not sure how this test is intended to work."
 )
 class TestBaseCachingGlue(BaseAdapterMethod):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     pass
 
 
 class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
-    # all tests within this test has the same schema
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -99,57 +69,18 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
             "schema.yml": schema_base_yml,
         }
 
-    @pytest.fixture(scope='class', autouse=True)
-    def cleanup(self):
-        cleanup_s3_location(s3bucket + schema_name, region)
-        yield
-
     pass
 
 
 class TestSingularTestsGlue(BaseSingularTests):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     pass
 
 
 class TestEmptyGlue(BaseEmpty):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     pass
 
 
 class TestEphemeralGlue(BaseEphemeral):
-    # all tests within this test has the same schema
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     @pytest.fixture(scope="class")
     def models(self):
         return {
@@ -158,11 +89,6 @@ class TestEphemeralGlue(BaseEphemeral):
             "table_model.sql": ephemeral_table_sql,
             "schema.yml": schema_base_yml,
         }
-
-    @pytest.fixture(scope='class', autouse=True)
-    def cleanup(self):
-        cleanup_s3_location(s3bucket + schema_name, region)
-        yield
 
     # test_ephemeral with refresh table
     def test_ephemeral(self, project):
@@ -206,26 +132,10 @@ class TestEphemeralGlue(BaseEphemeral):
 
 
 class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     pass
 
 
 class TestIncrementalGlue(BaseIncremental):
-    @pytest.fixture(scope='class', autouse=True)
-    def cleanup(self):
-        cleanup_s3_location(s3bucket + schema_name, region)
-        yield
-
     @pytest.fixture(scope="class")
     def models(self):
         model_incremental = """
@@ -233,17 +143,6 @@ class TestIncrementalGlue(BaseIncremental):
            """.strip()
 
         return {"incremental.sql": model_incremental, "schema.yml": schema_base_yml}
-
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
 
     # test_incremental with refresh table
     def test_incremental(self, project):
@@ -290,22 +189,6 @@ class TestIncrementalGlue(BaseIncremental):
 
 
 class TestGenericTestsGlue(BaseGenericTests):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
-    @pytest.fixture(scope='class', autouse=True)
-    def cleanup(self):
-        cleanup_s3_location(s3bucket + schema_name, region)
-        yield
-
     def test_generic_tests(self, project):
         # seed command
         results = run_dbt(["seed"])
@@ -331,31 +214,9 @@ class TestGenericTestsGlue(BaseGenericTests):
 
 
 class TestTableMatGlue(BaseTableMaterialization):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     pass
 
 
 class TestValidateConnectionGlue(BaseValidateConnection):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     pass
 
