@@ -4,7 +4,7 @@ from dbt.tests.util import get_artifact
 from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
 from dbt.tests.adapter.basic.expected_catalog import no_stats
 
-schema_name = "dbt_functional_test_01"
+schema_name = "dbt_functional_test_docs_01"
 
 
 class TestDocsGenerate(BaseDocsGenerate):
@@ -12,6 +12,13 @@ class TestDocsGenerate(BaseDocsGenerate):
     @pytest.fixture(scope="class")
     def unique_schema(request, prefix) -> str:
         return schema_name
+
+    @pytest.fixture(scope="class")
+    def profiles_config_update(self, dbt_profile_target, unique_schema):
+        outputs = {"default": dbt_profile_target}
+        outputs["default"]["database"] = unique_schema
+        outputs["default"]["schema"] = unique_schema
+        return {"test": {"outputs": outputs, "target": "default"}}
 
     @pytest.fixture(scope="class")
     def expected_catalog(self, project, profile_user):
@@ -112,6 +119,13 @@ class TestDocsGenReferencesGlue(BaseDocsGenReferences):
     @pytest.fixture(scope="class")
     def unique_schema(request, prefix) -> str:
         return schema_name
+
+    @pytest.fixture(scope="class")
+    def profiles_config_update(self, dbt_profile_target, unique_schema):
+        outputs = {"default": dbt_profile_target}
+        outputs["default"]["database"] = unique_schema
+        outputs["default"]["schema"] = unique_schema
+        return {"test": {"outputs": outputs, "target": "default"}}
 
     @pytest.fixture(scope="class")
     def expected_catalog(self, project, profile_user):
