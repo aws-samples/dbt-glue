@@ -1,5 +1,13 @@
 import pytest
 import os
+import random
+import string
+from tests.util import get_s3_location, get_region, cleanup_s3_location
+
+s3bucket = get_s3_location()
+region = get_region()
+database_suffix = ''.join(random.choices(string.digits, k=4))
+schema_name = f"dbt_functional_test_{database_suffix}"
 
 # Import the standard functional fixtures as a plugin
 # Note: fixtures with session scope need to be local
@@ -25,3 +33,22 @@ def dbt_profile_target():
         'conf': "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --conf spark.sql.legacy.allowNonEmptyLocationInCTAS=true",
         'glue_session_reuse': True
     }
+
+
+@pytest.fixture(scope="class")
+def unique_schema(request, prefix) -> str:
+    return schema_name
+
+
+@pytest.fixture(scope="class")
+def profiles_config_update(dbt_profile_target, unique_schema):
+    outputs = {"default": dbt_profile_target}
+    outputs["default"]["database"] = unique_schema
+    outputs["default"]["schema"] = unique_schema
+    return {"test": {"outputs": outputs, "target": "default"}}
+
+
+@pytest.fixture(scope='class', autouse=True)
+def cleanup():
+    cleanup_s3_location(s3bucket + schema_name, region)
+    yield
