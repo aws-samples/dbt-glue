@@ -1,10 +1,11 @@
-import os
+import random
+import string
 import pytest
-from dbt.tests.util import get_artifact
 from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
 from dbt.tests.adapter.basic.expected_catalog import no_stats
 
-schema_name = "dbt_functional_test_docs_01"
+database_suffix = ''.join(random.choices(string.digits, k=4))
+schema_name = f"dbt_functional_test_docs_{database_suffix}"
 
 
 class TestDocsGenerate(BaseDocsGenerate):

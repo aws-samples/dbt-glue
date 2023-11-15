@@ -1,3 +1,5 @@
+import random
+import string
 import pytest
 
 from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
@@ -7,7 +9,8 @@ from tests.util import get_s3_location, get_region, cleanup_s3_location
 
 s3bucket = get_s3_location()
 region = get_region()
-schema_name = "dbt_functional_test_snapshot_01"
+database_suffix = ''.join(random.choices(string.digits, k=4))
+schema_name = f"dbt_functional_test_snapshot_{database_suffix}"
 
 
 def check_relation_rows(project, snapshot_name, count):
