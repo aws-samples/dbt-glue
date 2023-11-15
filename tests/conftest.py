@@ -46,3 +46,4 @@ def dbt_profile_target(unique_schema):
 def cleanup(unique_schema):
     cleanup_s3_location(s3bucket + unique_schema, region)
     yield
+    cleanup_s3_location(s3bucket + unique_schema, region)
