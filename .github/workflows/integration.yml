@@ -35,7 +35,7 @@ jobs:
 
     env:
       TOXENV: "integration"
-      PYTEST_ADDOPTS: "-v --color=yes --csv unit_results.csv"
+      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
@@ -103,7 +103,7 @@ jobs:
 
     env:
       TOXENV: "integration"
-      PYTEST_ADDOPTS: "-v --color=yes --csv unit_results.csv"
+      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv -s"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
