@@ -14,7 +14,6 @@ flake8
 pytz
 tox>=3.2.0
 ipdb
-pytest-xdist
 pytest-dotenv
 pytest-csv
 flaky

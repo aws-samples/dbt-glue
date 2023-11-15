@@ -1,18 +1,9 @@
-import os
 import pytest
-from dbt.tests.util import get_artifact
 from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
 from dbt.tests.adapter.basic.expected_catalog import no_stats
 
-schema_name = "dbt_functional_test_01"
-
 
 class TestDocsGenerate(BaseDocsGenerate):
-    # all tests within this test has the same schema
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
     @pytest.fixture(scope="class")
     def expected_catalog(self, project, profile_user):
         role = None
@@ -109,10 +100,6 @@ class TestDocsGenerate(BaseDocsGenerate):
 
 
 class TestDocsGenReferencesGlue(BaseDocsGenReferences):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
     @pytest.fixture(scope="class")
     def expected_catalog(self, project, profile_user):
         role = None
