@@ -1,16 +1,8 @@
-import random
-import string
 import pytest
 
 from dbt.tests.adapter.basic.test_snapshot_check_cols import BaseSnapshotCheckCols
 from dbt.tests.adapter.basic.test_snapshot_timestamp import BaseSnapshotTimestamp
 from dbt.tests.util import run_dbt, relation_from_name
-from tests.util import get_s3_location, get_region, cleanup_s3_location
-
-s3bucket = get_s3_location()
-region = get_region()
-database_suffix = ''.join(random.choices(string.digits, k=4))
-schema_name = f"dbt_functional_test_snapshot_{database_suffix}"
 
 
 def check_relation_rows(project, snapshot_name, count):
@@ -21,22 +13,6 @@ def check_relation_rows(project, snapshot_name, count):
 
 
 class TestSnapshotCheckColsGlue(BaseSnapshotCheckCols):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
-    @pytest.fixture(scope='class', autouse=True)
-    def cleanup(self):
-        cleanup_s3_location(s3bucket + schema_name, region)
-        yield
-
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -89,22 +65,6 @@ class TestSnapshotCheckColsGlue(BaseSnapshotCheckCols):
 
 
 class TestSnapshotTimestampGlue(BaseSnapshotTimestamp):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
-    @pytest.fixture(scope='class', autouse=True)
-    def cleanup(self):
-        cleanup_s3_location(s3bucket + schema_name, region)
-        yield
-
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

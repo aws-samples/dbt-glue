@@ -1,26 +1,9 @@
-import random
-import string
 import pytest
 from dbt.tests.adapter.basic.test_docs_generate import BaseDocsGenerate, BaseDocsGenReferences
 from dbt.tests.adapter.basic.expected_catalog import no_stats
 
-database_suffix = ''.join(random.choices(string.digits, k=4))
-schema_name = f"dbt_functional_test_docs_{database_suffix}"
-
 
 class TestDocsGenerate(BaseDocsGenerate):
-    # all tests within this test has the same schema
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     @pytest.fixture(scope="class")
     def expected_catalog(self, project, profile_user):
         role = None
@@ -117,17 +100,6 @@ class TestDocsGenerate(BaseDocsGenerate):
 
 
 class TestDocsGenReferencesGlue(BaseDocsGenReferences):
-    @pytest.fixture(scope="class")
-    def unique_schema(request, prefix) -> str:
-        return schema_name
-
-    @pytest.fixture(scope="class")
-    def profiles_config_update(self, dbt_profile_target, unique_schema):
-        outputs = {"default": dbt_profile_target}
-        outputs["default"]["database"] = unique_schema
-        outputs["default"]["schema"] = unique_schema
-        return {"test": {"outputs": outputs, "target": "default"}}
-
     @pytest.fixture(scope="class")
     def expected_catalog(self, project, profile_user):
         role = None
