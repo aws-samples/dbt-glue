@@ -78,20 +78,23 @@ class GlueAdapter(SQLAdapter):
     def get_connection(self):
         connection: GlueConnectionManager = self.connections.get_thread_connection()
         glueSession: GlueConnection = connection.handle
+        if glueSession.credentials.role_arn is not None:
+            if glueSession.credentials.use_interactive_session_role_for_api_calls is True:
+                sts_client = boto3.client('sts')
+                assumed_role_object = sts_client.assume_role(
+                    RoleArn=glueSession.credentials.role_arn,
+                    RoleSessionName="dbt"
+                )
+                credentials = assumed_role_object['Credentials']
+                glue_client = boto3.client("glue", region_name=glueSession.credentials.region,
+                                    aws_access_key_id=credentials['AccessKeyId'],
+                                    aws_secret_access_key=credentials['SecretAccessKey'],
+                                    aws_session_token=credentials['SessionToken'])
+                return glueSession, glue_client
 
-        sts_client = boto3.client('sts')
-        assumed_role_object = sts_client.assume_role(
-            RoleArn=glueSession.credentials.role_arn,
-            RoleSessionName="dbt"
-        )
-        credentials = assumed_role_object['Credentials']
+        glue_client = boto3.client("glue", region_name=glueSession.credentials.region)
 
-        client = boto3.client("glue", region_name=glueSession.credentials.region,                   
-                            aws_access_key_id=credentials['AccessKeyId'],
-                            aws_secret_access_key=credentials['SecretAccessKey'],
-                            aws_session_token=credentials['SessionToken'])
-
-        return glueSession, client
+        return glueSession, glue_client
 
     def list_schemas(self, database: str) -> List[str]:
         session, client = self.get_connection()
