@@ -326,7 +326,7 @@ class GlueAdapter(SQLAdapter):
                 logger.error(e)
         else:
             logger.debug("No schema to delete")
-            
+
     def create_schema(self, relation: BaseRelation):
         session, client = self.get_connection()
         lf = boto3.client("lakeformation", region_name=session.credentials.region)
