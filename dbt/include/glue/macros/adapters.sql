@@ -58,6 +58,10 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro glue__create_schema(relation) -%}
+  {{ adapter.create_schema(relation.database, relation.schema) }}
+{% endmacro %}
+
 {% macro glue__create_table_as(temporary, relation, sql) -%}
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
   {%- set table_properties = config.get('table_properties', default={}) -%}
