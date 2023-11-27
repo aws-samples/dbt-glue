@@ -23,7 +23,7 @@ black==23.11.0
 # Adapter specific dependencies
 waiter
 boto3
-moto~=4.2.9
+moto~=4.2.10
 pyparsing
 
 dbt-core~=1.7.2
