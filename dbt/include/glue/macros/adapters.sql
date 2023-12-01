@@ -59,6 +59,10 @@
 {%- endmacro -%}
 
 {% macro glue__create_table_as(temporary, relation, sql) -%}
+  {%- set contract_config = config.get('contract') -%}
+  {%- if contract_config.enforced -%}
+    {{ get_assert_columns_equivalent(sql) }}
+  {%- endif -%}
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
   {%- set table_properties = config.get('table_properties', default={}) -%}
 
@@ -124,6 +128,10 @@
 {% endmacro %}
 
 {% macro glue__create_view_as(relation, sql) -%}
+    {%- set contract_config = config.get('contract') -%}
+    {%- if contract_config.enforced -%}
+      {{ get_assert_columns_equivalent(sql) }}
+    {%- endif -%}
     DROP VIEW IF EXISTS {{ relation }}
     dbt_next_query
     create view {{ relation }}
