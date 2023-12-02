@@ -1,5 +1,6 @@
 ## next version
 - Remove unnecessary parameter for Delta Lake from readme
+- Adds limited model contract enforcement
 
 ## v1.7.0
 - add compatibility with dbt 1.6
