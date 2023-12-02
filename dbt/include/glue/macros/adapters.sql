@@ -59,10 +59,6 @@
 {%- endmacro -%}
 
 {% macro glue__create_table_as(temporary, relation, sql) -%}
-  {%- set contract_config = config.get('contract') -%}
-  {%- if contract_config.enforced -%}
-    {{ get_assert_columns_equivalent(sql) }}
-  {%- endif -%}
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
   {%- set table_properties = config.get('table_properties', default={}) -%}
 
@@ -70,6 +66,13 @@
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
     	create table {{ relation }}
+    	{% set contract_config = config.get('contract') %}
+      {% if contract_config.enforced %}
+        {{ get_assert_columns_equivalent(sql) }}
+        {#-- This does not enforce contstraints and needs to be a TODO #}
+        {#-- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
+        {#-- you do not specify the columns #}
+      {% endif %}
   {{ glue__file_format_clause() }}
 	{{ partition_cols(label="partitioned by") }}
 	{{ clustered_cols(label="clustered by") }}
