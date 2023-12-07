@@ -152,7 +152,7 @@ class GlueConnection:
                     )
                 logger.debug(f"{self.session_id} in {self.state} state")
                 
-                if self.state in ["TIMEOUT","STOPPED"]:
+                if self.state in [GlueSessionState.TIMEOUT, GlueSessionState.STOPPED]:
                     logger.debug(f"Deleting the session {self.credentials.glue_session_id} in order to create it back")
                     self.client.delete_session(Id=self.credentials.glue_session_id)
                     logger.debug(f"Creating the session {self.credentials.glue_session_id}")
