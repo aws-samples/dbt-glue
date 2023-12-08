@@ -154,10 +154,10 @@ class GlueConnection:
                 
                 if self.state in [GlueSessionState.TIMEOUT, GlueSessionState.STOPPED, GlueSessionState.FAILED]:
                     logger.debug(f"Deleting the session {self.credentials.glue_session_id} in order to create it back")
-                    self.delete_session(Id=self.credentials.glue_session_id)
+                    self.client.delete_session(Id=self.credentials.glue_session_id)
                     logger.debug(f"Creating the session {self.credentials.glue_session_id}")
                     self._create_session()
-
+                    
             except Exception as e:
                 logger.error(f"Session does not exists or could not be fetched : {e}")
                 logger.debug(f"Creating the session {self.credentials.glue_session_id}")
