@@ -66,6 +66,13 @@
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
     	create table {{ relation }}
+    	{% set contract_config = config.get('contract') %}
+      {% if contract_config.enforced %}
+        {{ get_assert_columns_equivalent(sql) }}
+        {#-- This does not enforce contstraints and needs to be a TODO #}
+        {#-- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
+        {#-- you do not specify the columns #}
+      {% endif %}
   {{ glue__file_format_clause() }}
 	{{ partition_cols(label="partitioned by") }}
 	{{ clustered_cols(label="clustered by") }}
@@ -124,6 +131,10 @@
 {% endmacro %}
 
 {% macro glue__create_view_as(relation, sql) -%}
+    {%- set contract_config = config.get('contract') -%}
+    {%- if contract_config.enforced -%}
+      {{ get_assert_columns_equivalent(sql) }}
+    {%- endif -%}
     DROP VIEW IF EXISTS {{ relation }}
     dbt_next_query
     create view {{ relation }}

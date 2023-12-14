@@ -1,5 +1,6 @@
 ## next version
 - Remove unnecessary parameter for Delta Lake from readme
+- Adds limited model contract enforcement
 - glue_session_id is automatically created or re-used when user provides it
 
 ## v1.7.0
