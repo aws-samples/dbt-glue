@@ -1,12 +1,15 @@
 from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
+
+from botocore.client import BaseClient
 from moto import mock_glue
 
 from dbt.config import RuntimeConfig
 
 import dbt.flags as flags
 from dbt.adapters.glue import GlueAdapter
+from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
 from tests.util import config_from_parts_or_dicts
 from .util import MockAWSService
@@ -55,12 +58,13 @@ class TestGlueAdapter(unittest.TestCase):
 
         with mock.patch("dbt.adapters.glue.connections.open"):
             connection = adapter.acquire_connection("dummy")
-            connection.handle  # trigger lazy-load
+            glueSession: GlueConnection = connection.handle  # trigger lazy-load
 
             self.assertEqual(connection.state, "open")
             self.assertEqual(connection.type, "glue")
             self.assertEqual(connection.credentials.schema, "dbt_unit_test_01")
             self.assertIsNotNone(connection.handle)
+            self.assertIsInstance(glueSession.client, BaseClient)
 
 
     @mock_glue

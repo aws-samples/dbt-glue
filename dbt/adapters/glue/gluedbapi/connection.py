@@ -2,12 +2,11 @@ from dataclasses import dataclass
 from dbt import exceptions as dbterrors
 import boto3
 from botocore.config import Config
-from botocore.waiter import WaiterModel
-from botocore.waiter import create_waiter_with_client
 from botocore.exceptions import WaiterError
 from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
+from dbt.adapters.glue.util import get_session_waiter
 import time
 import threading
 import uuid
@@ -160,8 +159,8 @@ class GlueConnection:
             logger.debug(f"Executing statement (SQLPROXY): {statement}")
             statement.execute()
         except Exception as e:
-            logger.error("Error in GlueCursor execute " + str(e))
-            raise dbterrors.ExecutableError(str(e))
+            logger.exception(f"Error in GlueCursor (session_id={self.session_id}, SQLPROXY) execute: {e}")
+            raise dbterrors.ExecutableError
 
         statement = GlueStatement(client=self.client, session_id=self.session_id,
                                   code=f"spark.sql('use {self.credentials.database}')")
@@ -169,14 +168,22 @@ class GlueConnection:
             logger.debug(f"Executing statement (use database) : {statement}")
             statement.execute()
         except Exception as e:
-            logger.error("Error in GlueCursor execute " + str(e))
-            raise dbterrors.ExecutableError(str(e))
+            logger.exception(f"Error in GlueCursor (session_id={self.session_id}, use database) execute: {e}")
+            raise dbterrors.ExecutableError
 
     @property
     def session_id(self):
         if not self._session:
             return None
         return self._session.get("Session", {}).get("Id", None)
+
+    @property
+    def use_arrow(self):
+        return self.credentials.use_arrow
+
+    @property
+    def location(self):
+        return self.credentials.location
 
     @property
     def client(self):
@@ -191,51 +198,8 @@ class GlueConnection:
             with self._boto3_client_lock:
                 session = boto3.session.Session()
                 self._client = session.client("glue", region_name=self.credentials.region, config=config)
-                waiter_name = "SessionReady"
-                waiter_model = self.configure_waiter_model()
-                self._session_waiter = create_waiter_with_client(waiter_name, waiter_model, self._client)
+                self._session_waiter = get_session_waiter(client=self._client, delay=self.credentials.session_provisioning_timeout_in_seconds)
         return self._client
-
-    def configure_waiter_model(self):
-        delay = 3
-        max_attempts = self.credentials.session_provisioning_timeout_in_seconds / delay + 1
-        waiter_config = {
-            "version": 2,
-            "waiters": {
-                "SessionReady": {
-                    "operation": "GetSession",
-                    "delay": delay,
-                    "maxAttempts": max_attempts,
-                    "acceptors": [
-                        {
-                            "matcher": "path",
-                            "expected": "READY",
-                            "argument": "Session.Status",
-                            "state": "success"
-                        },
-                        {
-                            "matcher": "path",
-                            "expected": "STOPPED",
-                            "argument": "Session.Status",
-                            "state": "failure"
-                        },
-                        {
-                            "matcher": "path",
-                            "expected": "TIMEOUT",
-                            "argument": "Session.Status",
-                            "state": "failure"
-                        },
-                        {
-                            "matcher": "path",
-                            "expected": "FAILED",
-                            "argument": "Session.Status",
-                            "state": "failure"
-                        }
-                    ]
-                }
-            }
-        }
-        return WaiterModel(waiter_config)
 
     def cancel_statement(self, statement_id):
         logger.debug("GlueConnection cancel_statement called")
@@ -348,13 +312,26 @@ class GlueConnection:
 
 
 SQLPROXY = """
+import sys
 import json
 import base64
+import urllib
+import pandas as pd
+import pyarrow.feather as feather
+import boto3
+from awsglue.utils import getResolvedOptions
+
+params = []
+if '--SESSION_ID' in sys.argv:
+    params.append('SESSION_ID')
+args = getResolvedOptions(sys.argv, params)
+session_id = args.get("SESSION_ID", "unknown-session")
+
 class SqlWrapper2:
     i = 0
     dfs = {}
     @classmethod
-    def execute(cls,sql,output=True):
+    def execute(cls,sql,output=True,use_arrow=False,location=""):
         sql = sql.replace('"', '')
         if "dbt_next_query" in sql:
                 response=None
@@ -365,12 +342,12 @@ class SqlWrapper2:
                             response=cls.execute(q,output=True)
                         else:
                             cls.execute(q,output=False)
-                return  response   
+                return response
                 
         spark.conf.set("spark.sql.crossJoin.enabled", "true")
         df = spark.sql(sql)
         if len(df.schema.fields) == 0:
-            dumped_empty_result = json.dumps({"type" : "results","sql" : sql,"schema": None,"results": None})
+            dumped_empty_result = json.dumps({"type": "results","sql": sql,"schema": None, "results": None})
             if output:
                 print (dumped_empty_result)
             else:
@@ -382,7 +359,48 @@ class SqlWrapper2:
             for f in df.schema:
                 d[f.name] = record[f.name]
             results.append(({"type": "record", "data": d}))
-        dumped_results = json.dumps({"type": "results", "rowcount": rowcount,"results": results,"description": [{"name":f.name, "type":str(f.dataType)} for f in df.schema]},default=str)
+        description = [{"name":f.name, "type":str(f.dataType)} for f in df.schema]
+        raw_results = {"type": "results", "rowcount": rowcount, "results": results, "description": description}
+
+        if use_arrow:
+            s3_client = boto3.client('s3')
+            glue_client = boto3.client('glue')
+            security_config_name = glue_client.get_session(Id=session_id)["Session"].get("SecurityConfiguration", None)
+
+            o = urllib.parse.urlparse(location)
+            result_bucket = o.netloc
+            key = urllib.parse.unquote(o.path)[1:]
+            if not key.endswith('/'):
+                key = key + '/'
+            result_key = key + f"tmp-results/{session_id}.feather"
+
+            pdf = pd.DataFrame.from_dict(raw_results, orient="index")
+            feather.write_feather(pdf.transpose(), f"{session_id}.feather", "zstd")
+            
+            extra_args = {}
+            if security_config_name:
+                security_config = glue_client.get_security_configuration(Name=security_config_name)
+                s3_encryption = security_config["SecurityConfiguration"]["EncryptionConfiguration"].get("S3Encryption", None)
+                if s3_encryption and len(s3_encryption) > 0:
+                    s3_encryption_mode = s3_encryption[0]["S3EncryptionMode"]
+                    kms_key_arn = s3_encryption[0].get("KmsKeyArn", None)
+                    if s3_encryption_mode == "SSE-S3":
+                        extra_args["ServerSideEncryption"] = "AES256"
+                    elif s3_encryption_mode == "SSE-KMS":
+                        extra_args["ServerSideEncryption"] = "aws:kms"
+                        extra_args["SSEKMSKeyId"] = kms_key_arn.split("/")[1]
+            s3_client.upload_file(f"{session_id}.feather", result_bucket, result_key, ExtraArgs=extra_args)
+
+            # print and return only metadata instead of actual result data payload
+            del raw_results['results']
+            raw_results['result_bucket'] = result_bucket
+            raw_results['result_key'] = result_key
+            raw_results['description'] = description
+            dumped_results = json.dumps(raw_results, default=str)
+            print(dumped_results)
+            return dumped_results
+
+        dumped_results = json.dumps(raw_results, default=str)
         if output:
             print(dumped_results)
         else:

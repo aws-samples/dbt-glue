@@ -35,6 +35,7 @@ class GlueCredentials(Credentials):
     glue_session_reuse: Optional[bool] = False
     datalake_formats: Optional[str] = None
     enable_session_per_model = False
+    use_arrow = False  # False: default (traditional behavior), True: experimental
 
 
     @property
@@ -91,5 +92,6 @@ class GlueCredentials(Credentials):
             'glue_session_id',
             'glue_session_reuse',
             'datalake_formats',
-            'enable_session_per_model'
+            'enable_session_per_model',
+            'use_arrow'
         ]

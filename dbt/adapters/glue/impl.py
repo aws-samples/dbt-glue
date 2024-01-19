@@ -3,12 +3,12 @@ import os
 import re
 import uuid
 import boto3
+from dbt.adapters.glue.util import get_columns_from_result, get_pandas_dataframe_from_result_file
 from typing import Dict, List, Any
-
-import dbt
 import agate
 from concurrent.futures import Future
 
+import dbt
 from dbt.adapters.base import available
 from dbt.adapters.base.relation import BaseRelation
 from dbt.adapters.base.column import Column
@@ -198,6 +198,7 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
     def get_columns_in_relation(self, relation: BaseRelation):
+        logger.debug("get_columns_in_relation called")
         session, client = self.get_connection()
         # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
         response = client.get_table(
@@ -256,12 +257,27 @@ class GlueAdapter(SQLAdapter):
 
         return columns
 
+    @available
     def fetch_all_response(self, response):
+        logger.debug("fetch_all_response called")
         records = []
-        obj_columns = [column.get("name") for column in response.get("description")]
-        for item in response.get("results", []):
+        session, client = self.get_connection()
+
+        logger.debug(f"fetch_all_response use_arrow={session.credentials.use_arrow}")
+        if session.credentials.use_arrow:
+            result_bucket = response.get("result_bucket")
+            result_key = response.get("result_key")
+            pdf = get_pandas_dataframe_from_result_file(result_bucket, result_key)
+            results = pdf.to_dict('records')[0]
+            items = results.get("results", [])
+            columns = get_columns_from_result(results)
+        else:
+            items = response.get("results", [])
+            columns = [column.get("name") for column in response.get("description")]
+        logger.debug(f"fetch_all_response results: {columns}")
+        for item in items:
             record = []
-            for column in obj_columns:
+            for column in columns:
                 record.append(item.get("data", {}).get(column, None))
             records.append(record)
         return records
@@ -762,12 +778,12 @@ custom_glue_code_for_dbt_adapter
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 spark = SparkSession.builder \
-.config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
-.config("hoodie.metadata.enable", "true") \
-.config("hoodie.enable.data.skipping", "true") \
-.config("hoodie.metadata.index.column.stats.enable", "true") \
-.config("hoodie.metadata.index.bloom.filter.enable", "true") \
-.getOrCreate()
+    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+    .config("hoodie.metadata.enable", "true") \
+    .config("hoodie.enable.data.skipping", "true") \
+    .config("hoodie.metadata.index.column.stats.enable", "true") \
+    .config("hoodie.metadata.index.bloom.filter.enable", "true") \
+    .getOrCreate()
 request = """{request}"""
 substitute_variables = {str(substitute_variables)}
 for index, value in enumerate(substitute_variables):

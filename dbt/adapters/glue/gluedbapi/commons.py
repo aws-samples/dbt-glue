@@ -1,4 +1,7 @@
 from waiter import wait
+from dbt.events import AdapterLogger
+
+logger = AdapterLogger("Glue")
 
 class GlueStatement:
     WAITING = "WAITING"
@@ -31,9 +34,11 @@ class GlueStatement:
 
     def execute(self):
         self._run_statement()
+        logger.debug(f"RunStatement (session_id={self.session_id}, statement_id={self._statement_id})")
         for elasped in wait(1):
             response = self._get_statement()
+            logger.debug(f"GetStatement (session_id={self.session_id}, statement_id={self._statement_id}) response: {response}")
             state = response.get("Statement", {}).get("State", GlueStatement.WAITING)
-            if state in [GlueStatement.AVAILABLE, GlueStatement.ERROR,GlueStatement.CANCELLING, GlueStatement.WAITING, GlueStatement.TIMEOUT]:
+            if state in [GlueStatement.AVAILABLE, GlueStatement.ERROR, GlueStatement.CANCELLING, GlueStatement.WAITING, GlueStatement.TIMEOUT]:
                 break
         return response

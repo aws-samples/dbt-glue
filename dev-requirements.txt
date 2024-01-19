@@ -14,6 +14,7 @@ flake8
 pytz
 tox>=3.2.0
 ipdb
+pytest-xdist
 pytest-dotenv
 pytest-csv
 flaky
@@ -24,7 +25,9 @@ black==23.11.0
 waiter
 boto3
 moto~=4.2.8
+pandas
 pyparsing
+pyarrow
 
 dbt-core~=1.7.1
 dbt-spark~=1.7.1
