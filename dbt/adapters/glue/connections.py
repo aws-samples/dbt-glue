@@ -29,6 +29,15 @@ class GlueConnectionManager(SQLConnectionManager):
     TYPE = "glue"
     GLUE_CONNECTIONS_BY_KEY: Dict[str, GlueConnection] = {}
 
+    @classmethod
+    def data_type_code_to_name(cls, type_code: str) -> str:
+        """
+        Get the string representation of the data type from the metadata. Dbt performs a
+        query to retrieve the types of the columns in the SQL query. Then these types are compared
+        to the types in the contract config, simplified because they need to match what is returned
+        by metadata (we are only interested in the broader type, without subtypes nor granularity).
+        """
+        return type_code.split("(")[0].split("<")[0].upper()
 
     @classmethod
     def open(cls, connection):
@@ -104,7 +113,7 @@ class GlueConnectionManager(SQLConnectionManager):
         data: List[Any] = []
         column_names: List[str] = []
         if cursor.description is not None:
-            column_names = [col[0] for col in cursor.description()]
+            column_names = [col[0] for col in cursor.description]
             if limit:
                 rows = cursor.fetchmany(limit)
             else:

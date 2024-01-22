@@ -238,6 +238,7 @@ class GlueCursor:
             raise StopIteration
         return item
 
+    @property
     def description(self):
         logger.debug("GlueCursor description called")
         self.extract_properties_from_result()
