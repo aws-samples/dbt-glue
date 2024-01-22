@@ -409,7 +409,8 @@ class SqlWrapper2:
                         extra_args["SSEKMSKeyId"] = kms_key_arn.split("/")[1]
             s3_client.upload_file(filename, result_bucket, result_key, ExtraArgs=extra_args)
 
-            # print and return only metadata instead of actual result data payload
+            # Print and return only metadata instead of actual result data payload. The param use_arrow=True is always
+            # used with output=True, and stdout is used to pass those values to Interactive Sessions API.
             del raw_results['results']
             raw_results['result_bucket'] = result_bucket
             raw_results['result_key'] = result_key
