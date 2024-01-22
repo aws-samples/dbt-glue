@@ -162,10 +162,11 @@ class GlueCursor:
                 result = self._result
             else:
                 result = self.response
-            self._rowcount = result.get("rowcount")
-            self._description = [[c["name"], c["type"]] for c in result.get("description", [])]
-            self._items = result.get("results", [])
-            self._columns = [column.get("name") for column in result.get("description", [])]
+            if result:
+                self._rowcount = result.get("rowcount")
+                self._description = [[c["name"], c["type"]] for c in result.get("description", [])]
+                self._items = result.get("results", [])
+                self._columns = [column.get("name") for column in result.get("description", [])]
 
     @property
     def columns(self):

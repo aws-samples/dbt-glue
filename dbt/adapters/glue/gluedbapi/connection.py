@@ -319,6 +319,8 @@ import urllib
 import pandas as pd
 import pyarrow.feather as feather
 import boto3
+import string
+import random
 from awsglue.utils import getResolvedOptions
 
 params = []
@@ -372,10 +374,12 @@ class SqlWrapper2:
             key = urllib.parse.unquote(o.path)[1:]
             if not key.endswith('/'):
                 key = key + '/'
-            result_key = key + f"tmp-results/{session_id}.feather"
+            suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            filename = f"{session_id}-{suffix}.feather"
+            result_key = key + f"tmp-results/{filename}"
 
             pdf = pd.DataFrame.from_dict(raw_results, orient="index")
-            feather.write_feather(pdf.transpose(), f"{session_id}.feather", "zstd")
+            feather.write_feather(pdf.transpose(), filename, "zstd")
             
             extra_args = {}
             if security_config_name:
@@ -389,7 +393,7 @@ class SqlWrapper2:
                     elif s3_encryption_mode == "SSE-KMS":
                         extra_args["ServerSideEncryption"] = "aws:kms"
                         extra_args["SSEKMSKeyId"] = kms_key_arn.split("/")[1]
-            s3_client.upload_file(f"{session_id}.feather", result_bucket, result_key, ExtraArgs=extra_args)
+            s3_client.upload_file(filename, result_bucket, result_key, ExtraArgs=extra_args)
 
             # print and return only metadata instead of actual result data payload
             del raw_results['results']

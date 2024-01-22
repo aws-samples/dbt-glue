@@ -35,7 +35,7 @@ class GlueCredentials(Credentials):
     glue_session_reuse: Optional[bool] = False
     datalake_formats: Optional[str] = None
     enable_session_per_model = False
-    use_arrow = False  # False: default (traditional behavior), True: experimental
+    use_arrow: Optional[bool] = False  # False: default (traditional behavior), True: experimental
 
 
     @property

@@ -79,6 +79,7 @@ class GlueConnectionManager(SQLConnectionManager):
             yield
         except Exception as e:
             logger.debug("Unhandled error while running:\n{}".format(sql))
+
             self.release()
             if isinstance(e, DbtRuntimeError):
                 # during a sql query, an internal to dbt exception was raised.
