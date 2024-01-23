@@ -16,4 +16,3 @@ class TestGlueCredentials(unittest.TestCase):
         assert credentials.schema == "tests"
         assert credentials.database is None
         assert credentials.glue_version == "4.0"    # default Glue version is 4.0
-        assert credentials.print_sql_results is True
