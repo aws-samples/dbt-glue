@@ -67,7 +67,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-session-name: dbt-glue-session
+          role-session-name: ${{ steps.session.outputs.name }}
           role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
           aws-region: ${{ secrets.DBT_GLUE_REGION }}
           mask-aws-account-id: true
@@ -135,7 +135,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-session-name: dbt-glue-session
+          role-session-name: ${{ steps.session.outputs.name }}
           role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
           aws-region: ${{ secrets.DBT_GLUE_REGION }}
           mask-aws-account-id: true
