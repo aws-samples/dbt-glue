@@ -23,5 +23,6 @@ def dbt_profile_target():
         'location': os.getenv('DBT_S3_LOCATION'),
         'datalake_formats': 'delta',
         'conf': "spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --conf spark.sql.legacy.allowNonEmptyLocationInCTAS=true",
+        'use_interactive_session_role_for_api_calls': False,
         'glue_session_reuse': True
     }

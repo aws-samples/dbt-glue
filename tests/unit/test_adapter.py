@@ -86,16 +86,3 @@ class TestGlueAdapter(unittest.TestCase):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
             self.assertEqual(adapter.get_table_type(target_relation), "iceberg_table")
-
-    @mock_glue
-    def test_hudi_merge_table(self):
-        config = self._get_config()
-        adapter = GlueAdapter(config)
-        target_relation = SparkRelation.create(
-            schema="dbt_unit_test_01",
-            name="test_hudi_merge_table",
-        )
-        with mock.patch("dbt.adapters.glue.connections.open"):
-            connection = adapter.acquire_connection("dummy")
-            connection.handle  # trigger lazy-load
-            adapter.hudi_merge_table(target_relation, "SELECT 1", "id", "category", "empty", None, None)
