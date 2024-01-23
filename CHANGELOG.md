@@ -1,6 +1,5 @@
 ## next version
 - Remove unnecessary parameter for Delta Lake from readme
-- glue_session_id is automatically created or re-used when user provides it
 
 ## v1.7.0
 - add compatibility with dbt 1.6
