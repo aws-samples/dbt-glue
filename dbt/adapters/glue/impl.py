@@ -237,7 +237,7 @@ class GlueAdapter(SQLAdapter):
             records = self.fetch_all_response(response)
 
             for record in records:
-                column = Column(column=record[0], dtype=record[1])
+                column = self.Column(column=record[0], dtype=record[1])
                 if record[0][:1] != "#":
                     if column not in columns:
                         columns.append(column)

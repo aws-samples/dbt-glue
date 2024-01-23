@@ -70,20 +70,21 @@ class GlueConnection:
         return self.session_id
 
     def _create_session(self):
+        logger.debug("GlueConnection _create_session called")
         args = {
                 "--enable-glue-datacatalog": "true"
             }
 
-        if (self._create_session_config["default_arguments"] is not None):
+        if (self._create_session_config["default_arguments"]):
             args.update(self._string_to_dict(self._create_session_config["default_arguments"].replace(' ', '')))
 
-        if (self._create_session_config["extra_jars"] is not None):
+        if (self._create_session_config["extra_jars"]):
             args["--extra-jars"] = f"{self._create_session_config['extra_jars']}"
 
-        if (self._create_session_config["conf"] is not None):
+        if (self._create_session_config["conf"]):
             args["--conf"] = f"{self._create_session_config['conf']}"
 
-        if (self._create_session_config["extra_py_files"] is not None):
+        if (self._create_session_config["extra_py_files"]):
             args["--extra-py-files"] = f"{self._create_session_config['extra_py_files']}"
 
         additional_args = {}
@@ -93,19 +94,19 @@ class GlueConnection:
         additional_args["Timeout"] = self._create_session_config["query_timeout_in_minutes"]
         additional_args["RequestOrigin"] = 'dbt-glue'
 
-        if (self._create_session_config['glue_version'] is not None):
+        if (self._create_session_config['glue_version']):
             additional_args["GlueVersion"] = f"{self._create_session_config['glue_version']}"
 
-        if (self._create_session_config['security_configuration'] is not None):
+        if (self._create_session_config['security_configuration']):
             additional_args["SecurityConfiguration"] = f"{self._create_session_config['security_configuration']}"
 
-        if (self._create_session_config["connections"] is not None):
+        if (self._create_session_config["connections"]):
             additional_args["Connections"] = {"Connections": list(set(self._create_session_config["connections"].split(',')))}
 
-        if (self._create_session_config["tags"] is not None):
+        if (self._create_session_config["tags"]):
             additional_args["Tags"] = self._string_to_dict(self._create_session_config["tags"])
 
-        if (self.credentials.datalake_formats is not None):
+        if (self.credentials.datalake_formats):
             args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
 
 
