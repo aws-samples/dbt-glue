@@ -1,5 +1,5 @@
 ## next version 
-- Revert "Fix wrong role create db" to fix integration tests
+- Revert "Fix wrong role create db" and "glue_session_id is automatically created or re-used when user privdes it" to fix integration tests
 
 ## v1.7.1
 - Remove unnecessary parameter for Delta Lake from readme
