@@ -138,7 +138,7 @@ jobs:
           role-session-name: ${{ steps.session.outputs.name }}
           role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
           aws-region: ${{ secrets.DBT_GLUE_REGION }}
-          mask-aws-account-id: true
+          mask-aws-account-id: false
 
       - name: Run tox
         run: |
