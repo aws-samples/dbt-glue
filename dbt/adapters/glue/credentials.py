@@ -29,7 +29,7 @@ class GlueCredentials(Credentials):
     seed_mode: Optional[str] = "overwrite"
     default_arguments: Optional[str] = None
     iceberg_glue_commit_lock_table: Optional[str] = "myGlueLockTable"
-    use_interactive_session_role_for_api_calls: bool = True
+    use_interactive_session_role_for_api_calls: Optional[bool] = True
     lf_tags: Optional[str] = None
     glue_session_id: Optional[str] = None
     glue_session_reuse: Optional[bool] = False
@@ -88,6 +88,7 @@ class GlueCredentials(Credentials):
             'seed_mode',
             'default_arguments',
             'iceberg_glue_commit_lock_table',
+            'use_interactive_session_role_for_api_calls',
             'lf_tags',
             'glue_session_id',
             'glue_session_reuse',
