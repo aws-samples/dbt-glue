@@ -2,7 +2,6 @@
 
 ## v1.7.1
 - Remove unnecessary parameter for Delta Lake from readme
-- Adds limited model contract enforcement
 - glue_session_id is automatically created or re-used when user provides it
 - Fix iceberg full refresh
 - Fix wrong role create db
