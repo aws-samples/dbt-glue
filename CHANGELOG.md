@@ -1,4 +1,7 @@
 ## next version 
+- Revert "Adds limited model contract enforcement"
+- Revert "glue_session_id is automatically created or re-used when user provides it"
+- Revert "Fix wrong role create db"
 
 ## v1.7.1
 - Remove unnecessary parameter for Delta Lake from readme
