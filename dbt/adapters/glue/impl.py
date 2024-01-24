@@ -86,15 +86,14 @@ class GlueAdapter(SQLAdapter):
                     RoleSessionName="dbt"
                 )
                 credentials = assumed_role_object['Credentials']
-                session = boto3.Session(
-                    aws_access_key_id=credentials['AccessKeyId'],
-                    aws_secret_access_key=credentials['SecretAccessKey'],
-                    aws_session_token=credentials['SessionToken']
-                )
+                glue_client = boto3.client("glue", region_name=glueSession.credentials.region,
+                                           aws_access_key_id=credentials['AccessKeyId'],
+                                           aws_secret_access_key=credentials['SecretAccessKey'],
+                                           aws_session_token=credentials['SessionToken'])
+                return glueSession, glue_client
 
-        client = boto3.client("glue", region_name=glueSession.credentials.region)
-
-        return glueSession, client
+        glue_client = boto3.client("glue", region_name=glueSession.credentials.region)
+        return glueSession, glue_client
 
     def list_schemas(self, database: str) -> List[str]:
         session, client = self.get_connection()
@@ -201,9 +200,9 @@ class GlueAdapter(SQLAdapter):
         session, client = self.get_connection()
         # https://spark.apache.org/docs/3.0.0/sql-ref-syntax-aux-describe-table.html
         response = client.get_table(
-                DatabaseName=relation.schema,
-                Name=relation.name
-            )
+            DatabaseName=relation.schema,
+            Name=relation.name
+        )
         _specific_type = response.get("Table", {}).get('Parameters', {}).get('table_type', '')
 
         if _specific_type.lower() == 'iceberg':
@@ -267,16 +266,16 @@ class GlueAdapter(SQLAdapter):
         return records
 
     def set_table_properties(self, table_properties):
-        if table_properties=='empty':
+        if table_properties == 'empty':
             return ""
         else:
             table_properties_formatted = []
-            for key in table_properties :
+            for key in table_properties:
                 table_properties_formatted.append("'" + key + "'='" + table_properties[key] + "'")
             if len(table_properties_formatted) > 0:
                 table_properties_csv = ','.join(table_properties_formatted)
                 return "TBLPROPERTIES (" + table_properties_csv + ")"
-            else :
+            else:
                 return ""
 
     def set_iceberg_merge_key(self, merge_key):
@@ -580,12 +579,14 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             else:
                 update_manifest_code = generate_symlink + f'''SqlWrapper2.execute("""select 1""")'''
             try:
-                session.cursor().execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
+                session.cursor().execute(
+                    re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
             except DbtDatabaseError as e:
                 raise DbtDatabaseError(msg="GlueDeltaUpdateManifestFailed") from e
             except Exception as e:
                 logger.error(e)
             self._update_additional_location(target_relation, location)
+
     @available
     def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
         session, client = self.get_connection()
@@ -646,8 +647,6 @@ SqlWrapper2.execute("""select 1""")
             write_data_code = write_data_header + write_data_footer
             create_athena_table = create_athena_table_header + create_athena_table_footer + f'''SqlWrapper2.execute("""select 1""")'''
 
-
-
         try:
             session.cursor().execute(write_data_code)
         except DbtDatabaseError as e:
@@ -664,7 +663,8 @@ SqlWrapper2.execute("""select 1""")
 
         if {session.credentials.delta_athena_prefix} is not None:
             try:
-                session.cursor().execute(re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
+                session.cursor().execute(
+                    re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
             except DbtDatabaseError as e:
                 raise DbtDatabaseError(msg="GlueDeltaCreateTableFailed") from e
             except Exception as e:
@@ -701,7 +701,8 @@ SqlWrapper2.execute("""select 1""")
             return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
 
     @available
-    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config, substitute_variables):
+    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config,
+                         substitute_variables):
         session, client = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
@@ -714,8 +715,8 @@ SqlWrapper2.execute("""select 1""")
             hudi_config = {}
 
         base_config = {
-            'className' : 'org.apache.hudi',
-            'hoodie.datasource.hive_sync.use_jdbc':'false',
+            'className': 'org.apache.hudi',
+            'hoodie.datasource.hive_sync.use_jdbc': 'false',
             'hoodie.datasource.write.precombine.field': 'update_hudi_ts',
             'hoodie.datasource.write.recordkey.field': primary_key,
             'hoodie.table.name': target_relation.name,
@@ -749,7 +750,7 @@ SqlWrapper2.execute("""select 1""")
                 'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS',
                 'hoodie.cleaner.commits.retained': 10,
             }
-        else :
+        else:
             write_mode = 'Overwrite'
             write_operation_config = {
                 'hoodie.datasource.write.operation': 'bulk_insert',
@@ -808,7 +809,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
                         {table_properties}
                         AS SELECT * FROM tmp_{target_relation.name}
                 """
-        else :
+        else:
             query = f"""
                         CREATE OR REPLACE TABLE glue_catalog.{target_relation.schema}.{target_relation.name}
                         PARTITIONED BY {partition_by}
@@ -823,13 +824,12 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
                         INSERT INTO glue_catalog.{target_relation.schema}.{target_relation.name}
                         SELECT * FROM tmp_{target_relation.name}
                     """
-        else :
+        else:
             query = f"""
                         INSERT INTO glue_catalog.{target_relation.schema}.{target_relation.name}
                         SELECT * FROM tmp_{target_relation.name} ORDER BY {partition_by}
                     """
         return query
-
 
     def iceberg_create_table(self, target_relation, partition_by, location, table_properties):
         table_properties = self.set_table_properties(table_properties)
@@ -841,7 +841,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
                         {table_properties}
                         AS SELECT * FROM tmp_{target_relation.name}
                     """
-        else :
+        else:
             query = f"""
                         CREATE TABLE glue_catalog.{target_relation.schema}.{target_relation.name}
                         USING iceberg
@@ -852,9 +852,8 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
                     """
         return query
 
-
     def iceberg_upsert(self, target_relation, merge_key):
-    ## Perform merge operation on incremental input data with MERGE INTO. This section of the code uses Spark SQL to showcase the expressive SQL approach of Iceberg to perform a Merge operation
+        ## Perform merge operation on incremental input data with MERGE INTO. This section of the code uses Spark SQL to showcase the expressive SQL approach of Iceberg to perform a Merge operation
         query = f"""
         MERGE INTO glue_catalog.{target_relation.schema}.{target_relation.name} t
         USING (SELECT * FROM tmp_{target_relation.name}) s
@@ -865,10 +864,11 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         return query
 
     @available
-    def iceberg_write(self, target_relation, request, primary_key, partition_key, custom_location, write_mode, table_properties):
+    def iceberg_write(self, target_relation, request, primary_key, partition_key, custom_location, write_mode,
+                      table_properties):
         session, client = self.get_connection()
         if partition_key is not None:
-            partition_key  = '(' + ','.join(partition_key) + ')'
+            partition_key = '(' + ','.join(partition_key) + ')'
         if custom_location == "empty":
             location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
         else:
@@ -913,7 +913,7 @@ if outputDf.count() > 0:'''
         if isTableExists:
             if write_mode == "append":
                 core_code = f'''
-    spark.sql("""{self.iceberg_insert(target_relation=target_relation,partition_by=partition_key)}""") '''
+    spark.sql("""{self.iceberg_insert(target_relation=target_relation, partition_by=partition_key)}""") '''
             elif write_mode == 'insert_overwrite':
                 core_code = f'''
     spark.sql("""{self.iceberg_create_or_replace_table(target_relation=target_relation, partition_by=partition_key, table_properties=table_properties)}""") '''
@@ -926,7 +926,7 @@ if outputDf.count() > 0:'''
         footer_code = f'''
 spark.sql("""REFRESH TABLE glue_catalog.{target_relation.schema}.{target_relation.name}""")
 '''
-        if session.credentials.glue_version == "4.0": # Clean up the table used for the workaround
+        if session.credentials.glue_version == "4.0":  # Clean up the table used for the workaround
             footer_code += f'''spark.sql("DROP TABLE IF EXISTS tmp_{target_relation.name}")
 from awsglue.context import GlueContext
 GlueContext(spark.sparkContext).purge_s3_path("{session.credentials.location}/{target_relation.schema}/tmp_{target_relation.name}"'''
@@ -975,7 +975,7 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             raise DbtDatabaseError(msg="GlueIcebergExpireSnapshotsFailed") from e
         except Exception as e:
             logger.error(e)
-    
+
     @available
     def add_lf_tags(self, relation: SparkRelation, lf_tags_config: Dict[str, Any]) -> None:
         config = LfTagsConfig(**lf_tags_config)
@@ -1004,7 +1004,7 @@ SqlWrapper2.execute("""SELECT * FROM glue_catalog.{target_relation.schema}.{targ
             lf_permissions = LfPermissions(account, relation, lf)  # type: ignore
             lf_permissions.process_filters(lf_config)
             lf_permissions.process_permissions(lf_config)
-    
+
     @available
     def execute_pyspark(self, codeblock):
         session, client = self.get_connection()
