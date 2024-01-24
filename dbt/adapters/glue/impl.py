@@ -11,9 +11,9 @@ from concurrent.futures import Future
 
 from dbt.adapters.base import available
 from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.base.column import Column
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
-from dbt.adapters.glue.column import GlueColumn
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
 from dbt.adapters.glue.lakeformation import (
@@ -33,7 +33,6 @@ logger = AdapterLogger("Glue")
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
-    Column = GlueColumn
 
     relation_type_map = {'EXTERNAL_TABLE': 'table',
                          'MANAGED_TABLE': 'table',
@@ -87,15 +86,15 @@ class GlueAdapter(SQLAdapter):
                     RoleSessionName="dbt"
                 )
                 credentials = assumed_role_object['Credentials']
-                glue_client = boto3.client("glue", region_name=glueSession.credentials.region,
-                                    aws_access_key_id=credentials['AccessKeyId'],
-                                    aws_secret_access_key=credentials['SecretAccessKey'],
-                                    aws_session_token=credentials['SessionToken'])
-                return glueSession, glue_client
+                session = boto3.Session(
+                    aws_access_key_id=credentials['AccessKeyId'],
+                    aws_secret_access_key=credentials['SecretAccessKey'],
+                    aws_session_token=credentials['SessionToken']
+                )
 
-        glue_client = boto3.client("glue", region_name=glueSession.credentials.region)
+        client = boto3.client("glue", region_name=glueSession.credentials.region)
 
-        return glueSession, glue_client
+        return glueSession, client
 
     def list_schemas(self, database: str) -> List[str]:
         session, client = self.get_connection()
