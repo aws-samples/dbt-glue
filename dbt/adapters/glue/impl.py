@@ -11,9 +11,9 @@ from concurrent.futures import Future
 
 from dbt.adapters.base import available
 from dbt.adapters.base.relation import BaseRelation
-from dbt.adapters.base.column import Column
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
+from dbt.adapters.glue.column import GlueColumn
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
 from dbt.adapters.glue.lakeformation import (
@@ -33,6 +33,7 @@ logger = AdapterLogger("Glue")
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
+    Column = GlueColumn
 
     relation_type_map = {'EXTERNAL_TABLE': 'table',
                          'MANAGED_TABLE': 'table',
@@ -234,7 +235,7 @@ class GlueAdapter(SQLAdapter):
             records = self.fetch_all_response(response)
 
             for record in records:
-                column = Column(column=record[0], dtype=record[1])
+                column = self.Column(column=record[0], dtype=record[1])
                 if record[0][:1] != "#":
                     if column not in columns:
                         columns.append(column)
