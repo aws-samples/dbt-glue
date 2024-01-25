@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
+from botocore.client import BaseClient
 from moto import mock_glue
 
 from dbt.config import RuntimeConfig
