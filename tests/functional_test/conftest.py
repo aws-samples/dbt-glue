@@ -6,7 +6,7 @@ from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.credentials import GlueCredentials
 from tests.util import get_role_arn, get_region
 
-logger = logging.getLogger(name="dbt-glue-tes")
+logger = logging.getLogger(name="dbt-glue-test")
 
 
 @pytest.fixture(scope="module")
