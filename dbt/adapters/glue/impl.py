@@ -77,6 +77,11 @@ class GlueAdapter(SQLAdapter):
     def convert_datetime_type(cls, agate_table, col_idx):
         return "timestamp"
 
+    def use_arrow(self):
+        connection: GlueConnectionManager = self.connections.get_thread_connection()
+        glueSession: GlueConnection = connection.handle
+        return glueSession.credentials.use_arrow
+
     def get_connection(self):
         connection: GlueConnectionManager = self.connections.get_thread_connection()
         glueSession: GlueConnection = connection.handle
@@ -261,10 +266,10 @@ class GlueAdapter(SQLAdapter):
     def fetch_all_response(self, response):
         logger.debug("fetch_all_response called")
         records = []
-        session, client = self.get_connection()
+        use_arrow = self.use_arrow()
 
-        logger.debug(f"fetch_all_response use_arrow={session.credentials.use_arrow}")
-        if session.credentials.use_arrow:
+        logger.debug(f"fetch_all_response use_arrow={use_arrow}")
+        if use_arrow:
             result_bucket = response.get("result_bucket")
             result_key = response.get("result_key")
             pdf = get_pandas_dataframe_from_result_file(result_bucket, result_key)

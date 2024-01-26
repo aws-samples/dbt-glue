@@ -31,11 +31,7 @@ class GlueCursor:
         self.code = None
         self.sql = None
         self.response = None
-        self._result = None
-        self._rowcount = -1
-        self._description = None
-        self._items = None
-        self._columns = None
+        self.result = None
         self._closed = False
 
     @property
@@ -44,11 +40,8 @@ class GlueCursor:
 
     @property
     def rowcount(self):
-        if self.response:
-            return self.response.get("rowcount")
-        self.extract_properties_from_result()
-        if self._rowcount != -1:
-            return self._rowcount
+        if self.result:
+            return self.result.get("rowcount")
 
     def _pre(self):
         self._it = None
@@ -137,11 +130,13 @@ class GlueCursor:
                     logger.debug(error_message)
                     raise dbterrors.DbtDatabaseError(msg=error_message)
 
-            result_bucket = self.response.get("result_bucket")
-            result_key = self.response.get("result_key")
-            if result_bucket and result_key:
-                pdf = get_pandas_dataframe_from_result_file(result_bucket, result_key)
-                self._result = pdf.to_dict('records')[0]
+            self.result = self.response
+            if self.connection.use_arrow:
+                result_bucket = self.response.get("result_bucket")
+                result_key = self.response.get("result_key")
+                if result_bucket and result_key:
+                    pdf = get_pandas_dataframe_from_result_file(result_bucket, result_key)
+                    self.result = pdf.to_dict('records')[0]
 
         if self.state == GlueCursorState.ERROR:
             self._post()
@@ -158,25 +153,10 @@ class GlueCursor:
         logger.debug("GlueCursor execute successfully")
         return self.response
 
-    def extract_properties_from_result(self):
-        if self.response:
-            if self.connection.use_arrow:
-                result = self._result
-            else:
-                result = self.response
-            if result:
-                self._rowcount = result.get("rowcount")
-                self._description = [[c["name"], c["type"]] for c in result.get("description", [])]
-                self._items = result.get("results", [])
-                self._columns = [column.get("name") for column in result.get("description", [])]
-
     @property
     def columns(self):
-        if self.response:
-            return [column.get("name") for column in self.response.get("description")]
-        self.extract_properties_from_result()
-        if self._columns:
-            return self._columns
+        if self.result:
+            return [column.get("name") for column in self.result.get("description", [])]
 
     def fetchall(self):
         logger.debug("GlueCursor fetchall called")
@@ -184,12 +164,11 @@ class GlueCursor:
             raise Exception("CursorClosed")
 
         if self.response:
-            self.extract_properties_from_result()
             records = []
-            logger.debug(f"GlueCursor fetchall results={self._columns}, use_arrow={self.connection.use_arrow}")
-            for item in self._items:
+            logger.debug(f"GlueCursor fetchall results={self.columns}, use_arrow={self.connection.use_arrow}")
+            for item in self.result.get("results", []):
                 record = []
-                for column in self._columns:
+                for column in self.columns:
                     record.append(item.get("data", {}).get(column, None))
                 records.append(record)
             return records
@@ -200,13 +179,12 @@ class GlueCursor:
             raise Exception("CursorClosed")
 
         if self.response:
-            self.extract_properties_from_result()
             records = []
             i = 0
-            logger.debug(f"GlueCursor fetchmany results={self._columns}, use_arrow={self.connection.use_arrow}")
-            for item in self._items:
+            logger.debug(f"GlueCursor fetchmany results={self.columns}, use_arrow={self.connection.use_arrow}")
+            for item in self.result.get("results", []):
                 record = []
-                for column in self._columns:
+                for column in self.columns:
                     record.append(item.get("data", {}).get(column, None))
                 if i < limit:
                     records.append(record)
@@ -221,11 +199,10 @@ class GlueCursor:
             if not self._it:
                 self._it = 0
             try:
-                self.extract_properties_from_result()
                 record = []
-                logger.debug(f"GlueCursor fetchone results={self._columns}, use_arrow={self.connection.use_arrow}")
-                item = self._items[self._it]
-                for column in self._columns:
+                logger.debug(f"GlueCursor fetchone results={self.columns}, use_arrow={self.connection.use_arrow}")
+                item = self.result.get("results", [])[self._it]
+                for column in self.columns:
                     record.append(item.get("data", {}).get(column, None))
                 self._it = self._it + 1
                 return record
@@ -245,9 +222,8 @@ class GlueCursor:
     @property
     def description(self):
         logger.debug("GlueCursor description called")
-        self.extract_properties_from_result()
-        if self._description:
-            return self._description
+        if self.result:
+            return [[c["name"], c["type"]] for c in self.result.get("description", [])]
 
     def get_response(self) -> AdapterResponse:
         logger.debug("GlueCursor get_response called")
