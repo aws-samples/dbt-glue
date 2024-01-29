@@ -8,5 +8,5 @@ def use_arrow():
     return True
 
 
-# class TestSimpleMaterializationsArrowGlue(TestSimpleMaterializationsGlue):
-#     pass
+class TestSimpleMaterializationsArrowGlue(TestSimpleMaterializationsGlue):
+    pass
