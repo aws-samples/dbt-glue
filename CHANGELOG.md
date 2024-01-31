@@ -1,5 +1,6 @@
 ## next version 
 - Revert "Adds limited model contract enforcement"
+- 
 
 ## v1.7.1
 - Remove unnecessary parameter for Delta Lake from readme
