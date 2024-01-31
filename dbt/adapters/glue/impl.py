@@ -266,6 +266,9 @@ class GlueAdapter(SQLAdapter):
             records.append(record)
         return records
 
+    def quote(self, identifier: str) -> str:  # type: ignore
+        return "`{}`".format(identifier)
+
     def set_table_properties(self, table_properties):
         if table_properties == 'empty':
             return ""
