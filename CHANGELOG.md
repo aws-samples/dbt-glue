@@ -1,6 +1,6 @@
 ## next version 
 - Revert "Adds limited model contract enforcement"
-- 
+- Fix the issue that removes double quote unexpectedly
 
 ## v1.7.1
 - Remove unnecessary parameter for Delta Lake from readme
