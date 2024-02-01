@@ -34,7 +34,8 @@ class GlueCredentials(Credentials):
     glue_session_id: Optional[str] = None
     glue_session_reuse: Optional[bool] = False
     datalake_formats: Optional[str] = None
-    enable_session_per_model = False
+    enable_session_per_model: Optional[bool] = False
+    use_arrow: Optional[bool] = False
 
 
     @property
@@ -87,9 +88,11 @@ class GlueCredentials(Credentials):
             'seed_mode',
             'default_arguments',
             'iceberg_glue_commit_lock_table',
+            'use_interactive_session_role_for_api_calls',
             'lf_tags',
             'glue_session_id',
             'glue_session_reuse',
             'datalake_formats',
-            'enable_session_per_model'
+            'enable_session_per_model',
+            'use_arrow'
         ]
