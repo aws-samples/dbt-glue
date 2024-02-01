@@ -1,6 +1,7 @@
 ## next version 
-- Revert "Adds limited model contract enforcement"
 - Fix the issue that removes double quote unexpectedly
+- Add use_arrow as experimental feature to achieve better scalability 
+- Fix Column bug
 
 ## v1.7.1
 - Remove unnecessary parameter for Delta Lake from readme
