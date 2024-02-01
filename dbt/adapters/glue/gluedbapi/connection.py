@@ -398,7 +398,6 @@ class SqlWrapper2:
     dfs = {}
     @classmethod
     def execute(cls,sql,output=True,use_arrow=False,location=""):
-        sql = sql.replace('"', '')
         if "dbt_next_query" in sql:
                 response=None
                 queries = sql.split("dbt_next_query")
