@@ -1,4 +1,6 @@
 ## next version 
+
+## v1.7.2 
 - Fix the issue that removes double quote unexpectedly
 - Add use_arrow as experimental feature to achieve better scalability 
 - Fix Column bug
