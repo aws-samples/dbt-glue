@@ -1,4 +1,5 @@
 ## next version 
+- Fix unit test failure caused by moto 5 upgrade
 
 ## v1.7.2 
 - Fix the issue that removes double quote unexpectedly

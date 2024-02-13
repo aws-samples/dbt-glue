@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
 from botocore.client import BaseClient
-from moto import mock_glue
+from moto import mock_aws
 
 from dbt.config import RuntimeConfig
 
@@ -67,7 +67,7 @@ class TestGlueAdapter(unittest.TestCase):
             self.assertIsInstance(glueSession.client, BaseClient)
 
 
-    @mock_glue
+    @mock_aws
     def test_get_table_type(self):
         config = self._get_config()
         adapter = GlueAdapter(config)
