@@ -104,12 +104,13 @@ class GlueAdapter(SQLAdapter):
 
     def list_schemas(self, database: str) -> List[str]:
         session, client = self.get_connection()
-        responseGetDatabases = client.get_databases()
-        databaseList = responseGetDatabases['DatabaseList']
+        paginator = client.get_paginator('get_databases')
         schemas = []
-        for databaseDict in databaseList:
-            databaseName = databaseDict['Name']
-            schemas.append(databaseName)
+        for page in paginator.paginate():
+            databaseList = page['DatabaseList']
+            for databaseDict in databaseList:
+                databaseName = databaseDict['Name']
+                schemas.append(databaseName)
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
