@@ -116,11 +116,12 @@ class GlueAdapter(SQLAdapter):
     def list_relations_without_caching(self, schema_relation: SparkRelation):
         session, client = self.get_connection()
         relations = []
+        tables = []
+        paginator = client.get_paginator('get_tables')
         try:
-            response = client.get_tables(
-                DatabaseName=schema_relation.schema,
-            )
-            for table in response.get("TableList", []):
+            for table in paginator.paginate(DatabaseName=schema_relation.schema):
+                tables.extend(table.get('TableList', []))
+            for table in tables:
                 relations.append(self.Relation.create(
                     database=schema_relation.schema,
                     schema=schema_relation.schema,
