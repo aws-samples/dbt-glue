@@ -661,8 +661,8 @@ LOCATION '{location}/_symlink_format_manifest/'"""
 spark.sql(ddl)
 '''
         if partition_key is not None:
-            part_list = (', '.join(['`{}`'.format(field) for field in partition_key])).replace('`', '')
-            write_data_partition = f'''.partitionBy("{part_list}")'''
+            part_list = (', '.join(['`"{}"`'.format(field) for field in partition_key])).replace('`', '')
+            write_data_partition = f'''.partitionBy({part_list})'''
             create_athena_table_partition = f'''
 PARTITIONED BY ({part_list})
             '''
