@@ -116,18 +116,16 @@ class GlueAdapter(SQLAdapter):
     def list_relations_without_caching(self, schema_relation: SparkRelation):
         session, client = self.get_connection()
         relations = []
-        tables = []
         paginator = client.get_paginator('get_tables')
         try:
-            for table in paginator.paginate(DatabaseName=schema_relation.schema):
-                tables.extend(table.get('TableList', []))
-            for table in tables:
-                relations.append(self.Relation.create(
-                    database=schema_relation.schema,
-                    schema=schema_relation.schema,
-                    identifier=table.get("Name"),
-                    type=self.relation_type_map.get(table.get("TableType")),
-                ))
+            for page in paginator.paginate(DatabaseName=schema_relation.schema):
+                for table in page.get('TableList', []):
+                    relations.append(self.Relation.create(
+                        database=schema_relation.schema,
+                        schema=schema_relation.schema,
+                        identifier=table.get("Name"),
+                        type=self.relation_type_map.get(table.get("TableType")),
+                    ))
             return relations
         except Exception as e:
             logger.error(e)
