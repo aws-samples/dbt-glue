@@ -103,3 +103,4 @@ dbt_venv/
 .venv/
 
 .pytest_cache/
+Pipfile*
