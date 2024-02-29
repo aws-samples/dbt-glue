@@ -1,4 +1,5 @@
 ## next version
+- Fix typo in README.md
 - Fix unit test failure caused by moto 5 upgrade
 - Fix pagination bug when listing glue databases and tables
 

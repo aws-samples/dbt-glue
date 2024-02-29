@@ -173,7 +173,6 @@ $ python3 --version
 Configure a Python virtual environment to isolate package version and code dependencies:
 
 ```bash
-$ sudo yum install git
 $ python3 -m venv dbt_venv
 $ source dbt_venv/bin/activate
 $ python3 -m pip install --upgrade pip
@@ -191,7 +190,7 @@ Install boto3 package
 
 ```bash
 $ sudo yum install gcc krb5-devel.x86_64 python3-devel.x86_64 -y
-$ pip3 install —upgrade boto3
+$ pip3 install —-upgrade boto3
 ```
 
 Install the package:
