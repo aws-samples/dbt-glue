@@ -266,7 +266,7 @@ class GlueConnection:
             with self._boto3_client_lock:
                 session = boto3.session.Session()
                 self._client = session.client("glue", region_name=self.credentials.region, config=config)
-                self._session_waiter = get_session_waiter(client=self._client, delay=self.credentials.session_provisioning_timeout_in_seconds)
+                self._session_waiter = get_session_waiter(client=self._client, timeout=self.credentials.session_provisioning_timeout_in_seconds)
         return self._client
 
     def cancel_statement(self, statement_id):
