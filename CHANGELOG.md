@@ -1,6 +1,7 @@
 ## next version
 - Fix unit test failure caused by moto 5 upgrade
 - Fix pagination bug when listing glue databases and tables
+- Fix Glue session state change waits until session timeout expires
 
 ## v1.7.2
 - Fix the issue that removes double quote unexpectedly
