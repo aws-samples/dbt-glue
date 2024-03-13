@@ -65,7 +65,8 @@
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
-    	create table {{ relation }}
+      {%- set default_catalog = 'glue_catalog' -%}
+    	create table {{ default_catalog}}.{{ relation }}
     	{% set contract_config = config.get('contract') %}
       {% if contract_config.enforced %}
         {{ get_assert_columns_equivalent(sql) }}
