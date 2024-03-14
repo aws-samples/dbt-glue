@@ -1,6 +1,7 @@
 ## next version
 - Fix unit test failure caused by moto 5 upgrade
 - Fix pagination bug when listing glue databases and tables
+- Fix _create_session_config isolation to prevent overrides between sessions
 
 ## v1.7.2
 - Fix the issue that removes double quote unexpectedly
