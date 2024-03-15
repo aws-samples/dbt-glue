@@ -91,7 +91,7 @@
     DROP TABLE IF EXISTS {{ relation }}
     dbt_next_query
     create table {{ relation }}
-    {{ glue__location_clause(relation) }}
+    {{ adapter.get_location(relation) }}
     as
       {{ sql }}
   {% endcall %}
