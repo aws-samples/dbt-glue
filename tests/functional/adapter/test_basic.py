@@ -2,7 +2,7 @@ import os
 import pytest
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
-                                           ephemeral_view_sql)
+                                           ephemeral_view_sql,incremental_sql)
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
@@ -138,12 +138,8 @@ class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
 class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope="class")
     def models(self):
-        model_incremental = """
-        {{ config(materialized="incremental") }}
-           select * from {{ source('raw', 'seed') }}
-           """.strip()
 
-        return {"incremental.sql": model_incremental, "schema.yml": schema_base_yml}
+        return {"incremental.sql": incremental_sql, "schema.yml": schema_base_yml}
 
     # test_incremental with refresh table
     def test_incremental(self, project):
