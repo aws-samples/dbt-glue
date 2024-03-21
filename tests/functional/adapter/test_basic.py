@@ -139,6 +139,7 @@ class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope="class")
     def models(self):
         model_incremental = """
+        {{ config(materialized="incremental") }}
            select * from {{ source('raw', 'seed') }}
            """.strip()
 
