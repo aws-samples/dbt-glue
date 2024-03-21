@@ -14,7 +14,7 @@ from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTe
 from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterialization
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
-                            get_manifest, relation_from_name, run_dbt)
+                            get_manifest, relation_from_name, run_dbt, get_s3_location)
 
 
 # override schema_base_yml to set missing database
@@ -186,6 +186,19 @@ class TestIncrementalGlue(BaseIncremental):
         assert len(catalog.sources) == 1
 
     pass
+
+
+class TestIncrementalGlueWithCustomLocation(TestIncrementalGlue):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        default_location=get_s3_location()
+        custom_location = f"{default_location}/custom/incremental"
+        return {
+            "name": "incremental",
+            "models": {
+                "+custom_location": custom_location
+            }
+        }
 
 
 class TestGenericTestsGlue(BaseGenericTests):
