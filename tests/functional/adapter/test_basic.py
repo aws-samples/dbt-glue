@@ -14,7 +14,8 @@ from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTe
 from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterialization
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
-                            get_manifest, relation_from_name, run_dbt, get_s3_location)
+                            get_manifest, relation_from_name, run_dbt)
+from tests.util import get_s3_location
 
 
 # override schema_base_yml to set missing database
