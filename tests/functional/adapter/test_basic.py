@@ -2,7 +2,7 @@ import os
 import pytest
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
-                                           ephemeral_view_sql,incremental_sql)
+                                           ephemeral_view_sql)
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
@@ -139,7 +139,13 @@ class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
 class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope="class")
     def models(self):
-
+        incremental_sql = """
+            {{ config(materialized="incremental",incremental_strategy="append") }}
+            select * from {{ source('raw', 'seed') }}
+            {% if is_incremental() %}
+            where id > (select max(id) from {{ this }})
+            {% endif %}
+        """.strip()
         return {"incremental.sql": incremental_sql, "schema.yml": schema_base_yml}
 
     # test_incremental with refresh table
@@ -190,7 +196,8 @@ class TestIncrementalGlueWithCustomLocation(TestIncrementalGlue):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         default_location=get_s3_location()
-        custom_location = f"{default_location}/custom/incremental"
+        custom_prefix = "{{target.schema}}/custom/incremental"
+        custom_location = default_location+custom_prefix
         return {
             "name": "incremental",
             "models": {
