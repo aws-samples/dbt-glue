@@ -15,6 +15,7 @@ from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterial
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
                             get_manifest, relation_from_name, run_dbt)
+from tests.util import get_s3_location
 
 
 # override schema_base_yml to set missing database
@@ -138,11 +139,14 @@ class TestSingularTestsEphemeralGlue(BaseSingularTestsEphemeral):
 class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope="class")
     def models(self):
-        model_incremental = """
-           select * from {{ source('raw', 'seed') }}
-           """.strip()
-
-        return {"incremental.sql": model_incremental, "schema.yml": schema_base_yml}
+        incremental_sql = """
+            {{ config(materialized="incremental",incremental_strategy="append") }}
+            select * from {{ source('raw', 'seed') }}
+            {% if is_incremental() %}
+            where id > (select max(id) from {{ this }})
+            {% endif %}
+        """.strip()
+        return {"incremental.sql": incremental_sql, "schema.yml": schema_base_yml}
 
     # test_incremental with refresh table
     def test_incremental(self, project):
@@ -186,6 +190,20 @@ class TestIncrementalGlue(BaseIncremental):
         assert len(catalog.sources) == 1
 
     pass
+
+
+class TestIncrementalGlueWithCustomLocation(TestIncrementalGlue):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        default_location=get_s3_location()
+        custom_prefix = "{{target.schema}}/custom/incremental"
+        custom_location = default_location+custom_prefix
+        return {
+            "name": "incremental",
+            "models": {
+                "+custom_location": custom_location
+            }
+        }
 
 
 class TestGenericTestsGlue(BaseGenericTests):
