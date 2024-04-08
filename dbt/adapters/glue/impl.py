@@ -240,16 +240,19 @@ class GlueAdapter(SQLAdapter):
         try:
             response = session.cursor().execute(code)
             records = self.fetch_all_response(response)
+            existing_columns = []
+            
 
             for record in records:
                 column_name: str = record[0].strip()
                 column_type: str = record[1].strip()
                 if (
                     column_name.lower() not in ["", "not partitioned"]
-                    and not column_name.startswith('#')
+                    and not column_name.startswith('#') and column_name not in existing_columns
                 ):
                     column = self.Column(column=column_name, dtype=column_type)
                     columns.append(column)
+                    existing_columns.append(column_name)
 
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
@@ -661,8 +664,8 @@ LOCATION '{location}/_symlink_format_manifest/'"""
 spark.sql(ddl)
 '''
         if partition_key is not None:
-            part_list = (', '.join(['`{}`'.format(field) for field in partition_key])).replace('`', '')
-            write_data_partition = f'''.partitionBy("{part_list}")'''
+            part_list = (', '.join(['`"{}"`'.format(field) for field in partition_key])).replace('`', '')
+            write_data_partition = f'''.partitionBy({part_list})'''
             create_athena_table_partition = f'''
 PARTITIONED BY ({part_list})
             '''
