@@ -246,7 +246,6 @@ class GlueAdapter(SQLAdapter):
             for record in records:
                 column_name: str = record[0].strip()
                 column_type: str = record[1].strip()
-
                 if (
                     column_name.lower() not in ["", "not partitioned"]
                     and not column_name.startswith('#') and column_name not in existing_columns
@@ -254,7 +253,6 @@ class GlueAdapter(SQLAdapter):
                     column = self.Column(column=column_name, dtype=column_type)
                     columns.append(column)
                     existing_columns.append(column_name)
-            
 
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
@@ -262,7 +260,7 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
         logger.debug("columns before strip:")
-        logger.info(columns)
+        logger.debug(columns)
         # strip hudi metadata columns.
         columns = [x for x in columns
                    if x.name not in self.HUDI_METADATA_COLUMNS]
