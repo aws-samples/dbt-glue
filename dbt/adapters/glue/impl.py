@@ -242,7 +242,6 @@ class GlueAdapter(SQLAdapter):
             records = self.fetch_all_response(response)
             existing_columns = []
             
-            
 
             for record in records:
                 column_name: str = record[0].strip()
@@ -262,14 +261,14 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-        logger.info("columns before strip:")
+        logger.debug("columns before strip:")
         logger.info(columns)
         # strip hudi metadata columns.
         columns = [x for x in columns
                    if x.name not in self.HUDI_METADATA_COLUMNS]
 
-        logger.info("columns after strip:")
-        logger.info(columns)
+        logger.debug("columns after strip:")
+        logger.debug(columns)
 
         return columns
 
