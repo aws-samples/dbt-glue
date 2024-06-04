@@ -193,10 +193,11 @@
       {% set final_sql = "select * from " + target_relation.schema + "." + target_relation.identifier %}
     {% elif file_format == 'iceberg'%}
       {%- set partition_by = None -%}
+      {%- set order_by = None -%}
       {%- set custom_location = 'empty' -%}
       {%- set unique_key = 'dbt_scd_id' -%}
       {% set build_sql = build_snapshot_table(strategy, sql | replace("from ", "from glue_catalog.")) %}
-      {{ adapter.iceberg_write(target_relation, build_sql, unique_key, partition_by, custom_location, 'insert_overwrite', table_properties) }}
+      {{ adapter.iceberg_write(target_relation, build_sql, unique_key, partition_by, order_by, custom_location, 'insert_overwrite', table_properties) }}
       {% set final_sql = "select * from glue_catalog." + target_relation.schema + "." + target_relation.identifier %}
     {% else %}
       {% set build_sql = build_snapshot_table(strategy, sql) %}
@@ -246,7 +247,7 @@
         {%- set custom_location = 'empty' -%}
         {%- set build_sql = "select * from " + staging_table.schema + "." + staging_table.identifier -%}
         {%- set unique_key = 'dbt_scd_id' -%}
-        {{ adapter.iceberg_write(target_relation, build_sql, unique_key, partition_by, custom_location, 'insert_overwrite', table_properties) }}
+        {{ adapter.iceberg_write(target_relation, build_sql, unique_key, partition_by, order_by, custom_location, 'insert_overwrite', table_properties) }}
         {% set final_sql = "select * from glue_catalog." + target_relation.schema + "." + target_relation.identifier %}
       {% else %}
         {% set final_sql = snapshot_merge_sql(
