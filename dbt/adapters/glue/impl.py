@@ -4,14 +4,13 @@ import re
 import uuid
 import boto3
 from dbt.adapters.glue.util import get_columns_from_result, get_pandas_dataframe_from_result_file
-from typing import Dict, List, Any
+from typing import Set, Dict, List, Any, Iterable, FrozenSet, Tuple
 
 import agate
 from concurrent.futures import Future
 
-import dbt
 from dbt.adapters.base import available
-from dbt.adapters.base.relation import BaseRelation
+from dbt.adapters.base.relation import BaseRelation, InformationSchema
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.column import GlueColumn
@@ -23,10 +22,11 @@ from dbt.adapters.glue.lakeformation import (
     LfTagsConfig,
     LfTagsManager,
 )
-from dbt.exceptions import DbtDatabaseError
+from dbt.adapters.contracts.relation import RelationConfig
+from dbt_common.exceptions import DbtDatabaseError, CompilationError
 from dbt.adapters.base.impl import catch_as_completed
-from dbt.utils import executor
-from dbt.events import AdapterLogger
+from dbt_common.utils import executor
+from dbt.adapters.events.logging import AdapterLogger
 
 logger = AdapterLogger("Glue")
 
@@ -439,8 +439,12 @@ class GlueAdapter(SQLAdapter):
                 logger.error(e)
                 logger.error("create_schema exception")
 
-    def get_catalog(self, manifest):
-        schema_map = self._get_catalog_schemas(manifest)
+    def get_catalog(
+        self,
+        relation_configs: Iterable[RelationConfig],
+        used_schemas: FrozenSet[Tuple[str, str]],
+    ) -> Tuple[agate.Table, List[Exception]]:
+        schema_map = self._get_catalog_schemas(relation_configs)
 
         with executor(self.config) as tpe:
             futures: List[Future[agate.Table]] = []
@@ -449,7 +453,7 @@ class GlueAdapter(SQLAdapter):
                     continue
                 name = list(schemas)[0]
                 fut = tpe.submit_connected(
-                    self, name, self._get_one_catalog, info, [name], manifest
+                    self, name, self._get_one_catalog, info, [name], relation_configs
                 )
                 futures.append(fut)
 
@@ -457,10 +461,13 @@ class GlueAdapter(SQLAdapter):
         return catalogs, exceptions
 
     def _get_one_catalog(
-            self, information_schema, schemas, manifest,
+        self,
+        information_schema: InformationSchema,
+        schemas: Set[str],
+        used_schemas: FrozenSet[Tuple[str, str]],
     ) -> agate.Table:
         if len(schemas) != 1:
-            dbt.exceptions.raise_compiler_error(
+            raise CompilationError(
                 f'Expected only one schema in glue _get_one_catalog, found '
                 f'{schemas}'
             )

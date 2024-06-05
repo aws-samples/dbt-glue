@@ -67,6 +67,8 @@ setup(
     install_requires=[
         "dbt-core~={}".format(dbt_version),
         "dbt-spark~={}".format(dbt_spark_version),
+        "dbt-common>=1.0.4,<2.0",
+        "dbt-adapters>=1.1.1,<2.0",
         "waiter",
         "pyarrow",
         "boto3 >= 1.28.16"

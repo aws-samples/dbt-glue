@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
+from multiprocessing import get_context
 from botocore.client import BaseClient
 from moto import mock_aws
 
@@ -54,7 +55,7 @@ class TestGlueAdapter(unittest.TestCase):
 
     def test_glue_connection(self):
         config = self._get_config()
-        adapter = GlueAdapter(config)
+        adapter = GlueAdapter(config, get_context("spawn"))
 
         with mock.patch("dbt.adapters.glue.connections.open"):
             connection = adapter.acquire_connection("dummy")
@@ -70,7 +71,7 @@ class TestGlueAdapter(unittest.TestCase):
     @mock_aws
     def test_get_table_type(self):
         config = self._get_config()
-        adapter = GlueAdapter(config)
+        adapter = GlueAdapter(config, get_context("spawn"))
 
         database_name = "dbt_unit_test_01"
         table_name = "test_table"
