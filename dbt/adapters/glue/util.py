@@ -2,7 +2,7 @@ from botocore.waiter import create_waiter_with_client
 from botocore.waiter import WaiterModel
 import boto3
 import pyarrow.feather as feather
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 
 logger = AdapterLogger("Glue")
 

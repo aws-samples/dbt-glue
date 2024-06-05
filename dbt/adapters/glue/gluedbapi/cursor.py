@@ -1,11 +1,11 @@
 import uuid
 import textwrap
 import json
-from dbt.contracts.connection import AdapterResponse
+from dbt.adapters.contracts.connection import AdapterResponse
 from dbt import exceptions as dbterrors
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 from dbt.adapters.glue.util import get_pandas_dataframe_from_result_file
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 from typing import Optional
 
 logger = AdapterLogger("Glue")
