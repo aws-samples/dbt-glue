@@ -104,28 +104,28 @@ class GlueAdapter(SQLAdapter):
 
     def list_schemas(self, database: str) -> List[str]:
         session, client = self.get_connection()
-        responseGetDatabases = client.get_databases()
-        databaseList = responseGetDatabases['DatabaseList']
+        paginator = client.get_paginator('get_databases')
         schemas = []
-        for databaseDict in databaseList:
-            databaseName = databaseDict['Name']
-            schemas.append(databaseName)
+        for page in paginator.paginate():
+            databaseList = page['DatabaseList']
+            for databaseDict in databaseList:
+                databaseName = databaseDict['Name']
+                schemas.append(databaseName)
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
         session, client = self.get_connection()
         relations = []
+        paginator = client.get_paginator('get_tables')
         try:
-            response = client.get_tables(
-                DatabaseName=schema_relation.schema,
-            )
-            for table in response.get("TableList", []):
-                relations.append(self.Relation.create(
-                    database=schema_relation.schema,
-                    schema=schema_relation.schema,
-                    identifier=table.get("Name"),
-                    type=self.relation_type_map.get(table.get("TableType")),
-                ))
+            for page in paginator.paginate(DatabaseName=schema_relation.schema):
+                for table in page.get('TableList', []):
+                    relations.append(self.Relation.create(
+                        database=schema_relation.schema,
+                        schema=schema_relation.schema,
+                        identifier=table.get("Name"),
+                        type=self.relation_type_map.get(table.get("TableType")),
+                    ))
             return relations
         except Exception as e:
             logger.error(e)
@@ -240,12 +240,19 @@ class GlueAdapter(SQLAdapter):
         try:
             response = session.cursor().execute(code)
             records = self.fetch_all_response(response)
+            existing_columns = []
+            
 
             for record in records:
-                column = self.Column(column=record[0], dtype=record[1])
-                if record[0][:1] != "#":
-                    if column not in columns:
-                        columns.append(column)
+                column_name: str = record[0].strip()
+                column_type: str = record[1].strip()
+                if (
+                    column_name.lower() not in ["", "not partitioned"]
+                    and not column_name.startswith('#') and column_name not in existing_columns
+                ):
+                    column = self.Column(column=column_name, dtype=column_type)
+                    columns.append(column)
+                    existing_columns.append(column_name)
 
         except DbtDatabaseError as e:
             raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
@@ -521,7 +528,7 @@ if (spark.sql("show tables in {model["schema"]}").where("tableName == '{model["n
     df.write\
         .mode("{session.credentials.seed_mode}")\
         .format("{session.credentials.seed_format}")\
-        .insertInto(table_name, overwrite={mode})   
+        .insertInto(table_name, overwrite={mode})
 else:
     df.write\
         .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")\
@@ -589,7 +596,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
         if {session.credentials.delta_athena_prefix} is not None:
             run_msck_repair = f'''
-            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+            spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}")
             SqlWrapper2.execute("""select 1""")
             '''
             generate_symlink = f'''
@@ -597,7 +604,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             from delta.tables import DeltaTable
             deltaTable = DeltaTable.forPath(spark, "{location}")
             deltaTable.generate("symlink_format_manifest")
-            
+
             '''
             if partition_by is not None:
                 update_manifest_code = generate_symlink + run_msck_repair
@@ -646,7 +653,7 @@ deltaTable = DeltaTable.forPath(spark, "{location}")
 deltaTable.generate("symlink_format_manifest")
 schema = deltaTable.toDF().schema
 columns = (','.join([field.simpleString() for field in schema])).replace(':', ' ')
-ddl = """CREATE EXTERNAL TABLE {target_relation.schema}.headertoberepalced_{target_relation.name} (""" + columns + """) 
+ddl = """CREATE EXTERNAL TABLE {target_relation.schema}.headertoberepalced_{target_relation.name} (""" + columns + """)
 '''
 
         create_athena_table_footer = f'''
@@ -657,13 +664,13 @@ LOCATION '{location}/_symlink_format_manifest/'"""
 spark.sql(ddl)
 '''
         if partition_key is not None:
-            part_list = (', '.join(['`{}`'.format(field) for field in partition_key])).replace('`', '')
-            write_data_partition = f'''.partitionBy("{part_list}")'''
+            part_list = (', '.join(['`"{}"`'.format(field) for field in partition_key])).replace('`', '')
+            write_data_partition = f'''.partitionBy({part_list})'''
             create_athena_table_partition = f'''
 PARTITIONED BY ({part_list})
             '''
             run_msck_repair = f'''
-spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}") 
+spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}")
 SqlWrapper2.execute("""select 1""")
             '''
             write_data_code = write_data_header + write_data_partition + write_data_footer

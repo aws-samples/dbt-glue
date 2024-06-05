@@ -3,7 +3,7 @@ name: Integration Tests
 on:
   # we use pull_request_target to run the CI also for forks
   pull_request_target:
-    types: [opened, reopened, synchronize, labeled]
+    types: [labeled]
   push:
     branches: [main]
 

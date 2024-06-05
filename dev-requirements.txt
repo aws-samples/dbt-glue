@@ -7,7 +7,7 @@
 # TODO: how to automate switching from develop to version branches?
 #git+https://github.com/dbt-labs/dbt-spark.git#egg=dbt-spark
 
-freezegun==1.3.1
+freezegun==1.4.0
 pytest>=6.0.2
 mock>=1.3.0
 flake8
@@ -18,17 +18,17 @@ pytest-xdist
 pytest-dotenv
 pytest-csv
 flaky
-mypy==1.7.1
+mypy==1.8.0
 black==23.12.0
 
 # Adapter specific dependencies
 waiter
 boto3
 pandas
-moto~=4.2.11
+moto~=5.0.3
 pyparsing
 pyarrow
 
-dbt-core~=1.7.3
+dbt-core~=1.7.7
 dbt-spark~=1.7.1
-dbt-tests-adapter~=1.7.3
+dbt-tests-adapter~=1.7.7

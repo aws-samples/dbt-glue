@@ -1,7 +1,15 @@
-## next version 
+## next version
+- Fix typo in README.md
+- Fix unit test failure caused by moto 5 upgrade
+- Fix pagination bug when listing glue databases and tables
+- Fix _create_session_config isolation to prevent overrides between sessions
+- Fix tmp table location for the default file_format
+
+## v1.7.2
 - Fix the issue that removes double quote unexpectedly
-- Add use_arrow as experimental feature to achieve better scalability 
+- Add use_arrow as experimental feature to achieve better scalability
 - Fix Column bug
+- Pick only valid columns from describe relation output
 
 ## v1.7.1
 - Remove unnecessary parameter for Delta Lake from readme
@@ -12,7 +20,7 @@
 
 ## v1.7.0
 - add compatibility with dbt 1.6
-- fixed tests 
+- fixed tests
 
 ## v1.6.6
 - Replace retry logic with WaiterModel
@@ -34,7 +42,7 @@
 
 ## v1.6.1
 - adding support for database AWS Lake Formation tag management
-- fix the boto3 version to use lakeformation tags 
+- fix the boto3 version to use lakeformation tags
 - Fixed msck repair call for Delta non-partitioned tables
 - re-use the glue-session to run multiple dbt run commands
 
@@ -70,8 +78,8 @@
 - fix typos in sample_profiles.yml and README.md
 
 ## v1.4.21
-- add Hudi related extensions #167 
-- add  add execute_pyspark capability for registering python/pyspark UDFs #163 
+- add Hudi related extensions #167
+- add  add execute_pyspark capability for registering python/pyspark UDFs #163
 
 ## v1.4.1
 - add compatibility with dbt 1.4.1
@@ -130,9 +138,9 @@
 
 ## v0.3.2
 
-- Added default_arguments param for Glue to add custom Glue configuration options. 
+- Added default_arguments param for Glue to add custom Glue configuration options.
 
-## v0.3.1 
+## v0.3.1
 
 - Include config `full_refresh` flag when materialization is incremental
 

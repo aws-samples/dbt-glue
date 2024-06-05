@@ -173,7 +173,6 @@ $ python3 --version
 Configure a Python virtual environment to isolate package version and code dependencies:
 
 ```bash
-$ sudo yum install git
 $ python3 -m venv dbt_venv
 $ source dbt_venv/bin/activate
 $ python3 -m pip install --upgrade pip
@@ -191,7 +190,7 @@ Install boto3 package
 
 ```bash
 $ sudo yum install gcc krb5-devel.x86_64 python3-devel.x86_64 -y
-$ pip3 install —upgrade boto3
+$ pip3 install —-upgrade boto3
 ```
 
 Install the package:
@@ -231,7 +230,7 @@ The table below describes all the options.
 | location	                               | The Amazon S3 location of your target data.	                                                                                                                                                                                                                                                      | yes       |
 | query_timeout_in_minutes	               | The timeout in minutes for a signle query. Default is 300                                                                                                                                                                                                                                         | no        |
 | idle_timeout	                           | The AWS Glue session idle timeout in minutes. (The session stops after being idle for the specified amount of time)	                                                                                                                                                                              | no        |
-| glue_version	                           | The version of AWS Glue for this session to use. Currently, the only valid options are 2.0 and 3.0. The default value is 3.0.	                                                                                                                                                                    | no        |
+| glue_version	                           | The version of AWS Glue for this session to use. Currently, the only valid options are 2.0, 3.0 and 4.0. The default value is 4.0.	                                                                                                                                                               | no        |
 | security_configuration	                 | The security configuration to use with this session.	                                                                                                                                                                                                                                             | no        |
 | connections	                            | A comma-separated list of connections to use in the session.	                                                                                                                                                                                                                                     | no        |
 | conf	                                   | Specific configuration used at the startup of the Glue Interactive Session (arg --conf)	                                                                                                                                                                                                          | no        |
@@ -538,7 +537,7 @@ group by 1
 **Usage notes:** The `merge` with Iceberg incremental strategy requires:
 - To add `file_format: Iceberg` in your table configuration
 - To add a datalake_formats in your profile : `datalake_formats: iceberg`
-  - Alternatively, if you use Glue 3.0, to add a connections in your profile : `connections: name_of_your_iceberg_connector` (
+  - Alternatively, if you use Glue 3.0 or more, to add a connections in your profile : `connections: name_of_your_iceberg_connector` (
     - For Athena version 3: 
       - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
       - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
@@ -798,7 +797,7 @@ test_project:
       query-comment: my comment
       role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
       region: eu-west-1
-      glue_version: "3.0"
+      glue_version: "4.0"
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
@@ -825,7 +824,7 @@ test_project:
       query-comment: my comment
       role_arn: arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
       region: eu-west-1
-      glue_version: "3.0"
+      glue_version: "4.0"
       workers: 2
       worker_type: G.1X
       schema: "dbt_test_project"
