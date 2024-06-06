@@ -1,3 +1,6 @@
+## New versio
+- Remove slash in request origin
+
 ## v1.8.1
 - Fix typo in README.md
 - Fix unit test failure caused by moto 5 upgrade

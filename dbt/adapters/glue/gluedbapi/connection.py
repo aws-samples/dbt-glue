@@ -283,9 +283,11 @@ class GlueConnection:
 
     def delete_session(self, session_id):
         try:
+            request_origin = 'dbt-glue-'+self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
+            request_origin = request_origin.replace('/', '')
             self.client.delete_session(
                 Id=session_id,
-                RequestOrigin='dbt-glue-'+self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
+                RequestOrigin=request_origin
             )
         except Exception as e:
             logger.debug(f"delete session {session_id} error")
