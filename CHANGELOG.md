@@ -1,5 +1,5 @@
 ## New versio
-- Remove slash in request origin
+- Fix session provisioning timeout and delay handling
 
 ## v1.8.1
 - Fix typo in README.md
