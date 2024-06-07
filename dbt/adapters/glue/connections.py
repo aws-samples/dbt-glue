@@ -3,15 +3,14 @@ import agate
 from typing import Any, List, Dict, Optional
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.sql import SQLConnectionManager
-from dbt.contracts.connection import AdapterResponse
-from dbt.exceptions import (
-    FailedToConnectError,
-    DbtRuntimeError
-)
+from dbt.adapters.contracts.connection import AdapterResponse
+from dbt.adapters.exceptions import FailedToConnectError
+from dbt_common.exceptions import DbtRuntimeError
 import dbt
 from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
-from dbt.events import AdapterLogger
-from dbt.events.contextvars import get_node_info
+from dbt.adapters.events.logging import AdapterLogger
+from dbt_common.events.contextvars import get_node_info
+from dbt_common.clients.agate_helper import table_from_data_flat
 
 logger = AdapterLogger("Glue")
 
@@ -118,7 +117,7 @@ class GlueConnectionManager(SQLConnectionManager):
             else:
                 rows = cursor.fetchall()
             data = cls.process_results(column_names, rows)
-        return dbt.clients.agate_helper.table_from_data_flat(
+        return table_from_data_flat(
             data,
             column_names
         )

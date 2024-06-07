@@ -7,10 +7,9 @@ from dbt.adapters.glue.gluedbapi.cursor import GlueCursor, GlueDictCursor
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 from dbt.adapters.glue.util import get_session_waiter
-import time
 import threading
 import uuid
-from dbt.events import AdapterLogger
+from dbt.adapters.events.logging import AdapterLogger
 
 logger = AdapterLogger("Glue")
 
@@ -265,7 +264,7 @@ class GlueConnection:
             with self._boto3_client_lock:
                 session = boto3.session.Session()
                 self._client = session.client("glue", region_name=self.credentials.region, config=config)
-                self._session_waiter = get_session_waiter(client=self._client, delay=self.credentials.session_provisioning_timeout_in_seconds)
+                self._session_waiter = get_session_waiter(client=self._client, timeout=self.credentials.session_provisioning_timeout_in_seconds)
         return self._client
 
     def cancel_statement(self, statement_id):
@@ -284,9 +283,11 @@ class GlueConnection:
 
     def delete_session(self, session_id):
         try:
+            request_origin = 'dbt-glue-'+self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
+            request_origin = request_origin.replace('/', '')
             self.client.delete_session(
                 Id=session_id,
-                RequestOrigin='dbt-glue-'+self.credentials.role_arn.partition('/')[2] or self.credentials.role_arn
+                RequestOrigin=request_origin
             )
         except Exception as e:
             logger.debug(f"delete session {session_id} error")

@@ -3,8 +3,8 @@
 from typing import Dict, List, Optional, Union
 
 from dbt.adapters.glue.relation import SparkRelation
-from dbt.events import AdapterLogger
-from dbt.exceptions import DbtRuntimeError
+from dbt.adapters.events.logging import AdapterLogger
+from dbt_common.exceptions import DbtRuntimeError
 
 logger = AdapterLogger("Glue")
 
