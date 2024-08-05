@@ -19,6 +19,7 @@
   {%- set custom_location = config.get('custom_location', default='empty') -%}
   {%- set expire_snapshots = config.get('iceberg_expire_snapshots', 'True') -%}
   {%- set table_properties = config.get('table_properties', default='empty') -%}
+  {%- set delta_create_table_write_options = config.get('write_options', default={}) -%}
 
   {% set target_relation = this %}
   {% set existing_relation_type = adapter.get_table_type(target_relation)  %}
@@ -45,7 +46,7 @@
       {% endif %}
       {% if existing_relation_type is none %}
         {% if file_format == 'delta' %}
-            {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
+            {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location, delta_create_table_write_options) }}
             {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 " %}
         {% elif file_format == 'iceberg' %}
             {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
@@ -56,7 +57,7 @@
       {% elif existing_relation_type == 'view' or should_full_refresh() %}
         {{ drop_relation(target_relation) }}
         {% if file_format == 'delta' %}
-            {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location) }}
+            {{ adapter.delta_create_table(target_relation, sql, unique_key, partition_by, custom_location, delta_create_table_write_options) }}
             {% set build_sql = "select * from " + target_relation.schema + "." + target_relation.identifier + " limit 1 " %}
         {% elif file_format == 'iceberg' %}
             {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
