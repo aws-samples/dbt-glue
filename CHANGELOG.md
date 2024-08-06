@@ -1,5 +1,6 @@
-## New versio
+## New version
 - Fix session provisioning timeout and delay handling
+- Change GlueColumn parent from base Column to SparkColumn
 
 ## v1.8.1
 - Fix typo in README.md
