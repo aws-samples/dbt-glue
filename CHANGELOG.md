@@ -1,6 +1,6 @@
 ## New version
 - Fix session provisioning timeout and delay handling
-- Add delta_table_replace materialization
+- Fix table materialization for Delta models
 
 ## v1.8.1
 - Fix typo in README.md

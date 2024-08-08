@@ -187,11 +187,14 @@ class GlueAdapter(SQLAdapter):
                 DatabaseName=schema,
                 Name=identifier
             )
+            is_delta = response.get('Table').get("Parameters").get("spark.sql.sources.provider") == "delta"
+
             relations = self.Relation.create(
                 database=schema,
                 schema=schema,
                 identifier=identifier,
-                type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
+                type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
+                is_delta=is_delta
             )
             logger.debug(f"""schema : {schema}
                              identifier : {identifier}
@@ -638,7 +641,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             location = custom_location
 
         create_table_query = f"""
-CREATE TABLE {table_name}
+CREATE OR REPLACE TABLE {table_name}
 USING delta
 LOCATION '{location}'
         """
