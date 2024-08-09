@@ -1,5 +1,6 @@
-## New versio
+## New version
 - Fix session provisioning timeout and delay handling
+- Add on_schema_change possibility
 
 ## v1.8.1
 - Fix typo in README.md
