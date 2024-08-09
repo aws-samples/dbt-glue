@@ -641,7 +641,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             location = custom_location
 
         create_table_query = f"""
-CREATE OR REPLACE TABLE {table_name}
+CREATE TABLE {table_name}
 USING delta
 LOCATION '{location}'
         """
