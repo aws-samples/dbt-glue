@@ -1,5 +1,6 @@
 ## New version
 - Fix session provisioning timeout and delay handling
+- Add on_schema_change possibility
 - Fix table materialization for Delta models
 
 ## v1.8.1
