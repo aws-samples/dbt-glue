@@ -62,10 +62,18 @@
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
   {%- set table_properties = config.get('table_properties', default={}) -%}
 
+  {%- set create_statement_string -%}
+    {% if file_format in ['delta', 'iceberg'] -%}
+      create or replace table
+    {%- else -%}
+      create table
+    {% endif %}
+  {%- endset %}
+
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
-    	create table {{ relation }}
+    	{{ create_statement_string }} {{ relation }}
     	{% set contract_config = config.get('contract') %}
       {% if contract_config.enforced %}
         {{ get_assert_columns_equivalent(sql) }}
