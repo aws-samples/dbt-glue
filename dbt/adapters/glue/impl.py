@@ -268,6 +268,10 @@ class GlueAdapter(SQLAdapter):
         columns = [x for x in columns
                    if x.name not in self.HUDI_METADATA_COLUMNS]
 
+        # strip partition columns.
+        columns = [x for x in columns
+                   if not re.match(r'^Part \d+$', x.name)]
+
         logger.debug("columns after strip:")
         logger.debug(columns)
 
