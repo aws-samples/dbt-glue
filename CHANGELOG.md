@@ -4,6 +4,7 @@
 - Fix table materialization for Delta models
 - Change GlueColumn parent from base Column to SparkColumn
 - Fix unraised DbtDatabaseError
+- Fix get_columns_in_relation function to stop returning additional partition columns
 
 ## v1.8.1
 - Fix typo in README.md
