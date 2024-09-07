@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import re
 import uuid
@@ -535,7 +536,7 @@ class GlueAdapter(SQLAdapter):
 
         code = f'''
 custom_glue_code_for_dbt_adapter
-csv = {f.getvalue()}
+csv = {json.loads(f.getvalue())}
 df = spark.createDataFrame(csv)
 table_name = '{model["schema"]}.{model["name"]}'
 if (spark.sql("show tables in {model["schema"]}").where("tableName == '{model["name"]}'").count() > 0):
