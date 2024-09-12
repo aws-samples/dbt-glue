@@ -11,8 +11,10 @@ import threading
 import uuid
 from dbt.adapters.events.logging import AdapterLogger
 
-logger = AdapterLogger("Glue")
+from dbt.adapters.exceptions.connection import FailedToConnectError
+from dbt_common.exceptions import ExecutableError
 
+logger = AdapterLogger("Glue")
 
 class GlueSessionState:
     READY = "READY"
