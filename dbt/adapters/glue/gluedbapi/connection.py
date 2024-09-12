@@ -11,8 +11,10 @@ import threading
 import uuid
 from dbt.adapters.events.logging import AdapterLogger
 
-logger = AdapterLogger("Glue")
+from dbt.adapters.exceptions.connection import FailedToConnectError
+from dbt_common.exceptions import ExecutableError
 
+logger = AdapterLogger("Glue")
 
 class GlueSessionState:
     READY = "READY"
@@ -141,11 +143,11 @@ class GlueConnection:
         except WaiterError as we:
             # If it comes here, creation failed, do not re-try (loop)
             logger.exception(f'Connect failed to setup a session for {self.session_id}')
-            raise dbterrors.FailedToConnectError(str(we))
+            raise FailedToConnectError(str(we))
         except Exception as e:
             # If it comes here, creation failed, do not re-try (loop)
             logger.exception(f'Error during connect for session {self.session_id}')
-            raise dbterrors.FailedToConnectError(str(e))
+            raise FailedToConnectError(str(e))
 
     def _create_session(
         self,
@@ -226,7 +228,7 @@ class GlueConnection:
             statement.execute()
         except Exception as e:
             logger.error(f"Error in GlueCursor (session_id={self.session_id}, SQLPROXY) execute: {e}")
-            raise dbterrors.ExecutableError(str(e))
+            raise ExecutableError(str(e))
 
         statement = GlueStatement(client=self.client, session_id=self.session_id,
                                   code=f"spark.sql('use {self.credentials.database}')")
@@ -235,7 +237,7 @@ class GlueConnection:
             statement.execute()
         except Exception as e:
             logger.error(f"Error in GlueCursor (session_id={self.session_id}, SQLPROXY) execute: {e}")
-            raise dbterrors.ExecutableError(str(e))
+            raise ExecutableError(str(e))
 
     @property
     def session_id(self):

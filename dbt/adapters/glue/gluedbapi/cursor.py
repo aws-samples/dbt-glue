@@ -3,6 +3,7 @@ import textwrap
 import json
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt import exceptions as dbterrors
+from dbt_common.exceptions import DbtDatabaseError
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 from dbt.adapters.glue.util import get_pandas_dataframe_from_result_file
 from dbt.adapters.events.logging import AdapterLogger
@@ -128,7 +129,7 @@ class GlueCursor:
                     logger.error(error_message)
                 else:
                     logger.debug(error_message)
-                    raise dbterrors.DbtDatabaseError(msg=error_message)
+                    raise DbtDatabaseError(msg=error_message)
 
             self.result = self.response
             if self.connection.use_arrow:
@@ -143,11 +144,11 @@ class GlueCursor:
             output = response.get("Statement", {}).get("Output", {})
             error_message = f"Glue cursor returned `{output.get('Status')}` for statement {self.statement_id} for code {self.code}, {output.get('ErrorName')}: {output.get('ErrorValue')}"
             logger.debug(error_message)
-            raise dbterrors.DbtDatabaseError(msg=error_message)
+            raise DbtDatabaseError(msg=error_message)
 
         if self.state in [GlueCursorState.CANCELLED, GlueCursorState.CANCELLING]:
             self._post()
-            raise dbterrors.DbtDatabaseError(
+            raise DbtDatabaseError(
                 msg=f"Statement {self.connection.session_id}.{self.statement_id} cancelled.")
 
         logger.debug("GlueCursor execute successfully")

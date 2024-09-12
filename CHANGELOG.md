@@ -1,7 +1,13 @@
 ## New version
 - Fix session provisioning timeout and delay handling
 - Add write options for Delta format
-
+- Add on_schema_change possibility
+- Fix table materialization for Delta models
+- Change GlueColumn parent from base Column to SparkColumn
+- Fix unraised DbtDatabaseError
+- Fix get_columns_in_relation function to stop returning additional partition columns
+- Fix exceptions import for FailedToConnectError and ExecutableError
+  
 ## v1.8.1
 - Fix typo in README.md
 - Fix unit test failure caused by moto 5 upgrade

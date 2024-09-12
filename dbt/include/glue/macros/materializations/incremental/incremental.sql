@@ -11,10 +11,12 @@
     {%- set file_format = dbt_spark_validate_get_file_format(raw_file_format) -%}
     {%- set strategy = dbt_spark_validate_get_incremental_strategy(raw_strategy, file_format) -%}
   {% endif %}
+
   {%- set unique_key = config.get('unique_key', none) -%}
   {% if unique_key is none and file_format == 'hudi' %}
     {{ exceptions.raise_compiler_error("unique_key model configuration is required for HUDI incremental materializations.") }}
   {% endif %}
+
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set custom_location = config.get('custom_location', default='empty') -%}
   {%- set expire_snapshots = config.get('iceberg_expire_snapshots', 'True') -%}
@@ -22,11 +24,14 @@
   {%- set delta_create_table_write_options = config.get('write_options', default={}) -%}
 
   {% set target_relation = this %}
+  {%- set existing_relation = load_relation(this) -%}
   {% set existing_relation_type = adapter.get_table_type(target_relation)  %}
   {% set tmp_relation = make_temp_relation(target_relation, '_tmp') %}
   {% set is_incremental = 'False' %}
   {% set lf_tags_config = config.get('lf_tags_config') %}
   {% set lf_grants = config.get('lf_grants') %}
+  {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
+
   {% call statement() %}
     set spark.sql.autoBroadcastJoinThreshold=-1
   {% endcall %}
@@ -75,6 +80,8 @@
         {{ glue__create_tmp_table_as(tmp_relation, sql) }}
         {% set is_incremental = 'True' %}
         {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key) %}
+
+        {%- do process_schema_changes(on_schema_change, tmp_relation, existing_relation) -%}
       {% endif %}
   {% endif %}
 

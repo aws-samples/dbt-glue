@@ -187,11 +187,14 @@ class GlueAdapter(SQLAdapter):
                 DatabaseName=schema,
                 Name=identifier
             )
+            is_delta = response.get('Table').get("Parameters").get("spark.sql.sources.provider") == "delta"
+
             relations = self.Relation.create(
                 database=schema,
                 schema=schema,
                 identifier=identifier,
-                type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
+                type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
+                is_delta=is_delta
             )
             logger.debug(f"""schema : {schema}
                              identifier : {identifier}
@@ -264,6 +267,10 @@ class GlueAdapter(SQLAdapter):
         # strip hudi metadata columns.
         columns = [x for x in columns
                    if x.name not in self.HUDI_METADATA_COLUMNS]
+
+        # strip partition columns.
+        columns = [x for x in columns
+                   if not re.match(r'^Part \d+$', x.name)]
 
         logger.debug("columns after strip:")
         logger.debug(columns)
