@@ -1,5 +1,6 @@
 ## New version
 - Fix session provisioning timeout and delay handling
+- Add write options for Delta format
 - Add on_schema_change possibility
 - Fix table materialization for Delta models
 - Change GlueColumn parent from base Column to SparkColumn

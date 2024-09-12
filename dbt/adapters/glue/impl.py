@@ -634,7 +634,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             self._update_additional_location(target_relation, location)
 
     @available
-    def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location):
+    def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location, delta_create_table_write_options=None):
         session, client = self.get_connection()
         logger.debug(request)
 
@@ -643,6 +643,11 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
         else:
             location = custom_location
+        
+        options_string = ""
+        if delta_create_table_write_options:
+            for key, value in delta_create_table_write_options.items():
+                options_string += f'.option("{key}", "{value}")'
 
         create_table_query = f"""
 CREATE TABLE {table_name}
@@ -654,7 +659,7 @@ LOCATION '{location}'
 custom_glue_code_for_dbt_adapter
 spark.sql("""
 {request}
-""").write.format("delta").mode("overwrite")'''
+""").write.format("delta").mode("overwrite"){options_string}'''
 
         write_data_footer = f'''.save("{location}")
 SqlWrapper2.execute("""select 1""")
