@@ -6,6 +6,7 @@
 - Change GlueColumn parent from base Column to SparkColumn
 - Fix unraised DbtDatabaseError
 - Fix get_columns_in_relation function to stop returning additional partition columns
+- Fix null values handling in seeds
 - Fix exceptions import for FailedToConnectError and ExecutableError
   
 ## v1.8.1
