@@ -539,7 +539,7 @@ custom_glue_code_for_dbt_adapter
 csv = {json.loads(f.getvalue())}
 df = spark.createDataFrame(csv)
 table_name = '{model["schema"]}.{model["name"]}'
-if (spark.sql("show tables in {model["schema"]}").where("tableName == '{model["name"]}'").count() > 0):
+if (spark.sql("show tables in {model["schema"]}").where("tableName == lower('{model["name"]}')").count() > 0):
     df.write\
         .mode("{session.credentials.seed_mode}")\
         .format("{session.credentials.seed_format}")\
