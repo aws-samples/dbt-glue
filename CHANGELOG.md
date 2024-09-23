@@ -9,6 +9,7 @@
 - Fix null values handling in seeds
 - Fix exceptions import for FailedToConnectError and ExecutableError
 - Fix the case-sensitive comparison on the seed name
+- Allow to load big seed files
 
 ## v1.8.1
 - Fix typo in README.md
