@@ -534,9 +534,37 @@ class GlueAdapter(SQLAdapter):
         else:
             mode = "False"
 
-        code = f'''
-custom_glue_code_for_dbt_adapter
-csv = {json.loads(f.getvalue())}
+        csv_chunks = self._split_csv_records_into_chunks(json.loads(f.getvalue()))
+        statements = self._map_csv_chunks_to_code(csv_chunks, session, model, mode)
+        try:
+            cursor = session.cursor()
+            for statement in statements:
+                cursor.execute(statement)
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueCreateCsvFailed") from e
+        except Exception as e:
+            logger.error(e)
+
+    def _map_csv_chunks_to_code(self, csv_chunks: list[list[dict]], session: GlueConnection, model, mode):
+        statements = []
+        for i, csv_chunk in enumerate(csv_chunks):
+            is_first = i == 0
+            is_last = i == len(csv_chunk) - 1
+            code = "custom_glue_code_for_dbt_adapter\n"
+            if is_first:
+                code += f"""
+csv = {csv_chunk}
+"""
+            else:
+                code += f"""
+csv.extend({csv_chunk})        
+"""
+            if not is_last:
+                code += f'''
+SqlWrapper2.execute("""select 1""")
+'''
+            else:
+                code += f'''
 df = spark.createDataFrame(csv)
 table_name = '{model["schema"]}.{model["name"]}'
 if (spark.sql("show tables in {model["schema"]}").where("tableName == lower('{model["name"]}')").count() > 0):
@@ -551,20 +579,25 @@ else:
         .saveAsTable(table_name)
 SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""")
 '''
-        try:
-            session.cursor().execute(code)
-        except DbtDatabaseError as e:
-            raise DbtDatabaseError(msg="GlueCreateCsvFailed") from e
-        except Exception as e:
-            logger.error(e)
+            statements.append(code)
+        return statements
+
+    def _split_csv_records_into_chunks(self, records: list[dict], target_size=60000):
+        chunks = [[]]
+        for record in records:
+            if len(str([*chunks[-1], record])) > target_size:
+                chunks.append([record])
+            else:
+                chunks[-1].append(record)
+        return chunks
 
     def _update_additional_location(self, target_relation, location):
         session, client = self.get_connection()
         table_input = {}
         try:
             table_input = client.get_table(
-                DatabaseName=f'{target_relation.schema}',
-                Name=f'{session.credentials.delta_athena_prefix}_{target_relation.name}',
+                DatabaseName=f"{target_relation.schema}",
+                Name=f"{session.credentials.delta_athena_prefix}_{target_relation.name}",
             ).get("Table", {})
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)
