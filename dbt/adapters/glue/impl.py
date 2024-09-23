@@ -549,7 +549,7 @@ class GlueAdapter(SQLAdapter):
         statements = []
         for i, csv_chunk in enumerate(csv_chunks):
             is_first = i == 0
-            is_last = i == len(csv_chunk) - 1
+            is_last = i == len(csv_chunks) - 1
             code = "custom_glue_code_for_dbt_adapter\n"
             if is_first:
                 code += f"""
