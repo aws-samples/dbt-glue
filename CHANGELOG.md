@@ -1,4 +1,4 @@
-## New version
+## v1.8.6
 - Fix session provisioning timeout and delay handling
 - Add write options for Delta format
 - Add on_schema_change possibility
