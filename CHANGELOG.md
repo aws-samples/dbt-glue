@@ -1,3 +1,6 @@
+## New version
+- Remove hard-coded update_iceberg_ts column from the adapter when using merge incremental strategy with iceberg.
+
 ## v1.8.6
 - Fix session provisioning timeout and delay handling
 - Add write options for Delta format

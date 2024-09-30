@@ -951,7 +951,7 @@ spark = SparkSession.builder \\
     .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \\
     .getOrCreate()
 inputDf = spark.sql("""{request}""")
-outputDf = inputDf.drop("dbt_unique_key").withColumn("update_iceberg_ts",current_timestamp())
+outputDf = inputDf.drop("dbt_unique_key")
 '''
         # Use standard table instead of temp view to workaround https://github.com/apache/iceberg/issues/7766
         if session.credentials.glue_version == "4.0":
