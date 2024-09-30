@@ -545,7 +545,7 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-    def _map_csv_chunks_to_code(self, csv_chunks: list[list[dict]], session: GlueConnection, model, mode):
+    def _map_csv_chunks_to_code(self, csv_chunks: List[List[dict]], session: GlueConnection, model, mode):
         statements = []
         for i, csv_chunk in enumerate(csv_chunks):
             is_first = i == 0
@@ -582,7 +582,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             statements.append(code)
         return statements
 
-    def _split_csv_records_into_chunks(self, records: list[dict], target_size=60000):
+    def _split_csv_records_into_chunks(self, records: List[dict], target_size=60000):
         chunks = [[]]
         for record in records:
             if len(str([*chunks[-1], record])) > target_size:
