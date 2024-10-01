@@ -1,3 +1,6 @@
+## New version
+- Allow to load big seed files
+
 ## v1.8.6
 - Fix session provisioning timeout and delay handling
 - Add write options for Delta format

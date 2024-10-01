@@ -1,10 +1,12 @@
 from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
+from unittest.mock import Mock
 from multiprocessing import get_context
 from botocore.client import BaseClient
 from moto import mock_aws
 
+import agate
 from dbt.config import RuntimeConfig
 
 import dbt.flags as flags
@@ -86,3 +88,15 @@ class TestGlueAdapter(unittest.TestCase):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
             self.assertEqual(adapter.get_table_type(target_relation), "iceberg_table")
+
+    def test_create_csv_table_slices_big_datasets(self):
+        config = self._get_config()
+        adapter = GlueAdapter(config, get_context("spawn"))
+        model = {"name": "mock_model", "schema": "mock_schema"}
+        session_mock = Mock()
+        adapter.get_connection = lambda: (session_mock, 'mock_client')
+        test_table = agate.Table([(f'mock_value_{i}',f'other_mock_value_{i}') for i in range(2000)], column_names=['value', 'other_value'])
+        adapter.create_csv_table(model, test_table)
+
+        # test table is between 120000 and 180000 characters so it should be split three times (max chunk is 60000)
+        self.assertEqual(session_mock.cursor().execute.call_count, 3)
