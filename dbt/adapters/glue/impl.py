@@ -954,10 +954,10 @@ inputDf = spark.sql("""{request}""")
 outputDf = inputDf.drop("dbt_unique_key")
 '''
         # Conditionally add the `update_iceber_ts` column if `include_update_ts` is True
-        if include_update_ts:
+        if include_update_ts == 'True':
             head_code += '''
-        outputDf = outputDf.withColumn("update_iceberg_ts", current_timestamp())
-        '''
+outputDf = outputDf.withColumn("update_iceberg_ts", current_timestamp())
+'''
         # Use standard table instead of temp view to workaround https://github.com/apache/iceberg/issues/7766
         if session.credentials.glue_version == "4.0":
             head_code += f'''outputDf.createOrReplaceTempView("tmp_tmp_{target_relation.name}")
