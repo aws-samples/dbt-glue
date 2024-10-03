@@ -3,7 +3,8 @@
   {#-- Validate early so we don't run SQL if the file_format + strategy combo is invalid --#}
   {%- set raw_file_format = config.get('file_format', default='parquet') -%}
   {%- set raw_strategy = config.get('incremental_strategy', default='insert_overwrite') -%}
-  
+  {%- set include_update_ts = config.get('include_update_ts', default='True') -%}
+
   {% if raw_file_format == 'iceberg' %} 
     {%- set file_format = 'iceberg' -%}
     {%- set strategy = raw_strategy -%}
@@ -71,7 +72,7 @@
             {% set build_sql = create_table_as(False, target_relation, sql) %}
         {% endif %}
       {% elif file_format == 'iceberg' %}
-        {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties) }}
+        {{ adapter.iceberg_write(target_relation, sql, unique_key, partition_by, custom_location, strategy, table_properties, include_update_ts) }}
         {% set build_sql = "select * from glue_catalog." + target_relation.schema + "." + target_relation.identifier + " limit 1 "%}
         {%- if expire_snapshots == 'True' -%}
   	      {%- set result = adapter.iceberg_expire_snapshots(target_relation) -%}

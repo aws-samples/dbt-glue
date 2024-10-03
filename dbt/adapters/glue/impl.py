@@ -917,7 +917,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
 
     @available
     def iceberg_write(self, target_relation, request, primary_key, partition_key, custom_location, write_mode,
-                      table_properties):
+                      table_properties, include_update_ts=True):
         session, client = self.get_connection()
         if partition_key is not None:
             partition_key = '(' + ','.join(partition_key) + ')'
@@ -953,6 +953,11 @@ spark = SparkSession.builder \\
 inputDf = spark.sql("""{request}""")
 outputDf = inputDf.drop("dbt_unique_key")
 '''
+        # Conditionally add the `update_iceber_ts` column if `include_update_ts` is True
+        if include_update_ts:
+            head_code += '''
+        outputDf = outputDf.withColumn("update_iceberg_ts", current_timestamp())
+        '''
         # Use standard table instead of temp view to workaround https://github.com/apache/iceberg/issues/7766
         if session.credentials.glue_version == "4.0":
             head_code += f'''outputDf.createOrReplaceTempView("tmp_tmp_{target_relation.name}")
