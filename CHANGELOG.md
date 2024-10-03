@@ -1,5 +1,5 @@
 ## New version
-- Remove hard-coded update_iceberg_ts column from the adapter when using merge incremental strategy with iceberg.
+- Add a configuration to disable the adding ot the hard-coded update_iceberg_ts column when using merge incremental strategy with iceberg.
 
 ## v1.8.6
 - Fix session provisioning timeout and delay handling
