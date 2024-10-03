@@ -1,4 +1,5 @@
 ## New version
+- Allow to load big seed files
 - Add a configuration to disable the adding ot the hard-coded update_iceberg_ts column when using merge incremental strategy with iceberg.
 
 ## v1.8.6
