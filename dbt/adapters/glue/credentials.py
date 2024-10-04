@@ -35,7 +35,7 @@ class GlueCredentials(Credentials):
     datalake_formats: Optional[str] = None
     enable_session_per_model: Optional[bool] = False
     use_arrow: Optional[bool] = False
-
+    enable_spark_seed_casting: Optional[bool] = False
 
     @property
     def type(self):
@@ -93,5 +93,6 @@ class GlueCredentials(Credentials):
             'glue_session_reuse',
             'datalake_formats',
             'enable_session_per_model',
-            'use_arrow'
+            'use_arrow',
+            'enable_spark_seed_casting',
         ]
