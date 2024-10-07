@@ -1,5 +1,6 @@
 ## New version
 - Allow to load big seed files
+- Added configuration property to allow spark casting of seed column types
 
 ## v1.8.6
 - Fix session provisioning timeout and delay handling

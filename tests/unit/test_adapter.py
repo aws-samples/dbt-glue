@@ -2,7 +2,9 @@ from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
 from unittest.mock import Mock
+import pytest
 from multiprocessing import get_context
+import agate.data_types
 from botocore.client import BaseClient
 from moto import mock_aws
 
@@ -13,6 +15,8 @@ import dbt.flags as flags
 from dbt.adapters.glue import GlueAdapter
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
+from dbt.adapters.glue.impl import ColumnCsvMappingStrategy
+from dbt_common.clients import agate_helper
 from tests.util import config_from_parts_or_dicts
 from .util import MockAWSService
 
@@ -100,3 +104,68 @@ class TestGlueAdapter(unittest.TestCase):
 
         # test table is between 120000 and 180000 characters so it should be split three times (max chunk is 60000)
         self.assertEqual(session_mock.cursor().execute.call_count, 3)
+
+    def test_create_csv_table_provides_schema_and_casts_when_spark_seed_cast_is_enabled(self):
+        config = self._get_config()
+        config.credentials.enable_spark_seed_casting = True
+        adapter = GlueAdapter(config, get_context("spawn"))
+        csv_chunks = [{'test_column': '1.2345'}]
+        model = {"name": "mock_model", "schema": "mock_schema", "config": {"column_types": {"test_column": "double"}}}
+        column_mappings = [ColumnCsvMappingStrategy('test_column', agate.data_types.Text, 'double')]
+        code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, 'True', column_mappings)
+        self.assertIn('spark.createDataFrame(csv, "test_column: string")', code[0])
+        self.assertIn('df = df.withColumn("test_column", df.test_column.cast("double"))', code[0])
+
+    def test_create_csv_table_doesnt_provide_schema_when_spark_seed_cast_is_disabled(self):
+        config = self._get_config()
+        config.credentials.enable_spark_seed_casting = False
+        adapter = GlueAdapter(config, get_context("spawn"))
+        csv_chunks = [{'test_column': '1.2345'}]
+        model = {"name": "mock_model", "schema": "mock_schema"}
+        column_mappings = [ColumnCsvMappingStrategy('test_column', agate.data_types.Text, 'double')]
+        code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, 'True', column_mappings)
+        self.assertIn('spark.createDataFrame(csv)', code[0])
+
+class TestCsvMappingStrategy:
+    @pytest.mark.parametrize(
+        'agate_type,specified_type,expected_schema_type,expected_cast_type',
+        [
+            (agate_helper.ISODateTime, None, 'string', 'timestamp'),
+            (agate_helper.Number, None, 'double', None),
+            (agate_helper.Integer, None, 'int', None),
+            (agate.data_types.Boolean, None, 'boolean', None),
+            (agate.data_types.Date, None, 'string', 'date'),
+            (agate.data_types.DateTime, None, 'string', 'timestamp'),
+            (agate.data_types.Text, None, 'string', None),
+            (agate.data_types.Text, 'double', 'string', 'double'),
+        ],
+        ids=[
+            'test isodatetime cast',
+            'test number cast',
+            'test integer cast',
+            'test boolean cast',
+            'test date cast',
+            'test datetime cast', 
+            'test text cast', 
+            'test specified cast', 
+        ]
+    )
+    def test_mapping_strategy_provides_proper_mappings(self, agate_type, specified_type, expected_schema_type, expected_cast_type):
+        column_mapping = ColumnCsvMappingStrategy('test_column', agate_type, specified_type)
+        assert column_mapping.as_schema_value() == expected_schema_type
+        assert column_mapping.as_cast_value() == expected_cast_type
+
+    def test_from_model_builds_column_mappings(self):
+        expected_column_names = ['col_int', 'col_str', 'col_date', 'col_specific']
+        expected_agate_types = [agate_helper.Integer,agate.data_types.Text, agate.data_types.Date, agate.data_types.Text]
+        expected_specified_types = [None, None, None, 'double']
+        agate_table = agate.Table(
+            [(111,'str_val','2024-01-01', '1.234')], 
+            column_names=expected_column_names, 
+            column_types=[data_type() for data_type in expected_agate_types]
+        )
+        model = {"name": "mock_model", "config": {"column_types": {"col_specific": "double"}}}
+        mappings = ColumnCsvMappingStrategy.from_model(model, agate_table)
+        assert expected_column_names == [mapping.column_name for mapping in mappings]
+        assert expected_agate_types == [mapping.agate_type for mapping in mappings]
+        assert expected_specified_types == [mapping.specified_type for mapping in mappings]

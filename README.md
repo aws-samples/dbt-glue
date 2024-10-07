@@ -244,6 +244,7 @@ The table below describes all the options.
 | glue_session_reuse                      | re-use the glue-session to run multiple dbt run commands: If set to true, the glue session will not be closed for re-use. If set to false, the session will be closed. The glue session will close after idle_timeout time is expired after idle_timeout time                                     | no        | 
 | datalake_formats	                       | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `ìceberg` or `delta`                                                                                                                                                                                         |no|
 | use_arrow	                           | (experimental) use an arrow file instead of stdout to have better scalability.                                                                                                                                                                                                                    |no|
+| enable_spark_seed_casting	              | Allows spark to cast the columns depending on the specified model column types. Default `False`.        |no|
 
 ## Configs
 

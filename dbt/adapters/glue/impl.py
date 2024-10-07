@@ -27,9 +27,50 @@ from dbt.adapters.contracts.relation import RelationConfig
 from dbt_common.exceptions import DbtDatabaseError, CompilationError
 from dbt.adapters.base.impl import catch_as_completed
 from dbt_common.utils import executor
+from dbt_common.clients import agate_helper
 from dbt.adapters.events.logging import AdapterLogger
 
 logger = AdapterLogger("Glue")
+
+
+class ColumnCsvMappingStrategy:
+    _schema_mappings = {
+        agate_helper.ISODateTime: 'string',
+        agate_helper.Number: 'double',
+        agate_helper.Integer: 'int',
+        agate.data_types.Boolean: 'boolean',
+        agate.data_types.Date: 'string',
+        agate.data_types.DateTime: 'string',
+        agate.data_types.Text: 'string',
+    }
+
+    _cast_mappings = {
+        agate_helper.ISODateTime: 'timestamp',
+        agate.data_types.Date: 'date',
+        agate.data_types.DateTime: 'timestamp',
+    }
+
+    def __init__(self, column_name, agate_type, specified_type):
+        self.column_name = column_name
+        self.agate_type = agate_type
+        self.specified_type = specified_type
+
+    def as_schema_value(self):
+        return ColumnCsvMappingStrategy._schema_mappings.get(self.agate_type)
+
+    def as_cast_value(self):
+        return (
+            self.specified_type if self.specified_type else ColumnCsvMappingStrategy._cast_mappings.get(self.agate_type)
+        )
+    
+    @classmethod
+    def from_model(cls, model, agate_table):
+        return [
+            ColumnCsvMappingStrategy(
+                column.name, type(column.data_type), model.get("config", {}).get("column_types", {}).get(column.name)
+            )
+            for column in agate_table.columns
+        ]
 
 
 class GlueAdapter(SQLAdapter):
@@ -535,7 +576,7 @@ class GlueAdapter(SQLAdapter):
             mode = "False"
 
         csv_chunks = self._split_csv_records_into_chunks(json.loads(f.getvalue()))
-        statements = self._map_csv_chunks_to_code(csv_chunks, session, model, mode)
+        statements = self._map_csv_chunks_to_code(csv_chunks, session, model, mode, ColumnCsvMappingStrategy.from_model(model, agate_table))
         try:
             cursor = session.cursor()
             for statement in statements:
@@ -545,7 +586,14 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-    def _map_csv_chunks_to_code(self, csv_chunks: List[List[dict]], session: GlueConnection, model, mode):
+    def _map_csv_chunks_to_code(
+        self,
+        csv_chunks: List[List[dict]],
+        session: GlueConnection,
+        model,
+        mode,
+        column_mappings: List[ColumnCsvMappingStrategy],
+    ):
         statements = []
         for i, csv_chunk in enumerate(csv_chunks):
             is_first = i == 0
@@ -564,8 +612,31 @@ csv.extend({csv_chunk})
 SqlWrapper2.execute("""select 1""")
 '''
             else:
-                code += f'''
+                if session.credentials.enable_spark_seed_casting:
+                    csv_schema = ", ".join(
+                        [f"{mapping.column_name}: {mapping.as_schema_value()}" for mapping in column_mappings]
+                    )
+
+                    cast_code = ".".join(
+                        [
+                            "df",
+                            *[
+                                f'withColumn("{mapping.column_name}", df.{mapping.column_name}.cast("{cast_value}"))'
+                                for mapping in column_mappings
+                                if (cast_value := mapping.as_cast_value())
+                            ],
+                        ]
+                    )
+
+                    code += f"""
+df = spark.createDataFrame(csv, "{csv_schema}")
+df = {cast_code}
+"""
+                else:
+                    code += """
 df = spark.createDataFrame(csv)
+"""
+                code += f'''
 table_name = '{model["schema"]}.{model["name"]}'
 if (spark.sql("show tables in {model["schema"]}").where("tableName == lower('{model["name"]}')").count() > 0):
     df.write\
