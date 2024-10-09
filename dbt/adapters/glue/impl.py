@@ -854,20 +854,21 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
             logger.error(e)
 
     @available
-    def iceberg_expire_snapshots(self, table):
+    def iceberg_expire_snapshots(self, relation):
         """
         Helper function to call snapshot expiration.
         The function check for the latest snapshot and it expire all versions before it.
         If the table has only one snapshot it is retained.
         """
         session, client = self.get_connection()
-        logger.debug(f'expiring snapshots for table {str(table)}')
-
-        expire_sql = f"CALL glue_catalog.system.expire_snapshots('{str(table)}', timestamp 'to_replace')"
+        logger.debug(f'expiring snapshots for table {str(relation)}')
+    
+        iceberg_catalog_namespace = self.get_custom_iceberg_catalog_namespace()
+        expire_sql = f"CALL {iceberg_catalog_namespace}.system.expire_snapshots('{str(relation)}', timestamp 'to_replace')"
 
         code = f'''
         custom_glue_code_for_dbt_adapter
-        history_df = spark.sql("select committed_at from glue_catalog.{table}.snapshots order by committed_at desc")
+        history_df = spark.sql("select committed_at from {relation}.snapshots order by committed_at desc")
         last_commited_at = str(history_df.first().committed_at)
         expire_sql_procedure = f"{expire_sql}".replace("to_replace", last_commited_at)
         result_df = spark.sql(expire_sql_procedure)
