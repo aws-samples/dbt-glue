@@ -37,7 +37,12 @@
 
 {% macro glue__drop_relation(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
-      drop table if exists {{ relation }}
+      {% set rel_type = adapter.get_table_type(relation)  %}
+      {%- if rel_type == 'view' %}
+          drop view if exists {{ relation }}
+      {%- else -%}
+          drop table if exists {{ relation }}
+      {%- endif %}
   {%- endcall %}
 {% endmacro %}
 
@@ -133,9 +138,7 @@
     {%- if contract_config.enforced -%}
       {{ get_assert_columns_equivalent(sql) }}
     {%- endif -%}
-    DROP VIEW IF EXISTS {{ relation }}
-    dbt_next_query
-    create view {{ relation }}
+    create or replace view {{ relation }}
         as
     {{ sql }}
 {% endmacro %}
