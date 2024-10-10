@@ -1,5 +1,11 @@
 ## New version
 - Allow to load big seed files
+- Migrates the PySpark code for the Iceberg file format at a macro level, making the impl.py file more readable.
+- Fixes the get_columns_in_relation function to work for both Iceberg and non-Iceberg tables without hard-coding the catalog name.
+- Fixes the get_location table function to work for both Iceberg and non-Iceberg tables on macOS and Windows.
+- Adds a helper function to retrieve the Iceberg catalog namespace from the profile.yaml file.
+- Adds merge_exclude_columns and incremental_predicates features.
+
 
 ## v1.8.6
 - Fix session provisioning timeout and delay handling

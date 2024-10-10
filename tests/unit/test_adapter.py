@@ -41,9 +41,11 @@ class TestGlueAdapter(unittest.TestCase):
                     "region": "us-east-1",
                     "workers": 2,
                     "worker_type": "G.1X",
+                    "location" : "path_to_location/",
                     "schema": "dbt_unit_test_01",
                     "database": "dbt_unit_test_01",
-                    "use_interactive_session_role_for_api_calls": False
+                    "use_interactive_session_role_for_api_calls": False,
+                    "custom_iceberg_catalog_namespace": "custom_iceberg_catalog",
                 }
             },
             "target": "test",
@@ -100,3 +102,24 @@ class TestGlueAdapter(unittest.TestCase):
 
         # test table is between 120000 and 180000 characters so it should be split three times (max chunk is 60000)
         self.assertEqual(session_mock.cursor().execute.call_count, 3)
+
+    def test_get_location(self):
+        config = self._get_config()
+        adapter = GlueAdapter(config, get_context("spawn"))
+        relation = SparkRelation.create(
+            schema="some_database",
+            identifier="some_table",
+        )
+        with mock.patch("dbt.adapters.glue.connections.open"):
+            connection = adapter.acquire_connection("dummy")
+            connection.handle  # trigger lazy-load
+            print(adapter.get_location(relation))
+            self.assertEqual(adapter.get_location(relation), "LOCATION 'path_to_location/some_database/some_table'")
+    
+    def test_get_custom_iceberg_catalog_namespace(self):
+        config = self._get_config()
+        adapter = GlueAdapter(config, get_context("spawn"))
+        with mock.patch("dbt.adapters.glue.connections.open"):
+            connection = adapter.acquire_connection("dummy")
+            connection.handle  # trigger lazy-load
+            self.assertEqual(adapter.get_custom_iceberg_catalog_namespace(), "custom_iceberg_catalog")
