@@ -8,7 +8,8 @@
   {# /*-- Set vars --*/ #}
   {%- set language = model['language'] -%}
   {%- set existing_relation_type = adapter.get_table_type(this) -%}
-  {%- set target_relation = glue__make_target_relation(this, file_format, existing_relation_type) -%}
+  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
   {%- set tmp_relation = make_temp_relation(this, '_tmp').include(schema=false) -%}
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
@@ -22,7 +23,11 @@
   {%- set substitute_variables = config.get('substitute_variables', default=[]) -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set is_incremental = 'False' -%}
-  
+
+  {% if existing_relation_type is not none %}
+      {%- set target_relation = target_relation.incorporate(type=existing_relation_type if existing_relation_type != "iceberg_table" else "table") -%}
+  {% endif %}
+
   {# /*-- Validate specific requirements for hudi --*/ #}
   {% if unique_key is none and file_format == 'hudi' %}
     {{ exceptions.raise_compiler_error("unique_key model configuration is required for HUDI incremental materializations.") }}

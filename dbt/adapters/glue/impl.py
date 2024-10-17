@@ -190,9 +190,11 @@ class GlueAdapter(SQLAdapter):
             )
             is_delta = response.get('Table').get("Parameters").get("spark.sql.sources.provider") == "delta"
 
-            relations = self.Relation.create(
-                database=schema,
-                schema=schema,
+            # Compute the new schema based on the iceberg requirements
+            computed_schema = self.__compute_schema_based_on_type(schema=schema, identifier=identifier)
+            relation = self.Relation.create(
+                database=computed_schema,
+                schema=computed_schema,
                 identifier=identifier,
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
                 is_delta=is_delta
@@ -201,16 +203,30 @@ class GlueAdapter(SQLAdapter):
                              identifier : {identifier}
                              type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
                         """)
-            return relations
+            return relation
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)
         except Exception as e:
             logger.error(e)
 
+    def __compute_schema_based_on_type(self, schema, identifier):
+        iceberg_catalog = self.get_custom_iceberg_catalog_namespace()
+        current_relation = self.Relation.create(database=schema, schema=schema, identifier=identifier)
+        existing_relation_type = self.get_table_type(current_relation)
+        already_exist_iceberg = (existing_relation_type == 'iceberg_table')
+        non_null_catalog = (iceberg_catalog is not None)
+        if non_null_catalog and already_exist_iceberg:
+            # We add the iceberg catalog is the following cases
+            return iceberg_catalog + '.' + schema
+        else:
+            # Otherwise we keep the relation as it is
+            return schema
+
     def get_columns_in_relation(self, relation: BaseRelation):
         logger.debug("get_columns_in_relation called")
         session, client = self.get_connection()
-        code = f"""describe {relation.schema}.{relation.identifier}"""
+        computed_schema = self.__compute_schema_based_on_type(schema=relation.schema, identifier=relation.identifier)
+        code = f"""describe {computed_schema}.{relation.identifier}"""
         columns = []
         try:
             response = session.cursor().execute(code)
@@ -286,10 +302,6 @@ class GlueAdapter(SQLAdapter):
             else:
                 return ""
 
-    def set_iceberg_merge_key(self, merge_key):
-        if not isinstance(merge_key, list):
-            merge_key = [merge_key]
-        return ' AND '.join(['t.{} = s.{}'.format(field, field) for field in merge_key])
 
     @available
     def duplicate_view(self, from_relation: BaseRelation, to_relation: BaseRelation, ):
@@ -489,7 +501,11 @@ class GlueAdapter(SQLAdapter):
     @available
     def get_custom_iceberg_catalog_namespace(self):
         session, _ = self.get_connection()
-        return session.credentials.custom_iceberg_catalog_namespace
+        catalog_namespace = session.credentials.custom_iceberg_catalog_namespace
+        if catalog_namespace is None or catalog_namespace == '':
+            return None
+        else:
+            return catalog_namespace
     
     @available
     def create_csv_table(self, model, agate_table):
@@ -741,6 +757,7 @@ SqlWrapper2.execute("""select 1""")
 
             if _specific_type.lower() == 'iceberg':
                 _type = 'iceberg_table'
+
             logger.debug("table_name : " + relation.name)
             logger.debug("table type : " + _type)
             return _type
@@ -863,8 +880,11 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         session, client = self.get_connection()
         logger.debug(f'expiring snapshots for table {str(relation)}')
     
-        iceberg_catalog_namespace = self.get_custom_iceberg_catalog_namespace()
-        expire_sql = f"CALL {iceberg_catalog_namespace}.system.expire_snapshots('{str(relation)}', timestamp 'to_replace')"
+        catalog_extension = self.get_custom_iceberg_catalog_namespace()
+        if catalog_extension is not None:
+            expire_sql = f"CALL {catalog_extension}.system.expire_snapshots('{str(relation)}', timestamp 'to_replace')"
+        else :
+            expire_sql = f"CALL system.expire_snapshots('{str(relation)}', timestamp 'to_replace')"
 
         code = f'''
         custom_glue_code_for_dbt_adapter

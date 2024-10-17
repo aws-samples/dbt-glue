@@ -20,13 +20,11 @@
   {{return('')}}
 {%- endmacro %}
 
-{% macro glue__make_target_relation(relation, file_format, existing_relation_type) %}
+{% macro glue__make_target_relation(relation, file_format) %}
     {%- set iceberg_catalog = adapter.get_custom_iceberg_catalog_namespace() -%}
-    {%- set already_exist_iceberg = (existing_relation_type == 'iceberg_table') -%}
-    {%- set first_iceberg_load = (file_format == 'iceberg' and existing_relation_type is none) -%}
+    {%- set first_iceberg_load = (file_format == 'iceberg') -%}
     {%- set non_null_catalog = (iceberg_catalog is not none) -%}
-
-    {%- if non_null_catalog and ( already_exist_iceberg or first_iceberg_load)%}
+    {%- if non_null_catalog and first_iceberg_load %}
         {# /* We add the iceberg catalog is the following cases */ #}
         {%- do return(relation.incorporate(path={"schema": iceberg_catalog ~ '.' ~ relation.schema, "identifier": relation.identifier})) -%}
     {%- else -%}
@@ -36,10 +34,10 @@
 {% endmacro %}
 
 {% macro glue__drop_relation(relation) -%}
+
   {% call statement('drop_relation', auto_begin=False) -%}
-      {% set rel_type = adapter.get_table_type(relation)  %}
-      {%- if rel_type == 'view' %}
-          drop view if exists {{ relation }}
+      {%- if relation.type == 'view' %}
+          drop view if exists {{ this }}
       {%- else -%}
           drop table if exists {{ relation }}
       {%- endif %}
