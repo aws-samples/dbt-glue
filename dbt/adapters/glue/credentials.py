@@ -35,7 +35,7 @@ class GlueCredentials(Credentials):
     datalake_formats: Optional[str] = None
     enable_session_per_model: Optional[bool] = False
     use_arrow: Optional[bool] = False
-
+    custom_iceberg_catalog_namespace: Optional[str] = "glue_catalog"
 
     @property
     def type(self):

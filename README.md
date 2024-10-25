@@ -607,20 +607,21 @@ dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/lates
 - Iceberg also supports `insert_overwrite` and `append` strategies. 
 - The `warehouse` conf must be provided, but it's overwritten by the adapter `location` in your profile or `custom_location` in model configuration.
 - By default, this materialization has `iceberg_expire_snapshots` set to 'True', if you need to have historical auditable changes, set: `iceberg_expire_snapshots='False'`.
-- Currently, due to some dbt internal, the iceberg catalog used internally when running glue interactive sessions with dbt-glue has a hardcoded name `glue_catalog`. This name is an alias pointing to the AWS Glue Catalog but is specific to each session. If you want to interact with your data in another session without using dbt-glue (from a Glue Studio notebook, for example), you can configure another alias (ie. another name for the Iceberg Catalog). To illustrate this concept, you can set in your configuration file : 
+- The `custom_iceberg_catalog_namespace` parameter configures the namespace for Apache Iceberg catalog integration. This parameter enables the use of Iceberg tables within your Spark application by setting up the necessary catalog configurations. **Default Value:** `glue_catalog`
+When specifying a non-null and non-empty value for `custom_iceberg_catalog_namespace`, the following Spark configurations must be provided:
+
 ```
---conf spark.sql.catalog.RandomCatalogName=org.apache.iceberg.spark.SparkCatalog
+--conf spark.sql.catalog.{catalog_namespace}=org.apache.iceberg.spark.SparkCatalog
+--conf spark.sql.catalog.{catalog_namespace}.warehouse={warehouse_path}
+--conf spark.sql.catalog.{catalog_namespace}.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+--conf spark.sql.catalog.{catalog_namespace}.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
-And then run in an AWS Glue Studio Notebook a session with the following config: 
+When using the default value, the following spark configruation should be added to enable iceberg.
 ```
---conf spark.sql.catalog.AnotherRandomCatalogName=org.apache.iceberg.spark.SparkCatalog
-```
-In both cases, the underlying catalog would be the AWS Glue Catalog, unique in your AWS Account and Region, and you would be able to work with the exact same data. Also make sure that if you change the name of the Glue Catalog Alias, you change it in all the other `--conf` where it's used: 
-```
- --conf spark.sql.catalog.RandomCatalogName=org.apache.iceberg.spark.SparkCatalog 
- --conf spark.sql.catalog.RandomCatalogName.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
- ...
- --conf spark.sql.catalog.RandomCatalogName.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager
+--conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+--conf spark.sql.catalog.glue_catalog.warehouse=s3://your-warehouse-path
+--conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+--conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
 - A full reference to `table_properties` can be found [here](https://iceberg.apache.org/docs/latest/configuration/).
 - Iceberg Tables are natively supported by Athena. Therefore, you can query tables created and operated with dbt-glue adapter from Athena.

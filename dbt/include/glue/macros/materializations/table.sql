@@ -3,30 +3,25 @@
   {%- set grant_config = config.get('grants') -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}
   {%- set lf_grants = config.get('lf_grants') -%}
-  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
-  {%- set target_relation = api.Relation.create(identifier=identifier,
-                                                schema=schema,
-                                                database=database,
-                                                type='table') -%}
+  {%- set existing_relation_type = adapter.get_table_type(this) -%}
+  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
 
   {{ run_hooks(pre_hooks) }}
-
   -- setup: if the target relation already exists, drop it
   -- in case if the existing and future table is delta or iceberg, we want to do a
   -- create or replace table instead of dropping, so we don't have the table unavailable
-  {% if old_relation is not none %}
-    {% set is_delta = (old_relation.is_delta and config.get('file_format', validator=validation.any[basestring]) == 'delta') %}
-    {% set is_iceberg = (old_relation.is_iceberg and config.get('file_format', validator=validation.any[basestring]) == 'iceberg') %}
-    {% set old_relation_type = old_relation.type %}
+  {% if existing_relation is not none %}
+    {% set is_delta = (existing_relation.is_delta and config.get('file_format', validator=validation.any[basestring]) == 'delta') %}
+    {% set is_iceberg = (existing_relation.is_iceberg and config.get('file_format', validator=validation.any[basestring]) == 'iceberg') %}
   {% else %}
     {% set is_delta = false %}
     {% set is_iceberg = false %}
-    {% set old_relation_type = target_relation.type %}
+    {% set existing_relation_type = 'table' %}
   {% endif %}
 
   {% if not is_delta and not is_iceberg %}
-    {% set existing_relation = target_relation %}
-    {{ adapter.drop_relation(existing_relation.incorporate(type=old_relation_type)) }}
+    {{ drop_relation(target_relation.incorporate(type=existing_relation_type)) }}
   {% endif %}
 
   -- build model
