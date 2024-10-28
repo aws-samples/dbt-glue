@@ -5,7 +5,7 @@
 - Fixes the get_location table function to work for both Iceberg and non-Iceberg tables on macOS and Windows.
 - Adds a helper function to retrieve the Iceberg catalog namespace from the profile.yaml file.
 - Adds merge_exclude_columns and incremental_predicates features.
-
+- Drop Python 3.8 support
 
 ## v1.8.6
 - Fix session provisioning timeout and delay handling
