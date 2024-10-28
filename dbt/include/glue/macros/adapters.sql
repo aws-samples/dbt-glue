@@ -1,4 +1,4 @@
-{% macro glue__location_clause(relation) %}
+{% macro glue__location_clause() %}
   {%- set custom_location = config.get('custom_location', validator=validation.any[basestring]) -%}
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
   {%- set materialized = config.get('materialized') -%}
@@ -6,11 +6,7 @@
   {%- if custom_location is not none %}
     location '{{ custom_location }}'
   {%- else -%}
-    {% if file_format == 'iceberg' %}
-      {{ adapter.get_iceberg_location(relation) }}
-    {%- else -%}
-    	{{ adapter.get_location(relation) }}
-    {%- endif %}
+    {{ adapter.get_location(this) }}
   {%- endif %}
 {%- endmacro -%}
 
@@ -24,17 +20,27 @@
   {{return('')}}
 {%- endmacro %}
 
-{% macro glue__drop_relation(relation) -%}
-  {% call statement('drop_relation', auto_begin=False) -%}
-  {% set rel_type = adapter.get_table_type(relation)  %}
-    {%- if rel_type is not none and rel_type != 'iceberg_table' %}
-        drop {{ rel_type }} if exists {{ relation }}
-    {%- elif rel_type is not none and rel_type == 'iceberg_table' %}
-    	{%- set default_catalog = 'glue_catalog' -%}
-        drop table if exists {{ default_catalog }}.{{ relation }}
-  	{%- else -%}
-        drop table if exists {{ relation }}
+{% macro glue__make_target_relation(relation, file_format) %}
+    {%- set iceberg_catalog = adapter.get_custom_iceberg_catalog_namespace() -%}
+    {%- set first_iceberg_load = (file_format == 'iceberg') -%}
+    {%- set non_null_catalog = (iceberg_catalog is not none) -%}
+    {%- if non_null_catalog and first_iceberg_load %}
+        {# /* We add the iceberg catalog is the following cases */ #}
+        {%- do return(relation.incorporate(path={"schema": iceberg_catalog ~ '.' ~ relation.schema, "identifier": relation.identifier})) -%}
+    {%- else -%}
+        {# /* Otherwise we keep the relation as it is */ #}
+        {%- do return(relation) -%}
     {%- endif %}
+{% endmacro %}
+
+{% macro glue__drop_relation(relation) -%}
+
+  {% call statement('drop_relation', auto_begin=False) -%}
+      {%- if relation.type == 'view' %}
+          drop view if exists {{ this }}
+      {%- else -%}
+          drop table if exists {{ relation }}
+      {%- endif %}
   {%- endcall %}
 {% endmacro %}
 
@@ -59,50 +65,37 @@
 {%- endmacro -%}
 
 {% macro glue__create_table_as(temporary, relation, sql) -%}
-  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
-  {%- set table_properties = config.get('table_properties', default={}) -%}
-
-  {%- set create_statement_string -%}
-    {% if file_format in ['delta', 'iceberg'] -%}
-      create or replace table
-    {%- else -%}
-      create table
-    {% endif %}
-  {%- endset %}
-
   {% if temporary -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
-    	{{ create_statement_string }} {{ relation }}
-    	{% set contract_config = config.get('contract') %}
-      {% if contract_config.enforced %}
-        {{ get_assert_columns_equivalent(sql) }}
-        {#-- This does not enforce contstraints and needs to be a TODO #}
-        {#-- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
-        {#-- you do not specify the columns #}
-      {% endif %}
-  {{ glue__file_format_clause() }}
-	{{ partition_cols(label="partitioned by") }}
-	{{ clustered_cols(label="clustered by") }}
-	{{ set_table_properties(table_properties) }}
-	{{ glue__location_clause(relation) }}
-	{{ comment_clause() }}
-	as
-	{{ sql }}
-  {%- endif %}
-{%- endmacro -%}
+    {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+    {%- set table_properties = config.get('table_properties', default={}) -%}
 
-{% macro glue__create_tmp_table_as(relation, sql) -%}
-  {% call statement("create_tmp_table_as", fetch_result=false, auto_begin=false) %}
-    set spark.sql.legacy.allowNonEmptyLocationInCTAS=true
-    dbt_next_query
-    DROP TABLE IF EXISTS {{ relation }}
-    dbt_next_query
-    create table {{ relation }}
-    {{ adapter.get_location(relation) }}
+    {%- set create_statement_string -%}
+      {% if file_format in ['delta', 'iceberg'] -%}
+        create or replace table
+      {%- else -%}
+        create table
+      {% endif %}
+    {%- endset %}
+
+        {{ create_statement_string }} {{ relation }}
+        {% set contract_config = config.get('contract') %}
+        {% if contract_config.enforced %}
+          {{ get_assert_columns_equivalent(sql) }}
+          {#-- This does not enforce contstraints and needs to be a TODO #}
+          {#-- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
+          {#-- you do not specify the columns #}
+        {% endif %}
+    {{ glue__file_format_clause() }}
+    {{ partition_cols(label="partitioned by") }}
+    {{ clustered_cols(label="clustered by") }}
+    {{ set_table_properties(table_properties) }}
+    {{ glue__location_clause() }}
+    {{ comment_clause() }}
     as
-      {{ sql }}
-  {% endcall %}
+    {{ sql }}
+  {%- endif %}
 {%- endmacro -%}
 
 {% macro glue__snapshot_get_time() -%}
@@ -143,9 +136,7 @@
     {%- if contract_config.enforced -%}
       {{ get_assert_columns_equivalent(sql) }}
     {%- endif -%}
-    DROP VIEW IF EXISTS {{ relation }}
-    dbt_next_query
-    create view {{ relation }}
+    create or replace view {{ relation }}
         as
     {{ sql }}
 {% endmacro %}
