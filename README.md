@@ -616,7 +616,7 @@ When specifying a non-null and non-empty value for `custom_iceberg_catalog_names
 --conf spark.sql.catalog.{catalog_namespace}.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
 --conf spark.sql.catalog.{catalog_namespace}.io-impl=org.apache.iceberg.aws.s3.S3FileIO
 ```
-When using the default value, the following spark configruation should be added to enable iceberg.
+When using the default value, the following spark configuration should be added to enable iceberg.
 ```
 --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
 --conf spark.sql.catalog.glue_catalog.warehouse=s3://your-warehouse-path
