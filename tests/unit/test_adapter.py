@@ -133,12 +133,23 @@ class TestGlueAdapter(unittest.TestCase):
         config = self._get_config()
         config.credentials.enable_spark_seed_casting = True
         adapter = GlueAdapter(config, get_context("spawn"))
-        csv_chunks = [{"test_column": "1.2345"}]
-        model = {"name": "mock_model", "schema": "mock_schema", "config": {"column_types": {"test_column": "double"}}}
-        column_mappings = [ColumnCsvMappingStrategy("test_column", agate.data_types.Text, "double")]
+        csv_chunks = [{"test_column_double": "1.2345", "test_column_str": "test"}]
+        model = {
+            "name": "mock_model",
+            "schema": "mock_schema",
+            "config": {"column_types": {"test_column_double": "double", "test_column_str": "string"}},
+        }
+        column_mappings = [
+            ColumnCsvMappingStrategy("test_column_double", agate.data_types.Text, "double"),
+            ColumnCsvMappingStrategy("test_column_str", agate.data_types.Text, "string"),
+        ]
         code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
-        self.assertIn('spark.createDataFrame(csv, "test_column: string")', code[0])
-        self.assertIn('df = df.withColumn("test_column", df.test_column.cast("double"))', code[0])
+        self.assertIn('spark.createDataFrame(csv, "test_column_double: string, test_column_str: string")', code[0])
+        self.assertIn(
+            'df = df.withColumn("test_column_double", df.test_column_double.cast("double"))'
+            + '.withColumn("test_column_str", df.test_column_str.cast("string"))',
+            code[0],
+        )
 
     def test_create_csv_table_doesnt_provide_schema_when_spark_seed_cast_is_disabled(self):
         config = self._get_config()
