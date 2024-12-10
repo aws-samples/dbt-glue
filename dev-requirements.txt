@@ -30,7 +30,7 @@ pyparsing
 pyarrow
 
 dbt-core~=1.8.8
-dbt-spark~=1.8.0
+dbt-spark~=1.9.0
 dbt-common>=1.0.4,<2.0
 dbt-adapters>=1.1.1,<2.0
 dbt-tests-adapter~=1.10.2
