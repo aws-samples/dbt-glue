@@ -6,6 +6,7 @@
 - Adds a helper function to retrieve the Iceberg catalog namespace from the profile.yaml file.
 - Adds merge_exclude_columns and incremental_predicates features.
 - Drop Python 3.8 support
+- Upgrade default Glue version to 5.0
 
 ## v1.8.6
 - Fix session provisioning timeout and delay handling

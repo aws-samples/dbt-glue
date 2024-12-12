@@ -15,5 +15,5 @@ class TestGlueCredentials(unittest.TestCase):
         )
         assert credentials.schema == "tests"
         assert credentials.database is None
-        assert credentials.glue_version == "4.0"    # default Glue version is 4.0
+        assert credentials.glue_version == "5.0"    # default Glue version is 5.0
         assert credentials.custom_iceberg_catalog_namespace == "glue_catalog"
