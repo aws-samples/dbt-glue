@@ -40,7 +40,7 @@ package_name = "dbt-glue"
 package_version = get_version("dbt/adapters/glue/__version__.py")
 dbt_version = "1.9.0"
 dbt_spark_version = "1.9.0"
-description = """dbt (data build tool) adapter for Aws Glue"""
+description = """dbt adapter for AWS Glue"""
 long_description = read('README.md')
 setup(
     name=package_name,
@@ -48,8 +48,8 @@ setup(
     description=description,
     long_description=long_description,
     long_description_content_type='text/markdown',
-    author="moshirm,menuetb,mamallem,segnina",
-    author_email="moshirm@amazon.fr, menuetb@amazon.fr, mamallem@amazon.fr, segnina@amazon.fr ",
+    author="moshirm,segnina,sekiyama",
+    author_email="moshirm@amazon.fr, segnina@amazon.fr, sekiyama@amazon.com",
     url='https://github.com/aws-samples/dbt-glue',
     packages=find_namespace_packages(include=["dbt", "dbt.*"]),
     package_data={
