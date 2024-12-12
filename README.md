@@ -249,7 +249,7 @@ The table below describes all the options.
 
 ### Configuring tables
 
-When materializing a model as `table`, you may include several optional configs that are specific to the dbt-spark plugin, in addition to the standard [model configs](model-configs).
+When materializing a model as `table`, you may include several optional configs that are specific to the dbt-spark plugin, in addition to the standard model configs.
 
 | Option  | Description                                        | Required?               | Example                  |
 |---------|----------------------------------------------------|-------------------------|--------------------------|
