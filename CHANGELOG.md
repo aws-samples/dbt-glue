@@ -1,4 +1,4 @@
-## New version
+## v1.9.0
 - Allow to load big seed files
 - Migrates the PySpark code for the Iceberg file format at a macro level, making the impl.py file more readable.
 - Fixes the get_columns_in_relation function to work for both Iceberg and non-Iceberg tables without hard-coding the catalog name.
