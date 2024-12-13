@@ -25,7 +25,7 @@ black==24.8.0
 waiter
 boto3
 pandas
-moto~=5.0.9
+moto~=5.0.22
 pyparsing
 pyarrow
 
