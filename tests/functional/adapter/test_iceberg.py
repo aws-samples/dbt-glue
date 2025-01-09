@@ -1,10 +1,8 @@
-from time import sleep
 from typing import List
 import pytest
 from dbt.tests.adapter.basic.files import (base_table_sql, base_view_sql,)
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
-from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
 from dbt.tests.adapter.basic.test_incremental import BaseIncremental
 from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
@@ -275,3 +273,106 @@ class TestTableMatGlue(BaseTableMaterialization):
 class TestValidateConnectionGlue(BaseValidateConnection):
     pass
 
+
+class TestIcebergTimestamp(BaseSimpleMaterializations):
+    @pytest.fixture(scope="class")
+    def models(self):
+        # Define the base model SQL with timestamp enabled (default)
+        timestamp_enabled_sql = """
+            {{ config(
+                materialized="table",
+                file_format="iceberg",
+                add_iceberg_timestamp=true
+            ) }}
+            select * from {{ source('raw', 'seed') }}
+        """.strip()
+
+        # Define the model SQL with timestamp disabled
+        timestamp_disabled_sql = """
+            {{ config(
+                materialized="table",
+                file_format="iceberg",
+                add_iceberg_timestamp=false
+            ) }}
+            select * from {{ source('raw', 'seed') }}
+        """.strip()
+
+        # Models configuration with both test cases
+        return {
+            "enabled_timestamp.sql": timestamp_enabled_sql,
+            "disabled_timestamp.sql": timestamp_disabled_sql,
+            "schema.yml": schema_base_yml,
+        }
+
+    def test_iceberg_timestamp(self, project):
+        # Run initial seed
+        results = run_dbt(["seed"])
+        assert len(results) == 1
+
+        # Run the models
+        results = run_dbt(["run"])
+        assert len(results) == 2
+
+        # Check that the timestamp column exists in the enabled model
+        relation_enabled = relation_from_name(project.adapter, "enabled_timestamp")
+        result = project.run_sql(
+            f"describe table {relation_enabled}",
+            fetch="all"
+        )
+        column_names = [row[0].lower() for row in result]
+        assert "update_iceberg_ts" in column_names
+
+        # Check that the timestamp column does not exist in the disabled model
+        relation_disabled = relation_from_name(project.adapter, "disabled_timestamp")
+        result = project.run_sql(
+            f"describe table {relation_disabled}",
+            fetch="all"
+        )
+        column_names = [row[0].lower() for row in result]
+        assert "update_iceberg_ts" not in column_names
+
+        # Verify that the base data is correctly copied
+        relation_base = relation_from_name(project.adapter, "base")
+
+        # For enabled timestamp model, exclude the timestamp column when comparing
+        sql_enabled = f"""
+        select * except(update_iceberg_ts)
+        from {relation_enabled}
+        order by id
+        """
+        result_enabled = project.run_sql(sql_enabled, fetch="all")
+
+        # For disabled timestamp model
+        sql_disabled = f"""
+        select *
+        from {relation_disabled}
+        order by id
+        """
+        result_disabled = project.run_sql(sql_disabled, fetch="all")
+
+        # For base table
+        sql_base = f"""
+        select *
+        from {relation_base}
+        order by id
+        """
+        result_base = project.run_sql(sql_base, fetch="all")
+
+        # Compare results
+        assert result_base == result_disabled
+        assert result_base == result_enabled
+
+        # Check that timestamp value is recent
+        sql_timestamp = f"""
+        select update_iceberg_ts
+        from {relation_enabled}
+        limit 1
+        """
+        result_timestamp = project.run_sql(sql_timestamp, fetch="one")
+        timestamp = result_timestamp[0]
+
+        # Verify that the timestamp is within 5 minutes
+        from datetime import datetime, timezone
+        current_time = datetime.now(timezone.utc)
+        timestamp_diff = (current_time - timestamp).total_seconds()
+        assert timestamp_diff < 300  # Timestamp should be less than 5 minute old
