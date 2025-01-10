@@ -174,8 +174,12 @@ class TestIncrementalGlue(BaseIncremental):
     @pytest.fixture(scope="class")
     def models(self):
         incremental_sql = """
-            {{ config(materialized="incremental",incremental_strategy="append", file_format="iceberg") }}
-            select * from {{ source('raw', 'seed') }}
+            {{ config(
+                materialized="incremental",
+                incremental_strategy="append",
+                file_format="iceberg")
+            }}
+            select id, name, some_date from {{ source('raw', 'seed') }}
             {% if is_incremental() %}
             where id > (select max(id) from glue_catalog.{{ this }})
             {% endif %}
@@ -286,7 +290,6 @@ class TestIcebergTimestamp(BaseSimpleMaterializations):
 
     @pytest.fixture(scope="class")
     def models(self):
-        # Define models with explicit configurations
         timestamp_enabled_sql = """
             {{ config(
                 materialized="table",
@@ -310,7 +313,7 @@ class TestIcebergTimestamp(BaseSimpleMaterializations):
         }
 
     def test_base(self, project):
-        # Override base test to match new model count
+        # Initial setup and model count verification
         results = run_dbt(["seed"])
         assert len(results) == 1
 
@@ -327,68 +330,74 @@ class TestIcebergTimestamp(BaseSimpleMaterializations):
         check_relation_types(project.adapter, expected)
 
     def test_iceberg_timestamp(self, project):
-        # Run initial seed
+        # Run initial seed and models
         results = run_dbt(["seed"])
         assert len(results) == 1
 
-        # Run the models
         results = run_dbt(["run"])
         assert len(results) == 2
 
-        # Get column names using SHOW COLUMNS instead of DESCRIBE
+        # Check enabled model using a SELECT statement
         relation_enabled = relation_from_name(project.adapter, "enabled_timestamp")
         sql = f"""
-        SHOW COLUMNS FROM {relation_enabled}
+        SELECT column_name 
+        FROM information_schema.columns
+        WHERE table_schema = '{relation_enabled.schema}'
+        AND table_name = '{relation_enabled.identifier}'
         """
         try:
+            project.adapter.config.credentials.use_arrow = False  # Force Arrow off
             result = project.run_sql(sql, fetch="all")
             enabled_columns = [row[0].lower() for row in result]
-            assert "update_iceberg_ts" in enabled_columns, "update_iceberg_ts column should exist"
+            assert any('update_iceberg_ts' in col for col in enabled_columns), \
+                "update_iceberg_ts column should exist"
         except Exception as e:
-            project.adapter.logger.warning(f"Failed to get columns using SHOW COLUMNS: {e}")
-            # Fallback to simpler test
+            project.adapter.logger.warning(f"Failed to list columns using information_schema: {e}")
+            # Fallback to direct column check
             sql = f"SELECT update_iceberg_ts FROM {relation_enabled} LIMIT 1"
             result = project.run_sql(sql, fetch="one")
-            assert result is not None, "update_iceberg_ts column should exist"
+            assert result is not None, "update_iceberg_ts column should exist and be queryable"
 
         # Check disabled model
         relation_disabled = relation_from_name(project.adapter, "disabled_timestamp")
         sql = f"""
-        SHOW COLUMNS FROM {relation_disabled}
+        SELECT column_name 
+        FROM information_schema.columns
+        WHERE table_schema = '{relation_disabled.schema}'
+        AND table_name = '{relation_disabled.identifier}'
         """
         try:
             result = project.run_sql(sql, fetch="all")
             disabled_columns = [row[0].lower() for row in result]
-            assert "update_iceberg_ts" not in disabled_columns, "update_iceberg_ts column should not exist"
+            assert not any('update_iceberg_ts' in col for col in disabled_columns), \
+                "update_iceberg_ts column should not exist"
         except Exception as e:
-            project.adapter.logger.warning(f"Failed to get columns using SHOW COLUMNS: {e}")
-            # Fallback to checking if selecting the column fails
-            sql = f"SELECT count(*) FROM {relation_disabled} WHERE update_iceberg_ts IS NULL"
+            project.adapter.logger.warning(f"Failed to list columns using information_schema: {e}")
+            # Fallback to negative check
             try:
+                sql = f"SELECT update_iceberg_ts FROM {relation_disabled} LIMIT 1"
                 project.run_sql(sql, fetch="one")
-                assert False, "update_iceberg_ts column should not exist"
+                assert False, "Should not be able to query update_iceberg_ts"
             except Exception:
                 pass  # Expected to fail as column should not exist
 
         # Verify data consistency
-        base_relation = relation_from_name(project.adapter, "base")
+        relation_base = relation_from_name(project.adapter, "base")
 
-        # Compare record counts first
-        base_count = project.run_sql(f"SELECT COUNT(*) FROM {base_relation}", fetch="one")[0]
+        # Check row counts
+        base_count = project.run_sql(f"SELECT COUNT(*) FROM {relation_base}", fetch="one")[0]
         enabled_count = project.run_sql(f"SELECT COUNT(*) FROM {relation_enabled}", fetch="one")[0]
         disabled_count = project.run_sql(f"SELECT COUNT(*) FROM {relation_disabled}", fetch="one")[0]
 
         assert base_count == enabled_count == disabled_count, "Row counts should match"
 
-        # Compare data excluding timestamp
-        check_data_sql = f"""
-        SELECT a.* FROM (
-            SELECT * FROM {base_relation}
-        ) a
-        FULL OUTER JOIN (
-            SELECT * FROM {relation_disabled}
-        ) b
-        WHERE a.id IS NULL OR b.id IS NULL
+        # Compare actual data
+        sql = f"""
+        SELECT COUNT(*) FROM (
+            SELECT id, name, some_date FROM {relation_enabled}
+            EXCEPT
+            SELECT * FROM {relation_base}
+        )
         """
-        diff_count = project.run_sql(check_data_sql, fetch="one")[0]
-        assert diff_count == 0, "Data should match between base and disabled_timestamp"
+        diff_count = project.run_sql(sql, fetch="one")[0]
+        assert diff_count == 0, "Data should match between base and enabled_timestamp (excluding timestamp)"
