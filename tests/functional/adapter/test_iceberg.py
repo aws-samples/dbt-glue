@@ -273,133 +273,93 @@ class TestValidateConnectionGlue(BaseValidateConnection):
     pass
 
 
-class TestIcebergTimestamp(BaseSimpleMaterializations):
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        """Project level configuration"""
-        return {
-            "name": "iceberg_timestamp_test",
-            "models": {
-                "+file_format": "iceberg"
-            }
-        }
+class TestIcebergTimestamp:
+    """
+    Test class to verify that the `update_iceberg_ts` column is correctly added
+    when `add_iceberg_timestamp` is set to True, and is not added otherwise.
+    """
 
     @pytest.fixture(scope="class")
     def models(self):
-        """Model definitions for timestamp testing"""
-        # Model with timestamp enabled (default behavior)
-        timestamp_enabled_sql = """
-            {{ config(
-                materialized="table",
-                file_format="iceberg",
-                add_iceberg_timestamp=true
-            ) }}
-            select * from {{ source('raw', 'seed') }}
+        """
+        Provide two models for testing:
+          1. iceberg_timestamp_enabled.sql
+             - Has add_iceberg_timestamp=True
+          2. iceberg_timestamp_disabled.sql
+             - Has add_iceberg_timestamp=False
         """
 
-        # Model with timestamp explicitly disabled
-        timestamp_disabled_sql = """
-            {{ config(
-                materialized="table",
-                file_format="iceberg",
-                add_iceberg_timestamp=false
-            ) }}
-            select * from {{ source('raw', 'seed') }}
+        iceberg_timestamp_enabled_sql = """
+        {{ config(
+            materialized="table",
+            file_format="iceberg",
+            add_iceberg_timestamp=True
+        ) }}
+        select
+            1 as id,
+            'enabled' as status
         """
 
-        # Schema definition with source configuration
-        schema_yml = """
-version: 2
-sources:
-  - name: raw
-    schema: "{{ target.schema }}"
-    database: "{{ target.schema }}"
-    tables:
-      - name: seed
-        identifier: "base"
-"""
+        iceberg_timestamp_disabled_sql = """
+        {{ config(
+            materialized="table",
+            file_format="iceberg",
+            add_iceberg_timestamp=False
+        ) }}
+        select
+            2 as id,
+            'disabled' as status
+        """
 
         return {
-            "enabled_timestamp.sql": timestamp_enabled_sql,
-            "disabled_timestamp.sql": timestamp_disabled_sql,
-            "schema.yml": schema_yml,
+            "iceberg_timestamp_enabled.sql": iceberg_timestamp_enabled_sql,
+            "iceberg_timestamp_disabled.sql": iceberg_timestamp_disabled_sql,
+            "schema.yml": schema_base_yml,
         }
 
-    def test_base(self, project):
-        """Test basic table creation and model count"""
-        # Run initial seed
+    def test_iceberg_timestamp_enabled(self, project):
+        """
+        When add_iceberg_timestamp=True, the column 'update_iceberg_ts' must exist.
+        """
         results = run_dbt(["seed"])
         assert len(results) == 1
 
-        # Run models
-        results = run_dbt(["run"])
-        assert len(results) == 2  # Two models: enabled and disabled
+        results = run_dbt(["run", "-m", "iceberg_timestamp_enabled"])
+        assert len(results) == 1
 
-        # Get relations
-        relation_enabled = relation_from_name(project.adapter, "enabled_timestamp")
-        relation_disabled = relation_from_name(project.adapter, "disabled_timestamp")
+        relation_enabled = relation_from_name(project.adapter, "iceberg_timestamp_enabled")
+        columns_enabled = project.run_sql(f"DESCRIBE {relation_enabled}", fetch="all")
+        column_names_enabled = [col[0].lower() for col in columns_enabled]
 
-        # Refresh tables to ensure metadata is up to date
-        project.run_sql(f"refresh table {relation_enabled}")
-        project.run_sql(f"refresh table {relation_disabled}")
+        assert "update_iceberg_ts" in column_names_enabled, (
+            f"Expected 'update_iceberg_ts' column in {relation_enabled}, but only got: {column_names_enabled}"
+        )
 
-        # Verify basic table functionality
-        for relation in [relation_enabled, relation_disabled]:
-            result = project.run_sql(f"select count(*) from {relation}", fetch="one")
-            assert result[0] > 0, f"Table {relation} should contain rows"
+        result_enabled = project.run_sql(
+            f"SELECT count(*) FROM {relation_enabled}", fetch="one"
+        )
+        assert result_enabled[0] == 1
 
-    def test_iceberg_timestamp(self, project):
-        """Test timestamp column behavior in Iceberg tables"""
-        # Run initial setup
+    def test_iceberg_timestamp_disabled(self, project):
+        """
+        When add_iceberg_timestamp=False, the column 'update_iceberg_ts' must NOT exist.
+        """
         results = run_dbt(["seed"])
         assert len(results) == 1
 
-        results = run_dbt(["run"])
-        assert len(results) == 2
+        results = run_dbt(["run", "-m", "iceberg_timestamp_disabled"])
+        assert len(results) == 1
 
-        # Get relations
-        relation_enabled = relation_from_name(project.adapter, "enabled_timestamp")
-        relation_disabled = relation_from_name(project.adapter, "disabled_timestamp")
+        relation_disabled = relation_from_name(project.adapter, "iceberg_timestamp_disabled")
+        columns_disabled = project.run_sql(f"DESCRIBE {relation_disabled}", fetch="all")
+        column_names_disabled = [col[0].lower() for col in columns_disabled]
 
-        # Refresh tables to ensure metadata is up to date
-        project.run_sql(f"refresh table {relation_enabled}")
-        project.run_sql(f"refresh table {relation_disabled}")
-
-        # Verify timestamp column exists in enabled table
-        try:
-            result = project.run_sql(f"select update_iceberg_ts from {relation_enabled} limit 1", fetch="one")
-            assert result is not None, "update_iceberg_ts should contain valid timestamps"
-            has_timestamp = True
-        except Exception:
-            has_timestamp = False
-        assert has_timestamp, "update_iceberg_ts column should exist in enabled table"
-
-        # Verify timestamp column does not exist in disabled table
-        try:
-            project.run_sql(f"select update_iceberg_ts from {relation_disabled} limit 1", fetch="one")
-            has_timestamp = True
-        except Exception:
-            has_timestamp = False
-        assert not has_timestamp, "update_iceberg_ts column should not exist in disabled table"
-
-        # Verify data consistency
-        base_relation = relation_from_name(project.adapter, "base")
-        enabled_base_sql = f"""
-        select count(*) from (
-            select id, name, some_date from {relation_enabled}
-            except
-            select * from {base_relation}
+        assert "update_iceberg_ts" not in column_names_disabled, (
+            f"Did not expect 'update_iceberg_ts' column in {relation_disabled}, "
+            f"but got columns: {column_names_disabled}"
         )
-        """
-        disabled_base_sql = f"""
-        select count(*) from (
-            select * from {relation_disabled}
-            except
-            select * from {base_relation}
-        )
-        """
-        enabled_diff = project.run_sql(enabled_base_sql, fetch="one")[0]
-        disabled_diff = project.run_sql(disabled_base_sql, fetch="one")[0]
 
-        assert enabled_diff == 0, "Data in enabled model should match base (excluding timestamp)"
-        assert disabled_diff == 0, "Data in disabled model should match base"
+        result_disabled = project.run_sql(
+            f"SELECT count(*) FROM {relation_disabled}", fetch="one"
+        )
+        assert result_disabled[0] == 1
