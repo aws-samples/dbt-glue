@@ -190,15 +190,11 @@ class TestIncrementalGlue(BaseIncremental):
 
         # base table rowcount
         relation = relation_from_name(project.adapter, "base")
-        project.run_sql(f"refresh table {relation}")
-        # run refresh table to disable the previous parquet file paths
         result = project.run_sql(f"select count(*) as num_rows from {relation}", fetch="one")
         assert result[0] == 10
 
         # added table rowcount
         relation = relation_from_name(project.adapter, "added")
-        project.run_sql(f"refresh table {relation}")
-        # run refresh table to disable the previous parquet file paths
         result = project.run_sql(f"select count(*) as num_rows from {relation}", fetch="one")
         assert result[0] == 20
 
