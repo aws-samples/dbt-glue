@@ -2,7 +2,7 @@ import os
 import pytest
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
-                                           ephemeral_view_sql,table_with_custom_meta)
+                                           ephemeral_view_sql)
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
@@ -37,11 +37,15 @@ config_materialized_var = """
 config_incremental_strategy = """
   {{ config(incremental_strategy='insert_overwrite') }}
 """
+config_materialized_with_custom_meta = """
+  {{ config(materialized="table", meta={"workers": 3, "idle_timeout": 2}) }}
+"""
 model_base = """
   select * from {{ source('raw', 'seed') }}
 """
 base_materialized_var_sql = config_materialized_var + config_incremental_strategy + model_base
 
+table_with_custom_meta = config_materialized_with_custom_meta = model_base
 
 @pytest.mark.skip(
     reason="Fails because the test tries to fetch the table metadata during the compile step, "
