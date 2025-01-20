@@ -72,6 +72,31 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
 
     pass
 
+class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "name": "base",
+            "models": {
+                "+incremental_strategy": "append",
+                "+meta": {
+                    "workers": 3,
+                    "idle_timeout": 2,
+                    "glue_session_id": "custom_meta",
+                    }
+                }
+            }
+    def test_base(self, project):
+        super().test_base(project)
+        catalog = run_dbt(["docs", "generate"])
+        compile_results = catalog._compile_results.results
+        assert len(compile_results) > 0, "No models were found in the compile results."
+        for result in compile_results:
+            node = result.node
+            # Ensure the node represents a model
+            if node.resource_type != "model":
+                continue
+            assert node.config.meta, f"Meta parameter is not presents for '{node.name}."
 
 class TestSingularTestsGlue(BaseSingularTests):
     pass
