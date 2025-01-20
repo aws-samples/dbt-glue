@@ -45,7 +45,7 @@ model_base = """
 """
 base_materialized_var_sql = config_materialized_var + config_incremental_strategy + model_base
 
-table_with_custom_meta = config_materialized_with_custom_meta = model_base
+table_with_custom_meta = config_materialized_with_custom_meta + model_base
 
 @pytest.mark.skip(
     reason="Fails because the test tries to fetch the table metadata during the compile step, "
