@@ -2,7 +2,7 @@ import os
 import pytest
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
-                                           ephemeral_view_sql)
+                                           ephemeral_view_sql,table_with_custom_meta)
 from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
@@ -65,7 +65,7 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
     def models(self):
         return {
             "view_model.sql": base_view_sql,
-            "table_model.sql": base_table_sql,
+            "table_model.sql": table_with_custom_meta,
             "swappable.sql": base_materialized_var_sql,
             "schema.yml": schema_base_yml,
         }
@@ -74,18 +74,13 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
 
 class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
     @pytest.fixture(scope="class")
-    def project_config_update(self):
+    def models(self):
         return {
-            "name": "base",
-            "models": {
-                "+incremental_strategy": "append",
-                "+meta": {
-                    "workers": 3,
-                    "idle_timeout": 2,
-                    "glue_session_id": "custom_meta",
-                    }
-                }
-            }
+            "view_model.sql": base_view_sql,
+            "table_model.sql": table_with_custom_meta,
+            "swappable.sql": base_materialized_var_sql,
+            "schema.yml": schema_base_yml,
+        }
     def test_base(self, project):
         super().test_base(project)
         catalog = run_dbt(["docs", "generate"])
@@ -93,10 +88,8 @@ class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
         assert len(compile_results) > 0, "No models were found in the compile results."
         for result in compile_results:
             node = result.node
-            # Ensure the node represents a model
-            if node.resource_type != "model":
-                continue
-            assert node.config.meta, f"Meta parameter is not presents for '{node.name}."
+            if node.name == "table_model":
+                assert node.config.meta, f"Meta parameter is not present for table_model."
 
 class TestSingularTestsGlue(BaseSingularTests):
     pass
