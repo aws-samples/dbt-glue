@@ -1,3 +1,6 @@
+## New version
+- Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
+
 ## v1.9.0
 - Allow to load big seed files
 - Migrates the PySpark code for the Iceberg file format at a macro level, making the impl.py file more readable.
