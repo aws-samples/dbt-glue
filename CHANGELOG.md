@@ -1,3 +1,6 @@
+## New version
+- Adds update_iceberg_ts column with an add_iceberg_timestamp option.
+
 ## v1.9.0
 - Allow to load big seed files
 - Migrates the PySpark code for the Iceberg file format at a macro level, making the impl.py file more readable.

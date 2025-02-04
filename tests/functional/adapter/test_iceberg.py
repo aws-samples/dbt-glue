@@ -192,7 +192,7 @@ class TestIncrementalGlue(BaseIncremental):
 
         # base table rowcount
         relation = relation_from_name(project.adapter, "base")
-        
+
         project.run_sql(f"refresh table {relation}")
         # run refresh table to disable the previous parquet file paths
         result = project.run_sql(f"select count(*) as num_rows from {relation}", fetch="one")
@@ -275,3 +275,94 @@ class TestTableMatGlue(BaseTableMaterialization):
 class TestValidateConnectionGlue(BaseValidateConnection):
     pass
 
+
+class TestIcebergTimestamp:
+    """
+    Test class to verify that the `update_iceberg_ts` column is correctly added
+    when `add_iceberg_timestamp` is set to True, and is not added otherwise.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        """
+        Provide two models for testing:
+          1. iceberg_timestamp_enabled.sql
+             - Has add_iceberg_timestamp=True
+          2. iceberg_timestamp_disabled.sql
+             - Has add_iceberg_timestamp=False
+        """
+
+        iceberg_timestamp_enabled_sql = """
+        {{ config(
+            materialized="table",
+            file_format="iceberg",
+            add_iceberg_timestamp=True
+        ) }}
+        select
+            1 as id,
+            'enabled' as status
+        """
+
+        iceberg_timestamp_disabled_sql = """
+        {{ config(
+            materialized="table",
+            file_format="iceberg",
+            add_iceberg_timestamp=False
+        ) }}
+        select
+            2 as id,
+            'disabled' as status
+        """
+
+        return {
+            "iceberg_timestamp_enabled.sql": iceberg_timestamp_enabled_sql,
+            "iceberg_timestamp_disabled.sql": iceberg_timestamp_disabled_sql,
+            "schema.yml": schema_base_yml,
+        }
+
+    def test_iceberg_timestamp_enabled(self, project):
+        """
+        When add_iceberg_timestamp=True, the column 'update_iceberg_ts' must exist.
+        """
+        results = run_dbt(["seed"])
+        assert len(results) == 1
+
+        results = run_dbt(["run", "-m", "iceberg_timestamp_enabled"])
+        assert len(results) == 1
+
+        relation_enabled = relation_from_name(project.adapter, "iceberg_timestamp_enabled")
+        columns_enabled = project.run_sql(f"DESCRIBE {relation_enabled}", fetch="all")
+        column_names_enabled = [col[0].lower() for col in columns_enabled]
+
+        assert "update_iceberg_ts" in column_names_enabled, (
+            f"Expected 'update_iceberg_ts' column in {relation_enabled}, but only got: {column_names_enabled}"
+        )
+
+        result_enabled = project.run_sql(
+            f"SELECT count(*) FROM {relation_enabled}", fetch="one"
+        )
+        assert result_enabled[0] == 1
+
+    def test_iceberg_timestamp_disabled(self, project):
+        """
+        When add_iceberg_timestamp=False, the column 'update_iceberg_ts' must NOT exist.
+        """
+        results = run_dbt(["seed"])
+        assert len(results) == 1
+
+        results = run_dbt(["run", "-m", "iceberg_timestamp_disabled"])
+        assert len(results) == 1
+
+        relation_disabled = relation_from_name(project.adapter, "iceberg_timestamp_disabled")
+        columns_disabled = project.run_sql(f"DESCRIBE {relation_disabled}", fetch="all")
+        column_names_disabled = [col[0].lower() for col in columns_disabled]
+
+        assert "update_iceberg_ts" not in column_names_disabled, (
+            f"Did not expect 'update_iceberg_ts' column in {relation_disabled}, "
+            f"but got columns: {column_names_disabled}"
+        )
+
+        result_disabled = project.run_sql(
+            f"SELECT count(*) FROM {relation_disabled}", fetch="one"
+        )
+        assert result_disabled[0] == 1

@@ -70,6 +70,7 @@
   {%- else -%}
     {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
     {%- set table_properties = config.get('table_properties', default={}) -%}
+    {%- set add_timestamp = config.get('add_iceberg_timestamp', default=true) -%}
 
     {%- set create_statement_string -%}
       {% if file_format in ['delta', 'iceberg'] -%}
@@ -79,10 +80,25 @@
       {% endif %}
     {%- endset %}
 
+    {%- if file_format == 'iceberg' and add_timestamp %}
+      {# For Iceberg tables with timestamp enabled, wrap the SQL to include update_iceberg_ts #}
+      {%- set modified_sql -%}
+        with source_data as (
+          {{ sql }}
+        )
+        select
+          *,
+          current_timestamp() as update_iceberg_ts
+        from source_data
+      {%- endset %}
+    {%- else %}
+      {%- set modified_sql = sql -%}
+    {%- endif %}
+
         {{ create_statement_string }} {{ relation }}
         {% set contract_config = config.get('contract') %}
         {% if contract_config.enforced %}
-          {{ get_assert_columns_equivalent(sql) }}
+          {{ get_assert_columns_equivalent(modified_sql) }}
           {#-- This does not enforce contstraints and needs to be a TODO #}
           {#-- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
           {#-- you do not specify the columns #}
@@ -94,7 +110,7 @@
     {{ glue__location_clause() }}
     {{ comment_clause() }}
     as
-    {{ sql }}
+    {{ modified_sql }}
   {%- endif %}
 {%- endmacro -%}
 
