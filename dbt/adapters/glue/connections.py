@@ -11,6 +11,7 @@ from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
 from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.events.contextvars import get_node_info
 from dbt_common.clients.agate_helper import table_from_data_flat
+from copy import deepcopy
 
 logger = AdapterLogger("Glue")
 
@@ -44,8 +45,11 @@ class GlueConnectionManager(SQLConnectionManager):
             logger.debug("Connection is already open, skipping open.")
             return connection
 
-        credentials: GlueCredentials = connection.credentials
+        credentials: GlueCredentials = deepcopy(connection.credentials)
         try:
+            node_meta = get_node_info().get("meta", {})
+            credentials.enable_session_per_model = credentials.enable_session_per_model or node_meta
+
             connection_args = {
                 "credentials": credentials
             }
@@ -53,12 +57,9 @@ class GlueConnectionManager(SQLConnectionManager):
             if credentials.enable_session_per_model:
                 key = get_node_info().get("unique_id", "no-node")
                 connection_args['session_id_suffix'] = key
-
-                session_config_overrides = {}
                 for session_config in credentials._connection_keys():
-                    if get_node_info().get("meta", {}).get(session_config):
-                        session_config_overrides[session_config] = get_node_info().get("meta", {}).get(session_config)
-                connection_args['session_config_overrides'] = session_config_overrides
+                    if node_meta.get(session_config):
+                        setattr(credentials,session_config,node_meta.get(session_config))
 
             else:
                 key = cls.get_thread_identifier()

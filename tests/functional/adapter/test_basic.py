@@ -37,11 +37,15 @@ config_materialized_var = """
 config_incremental_strategy = """
   {{ config(incremental_strategy='insert_overwrite') }}
 """
+config_materialized_with_custom_meta = """
+  {{ config(materialized="table", meta={"workers": 3, "idle_timeout": 2}) }}
+"""
 model_base = """
   select * from {{ source('raw', 'seed') }}
 """
 base_materialized_var_sql = config_materialized_var + config_incremental_strategy + model_base
 
+table_with_custom_meta = config_materialized_with_custom_meta + model_base
 
 @pytest.mark.skip(
     reason="Fails because the test tries to fetch the table metadata during the compile step, "
@@ -65,13 +69,31 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
     def models(self):
         return {
             "view_model.sql": base_view_sql,
-            "table_model.sql": base_table_sql,
+            "table_model.sql": table_with_custom_meta,
             "swappable.sql": base_materialized_var_sql,
             "schema.yml": schema_base_yml,
         }
 
     pass
 
+class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "view_model.sql": base_view_sql,
+            "table_model.sql": table_with_custom_meta,
+            "swappable.sql": base_materialized_var_sql,
+            "schema.yml": schema_base_yml,
+        }
+    def test_base(self, project):
+        super().test_base(project)
+        catalog = run_dbt(["docs", "generate"])
+        compile_results = catalog._compile_results.results
+        assert len(compile_results) > 0, "No models were found in the compile results."
+        for result in compile_results:
+            node = result.node
+            if node.name == "table_model":
+                assert node.config.meta, f"Meta parameter is not present for table_model."
 
 class TestSingularTestsGlue(BaseSingularTests):
     pass
