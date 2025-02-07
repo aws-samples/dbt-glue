@@ -30,10 +30,9 @@ class GlueConnection:
     _boto3_client_lock = threading.Lock()
     _connect_lock = threading.Lock()
 
-    def __init__(self, credentials: GlueCredentials, session_id_suffix: str = None, session_config_overrides = {}):
+    def __init__(self, credentials: GlueCredentials, session_id_suffix: str = None):
         self.credentials = credentials
         self._session_id_suffix = session_id_suffix
-        self._session_config_overrides = session_config_overrides
 
         self._client = None
         self._session_waiter = None
@@ -42,7 +41,7 @@ class GlueConnection:
         self._create_session_config = {}
 
         for key in self.credentials._connection_keys():
-            self._create_session_config[key] = self._session_config_overrides.get(key) or getattr(self.credentials, key)
+            self._create_session_config[key] = getattr(self.credentials, key)
 
 
     def _build_session_id(
@@ -356,6 +355,12 @@ class GlueConnection:
             session = response.get("Session", {})
             self._state = session.get("Status")
         except Exception as e:
+            if isinstance(e, botocore.exceptions.ClientError):
+                if e.response['Error']['Code'] == 'EntityNotFoundException':
+                    logger.debug(f"Session {self.session_id} not found")
+                    logger.debug(e)
+                    self._state = None
+                    return self._state
             logger.debug(f"Error while checking state of session {self.session_id}")
             logger.debug(e)
             self._state = GlueSessionState.STOPPED

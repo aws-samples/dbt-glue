@@ -1,4 +1,9 @@
 ## New version
+- Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
+- Allow spawning new isolated sessions for the models that require different session configuration
+- Added configuration property to allow spark casting of seed column types
+
+## v1.9.0
 - Allow to load big seed files
 - Migrates the PySpark code for the Iceberg file format at a macro level, making the impl.py file more readable.
 - Fixes the get_columns_in_relation function to work for both Iceberg and non-Iceberg tables without hard-coding the catalog name.
@@ -6,7 +11,8 @@
 - Adds a helper function to retrieve the Iceberg catalog namespace from the profile.yaml file.
 - Adds merge_exclude_columns and incremental_predicates features.
 - Drop Python 3.8 support
-- Added configuration property to allow spark casting of seed column types
+- Upgrade default Glue version to 5.0
+- Upgrade dependencies: dbt-core 1.9.0 and dbt-spark 1.9.0
 
 ## v1.8.6
 - Fix session provisioning timeout and delay handling
