@@ -1,5 +1,6 @@
 ## Future Release
 - Allow spawning new isolated sessions for the models that require different session configuration
+- Fix error handling
 
 ## v1.9.0
 - Allow to load big seed files
