@@ -1,4 +1,6 @@
 {% materialization incremental, adapter='glue' -%}
+  {% do log("Starting incremental materialization", info=True) %}
+
   {# /*-- Validate early so we don't run SQL if the file_format + strategy combo is invalid --*/ #}
   {%- set raw_file_format = config.get('file_format', default='parquet') -%}
   {%- set raw_strategy = config.get('incremental_strategy', default='insert_overwrite') -%}
@@ -7,9 +9,30 @@
   
   {# /*-- Set vars --*/ #}
   {%- set language = model['language'] -%}
-  {%- set existing_relation_type = adapter.get_table_type(this) -%}
+
+  {%- set existing_relation_type = none -%}
+  {%- if this is not none -%}
+    {%- set existing_relation_type = adapter.get_table_type(this) -%}
+  {%- endif -%}
+
+  {%- set identifier = model.get('alias', model.get('name')) -%}
+  {%- if not identifier -%}
+    {% do exceptions.raise_compiler_error("Identifier not found in model") %}
+  {%- endif -%}
+
   {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
-  {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
+  {% do log("Existing relation: " ~ existing_relation, info=True) %}
+
+  {%- if existing_relation is none -%}
+    {%- set target_relation = glue__make_target_relation(this, config.get('file_format')) -%}
+  {%- else -%}
+    {%- set target_relation = existing_relation -%}
+  {%- endif -%}
+
+  {%- if target_relation is none -%}
+    {% do exceptions.raise_compiler_error("Could not create target relation for incremental model") %}
+  {%- endif -%}
+
   {%- set tmp_relation = make_temp_relation(this, '_tmp').include(schema=false) -%}
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}

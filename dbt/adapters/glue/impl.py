@@ -115,12 +115,19 @@ class GlueAdapter(SQLAdapter):
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
+        logger.debug(f"list_relations_without_caching called for schema: {schema_relation}")
+
+        if not schema_relation or not schema_relation.schema:
+            logger.debug("Invalid schema_relation")
+            return []
+
         session, client = self.get_connection()
         relations = []
         paginator = client.get_paginator('get_tables')
         try:
             for page in paginator.paginate(DatabaseName=schema_relation.schema):
                 for table in page.get('TableList', []):
+                    logger.debug(f"Found table: {table.get('Name')}")
                     relations.append(self.Relation.create(
                         database=schema_relation.schema,
                         schema=schema_relation.schema,
@@ -132,14 +139,20 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
+        logger.debug(f"check_schema_exists called with database={database}, schema={schema}")
+        if not schema:
+            logger.debug("Schema is None or empty")
+            return False
+
         try:
-            list = self.list_schemas(schema)
-            if schema in list:
-                return True
-            else:
-                return False
+            schemas = self.list_schemas(schema)
+            logger.debug(f"Available schemas: {schemas}")
+            exists = schema in schemas
+            logger.debug(f"Schema {schema} exists: {exists}")
+            return exists
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Error checking schema existence: {str(e)}")
+            return False
 
     def check_relation_exists(self, relation: BaseRelation) -> bool:
         try:
@@ -182,13 +195,19 @@ class GlueAdapter(SQLAdapter):
             logger.error("rename_relation exception")
 
     def get_relation(self, database, schema, identifier):
+        logger.debug(f"get_relation called with database={database}, schema={schema}, identifier={identifier}")
         session, client = self.get_connection()
         try:
             response = client.get_table(
                 DatabaseName=schema,
                 Name=identifier
             )
-            is_delta = response.get('Table').get("Parameters").get("spark.sql.sources.provider") == "delta"
+            if not response or 'Table' not in response:
+                logger.debug(f"No table found for {schema}.{identifier}")
+                return None
+
+            table_params = response.get('Table', {}).get('Parameters', {})
+            is_delta = table_params.get("spark.sql.sources.provider") == "delta"
 
             # Compute the new schema based on the iceberg requirements
             computed_schema = self.__compute_schema_based_on_type(schema=schema, identifier=identifier)
@@ -199,10 +218,7 @@ class GlueAdapter(SQLAdapter):
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
                 is_delta=is_delta
             )
-            logger.debug(f"""schema : {schema}
-                             identifier : {identifier}
-                             type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
-                        """)
+            logger.debug(f"Created relation: {relation}")
             return relation
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)

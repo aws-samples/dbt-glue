@@ -89,6 +89,9 @@
 {% materialization snapshot, adapter='glue' %}
 
   {%- set target_table = model.get('alias', model.get('name')) -%}
+  {%- if not target_table %}
+    {% do exceptions.raise_compiler_error("Could not determine target table name. Neither 'alias' nor 'name' is defined in the model.") %}
+  {% endif %}
 
   {%- set strategy_name = config.get('strategy') -%}
   {%- set unique_key = config.get('unique_key') %}
