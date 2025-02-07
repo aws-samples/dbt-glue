@@ -1,11 +1,38 @@
 {% materialization table, adapter = 'glue'%}
-  {%- set identifier = model['alias'] -%}
+  {% do log("Starting table materialization", info=True) %}
+
+  {% for source_node in graph.sources.values() %}
+    {% do log("Checking source: " ~ source_node.schema ~ "." ~ source_node.name, info=True) %}
+    {% if not adapter.check_schema_exists(source_node.database, source_node.schema) %}
+      {% do exceptions.raise_compiler_error("Source schema '" ~ source_node.schema ~ "' does not exist") %}
+    {% endif %}
+  {% endfor %}
+
+  {%- set identifier = model.get('alias', model.get('name')) -%}
+  {%- if not identifier -%}
+    {% do exceptions.raise_compiler_error("Table name not specified: neither 'alias' nor 'name' is defined in the model.") %}
+  {%- endif -%}
+  {% do log("Using identifier: " ~ identifier, info=True) %}
+
   {%- set grant_config = config.get('grants') -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}
   {%- set lf_grants = config.get('lf_grants') -%}
-  {%- set existing_relation_type = adapter.get_table_type(this) -%}
+
+  {%- set existing_relation_type = none -%}
+  {%- if this is not none -%}
+    {%- set existing_relation_type = adapter.get_table_type(this) -%}
+  {%- endif -%}
+
   {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
-  {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
+  {%- if existing_relation is none -%}
+    {% set target_relation = glue__make_target_relation(this, config.get('file_format')) %}
+  {%- else -%}
+    {% set target_relation = existing_relation %}
+  {%- endif -%}
+
+  {%- if target_relation is none -%}
+    {% do exceptions.raise_compiler_error("Could not create target relation.") %}
+  {%- endif -%}
 
   {{ run_hooks(pre_hooks) }}
   -- setup: if the target relation already exists, drop it

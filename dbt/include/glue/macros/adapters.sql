@@ -21,6 +21,18 @@
 {%- endmacro %}
 
 {% macro glue__make_target_relation(relation, file_format) %}
+    {%- if not relation or not relation.schema or not relation.identifier -%}
+        {{ exceptions.raise_compiler_error("Invalid relation passed to make_target_relation: schema and identifier are required.") }}
+    {%- endif -%}
+
+    {% if not relation.schema %}
+        {{ exceptions.raise_compiler_error("Relation schema is not defined in make_target_relation") }}
+    {% endif %}
+
+    {% if not relation.identifier %}
+        {{ exceptions.raise_compiler_error("Relation identifier is not defined in make_target_relation") }}
+    {% endif %}
+
     {%- set iceberg_catalog = adapter.get_custom_iceberg_catalog_namespace() -%}
     {%- set first_iceberg_load = (file_format == 'iceberg') -%}
     {%- set non_null_catalog = (iceberg_catalog is not none) -%}
@@ -115,6 +127,9 @@
 
 {% macro glue__generate_database_name(custom_database_name=none, node=none) -%}
   {%- set default_database = target.schema -%}
+  {%- if default_database is none or default_database is undefined -%}
+    {{ exceptions.raise_compiler_error("Target schema is undefined") }}
+  {%- endif -%}
   {{ default_database }}
 {%- endmacro %}
 
