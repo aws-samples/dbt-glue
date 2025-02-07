@@ -1,3 +1,6 @@
+## Future Release
+- Allow spawning new isolated sessions for the models that require different session configuration
+
 ## v1.9.0
 - Allow to load big seed files
 - Migrates the PySpark code for the Iceberg file format at a macro level, making the impl.py file more readable.
