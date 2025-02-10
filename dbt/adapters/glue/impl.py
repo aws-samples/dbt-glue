@@ -590,20 +590,17 @@ SqlWrapper2.execute("""select 1""")
                         [f"{mapping.column_name}: {mapping.as_schema_value()}" for mapping in column_mappings]
                     )
 
-                    cast_code = ".".join(
+                    cast_columns = ", ".join(
                         [
-                            "df",
-                            *[
-                                f'withColumn("{mapping.column_name}", df.{mapping.column_name}.cast("{cast_value}"))'
-                                for mapping in column_mappings
-                                if (cast_value := mapping.as_cast_value())
-                            ],
-                        ]
+                            f'"cast({mapping.column_name} as {mapping.as_cast_value()}) as {mapping.column_name}"'
+                            for mapping in column_mappings
+                            if (cast_value := mapping.as_cast_value())
+                        ],
                     )
 
                     code += f"""
 df = spark.createDataFrame(csv, "{csv_schema}")
-df = {cast_code}
+df = df.selectExpr({cast_columns})
 """
                 else:
                     code += """

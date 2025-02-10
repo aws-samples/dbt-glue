@@ -145,8 +145,8 @@ class TestGlueAdapter(unittest.TestCase):
         code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
         self.assertIn('spark.createDataFrame(csv, "test_column_double: string, test_column_str: string")', code[0])
         self.assertIn(
-            'df = df.withColumn("test_column_double", df.test_column_double.cast("double"))'
-            + '.withColumn("test_column_str", df.test_column_str.cast("string"))',
+            'df = df.selectExpr("cast(test_column_double as double) as test_column_double", '
+            + '"cast(test_column_str as string) as test_column_str")',
             code[0],
         )
 
