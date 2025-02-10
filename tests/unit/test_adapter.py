@@ -118,7 +118,6 @@ class TestGlueAdapter(unittest.TestCase):
         with mock.patch("dbt.adapters.glue.connections.open"):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
-            print(adapter.get_location(relation))
             self.assertEqual(adapter.get_location(relation), "LOCATION 'path_to_location/some_database/some_table'")
 
     def test_get_custom_iceberg_catalog_namespace(self):
@@ -140,8 +139,8 @@ class TestGlueAdapter(unittest.TestCase):
             "config": {"column_types": {"test_column_double": "double", "test_column_str": "string"}},
         }
         column_mappings = [
-            ColumnCsvMappingStrategy("test_column_double", agate.data_types.Text, "double"),
-            ColumnCsvMappingStrategy("test_column_str", agate.data_types.Text, "string"),
+            ColumnCsvMappingStrategy("test_column_double", "string", "double"),
+            ColumnCsvMappingStrategy("test_column_str", "string", "string"),
         ]
         code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
         self.assertIn('spark.createDataFrame(csv, "test_column_double: string, test_column_str: string")', code[0])
@@ -166,14 +165,14 @@ class TestCsvMappingStrategy:
     @pytest.mark.parametrize(
         "agate_type,specified_type,expected_schema_type,expected_cast_type",
         [
-            (agate_helper.ISODateTime, None, "string", "timestamp"),
-            (agate_helper.Number, None, "double", None),
-            (agate_helper.Integer, None, "int", None),
-            (agate.data_types.Boolean, None, "boolean", None),
-            (agate.data_types.Date, None, "string", "date"),
-            (agate.data_types.DateTime, None, "string", "timestamp"),
-            (agate.data_types.Text, None, "string", None),
-            (agate.data_types.Text, "double", "string", "double"),
+            ("timestamp", None, "string", "timestamp"),
+            ("double", None, "double", "double"),
+            ("bigint", None, "double", "bigint"),
+            ("boolean", None, "boolean", "boolean"),
+            ("date", None, "string", "date"),
+            ("timestamp", None, "string", "timestamp"),
+            ("string", None, "string", "string"),
+            ("string", "double", "string", "double"),
         ],
         ids=[
             "test isodatetime cast",
@@ -195,20 +194,25 @@ class TestCsvMappingStrategy:
 
     def test_from_model_builds_column_mappings(self):
         expected_column_names = ["col_int", "col_str", "col_date", "col_specific"]
-        expected_agate_types = [
-            agate_helper.Integer,
-            agate.data_types.Text,
-            agate.data_types.Date,
-            agate.data_types.Text,
+        expected_converted_agate_types = [
+            "bigint",
+            "string",
+            "date",
+            "string",
         ]
         expected_specified_types = [None, None, None, "double"]
         agate_table = agate.Table(
             [(111, "str_val", "2024-01-01", "1.234")],
             column_names=expected_column_names,
-            column_types=[data_type() for data_type in expected_agate_types],
+            column_types=[
+            agate.data_types.Number(),
+            agate.data_types.Text(),
+            agate.data_types.Date(),
+            agate.data_types.Text(),
+        ],
         )
         model = {"name": "mock_model", "config": {"column_types": {"col_specific": "double"}}}
         mappings = ColumnCsvMappingStrategy.from_model(model, agate_table)
         assert expected_column_names == [mapping.column_name for mapping in mappings]
-        assert expected_agate_types == [mapping.agate_type for mapping in mappings]
+        assert expected_converted_agate_types == [mapping.converted_agate_type for mapping in mappings]
         assert expected_specified_types == [mapping.specified_type for mapping in mappings]

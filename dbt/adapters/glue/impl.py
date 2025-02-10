@@ -35,44 +35,33 @@ logger = AdapterLogger("Glue")
 
 class ColumnCsvMappingStrategy:
     _schema_mappings = {
-        agate_helper.ISODateTime: 'string',
-        agate_helper.Number: 'double',
-        agate_helper.Integer: 'int',
-        agate.data_types.Boolean: 'boolean',
-        agate.data_types.Date: 'string',
-        agate.data_types.DateTime: 'string',
-        agate.data_types.Text: 'string',
+        "timestamp": "string",
+        "bigint": "double",
+        "date": "string",
     }
 
-    _cast_mappings = {
-        agate_helper.ISODateTime: 'timestamp',
-        agate.data_types.Date: 'date',
-        agate.data_types.DateTime: 'timestamp',
-    }
-
-    def __init__(self, column_name, agate_type, specified_type):
+    def __init__(self, column_name, converted_agate_type, specified_type):
         self.column_name = column_name
-        self.agate_type = agate_type
+        self.converted_agate_type = converted_agate_type
         self.specified_type = specified_type
 
     def as_schema_value(self):
-        return ColumnCsvMappingStrategy._schema_mappings.get(self.agate_type)
+        return ColumnCsvMappingStrategy._schema_mappings.get(self.converted_agate_type, self.converted_agate_type)
 
     def as_cast_value(self):
-        return (
-            self.specified_type if self.specified_type else ColumnCsvMappingStrategy._cast_mappings.get(self.agate_type)
-        )
-    
+        return self.specified_type if self.specified_type else self.converted_agate_type
+
     @classmethod
     def from_model(cls, model, agate_table):
         return [
             ColumnCsvMappingStrategy(
-                column.name, type(column.data_type), model.get("config", {}).get("column_types", {}).get(column.name)
+                column.name,
+                GlueAdapter.convert_agate_type(agate_table, i),
+                model.get("config", {}).get("column_types", {}).get(column.name),
             )
-            for column in agate_table.columns
+            for i, column in enumerate(agate_table.columns)
         ]
-
-
+    
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
