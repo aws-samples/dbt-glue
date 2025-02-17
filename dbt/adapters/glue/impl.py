@@ -158,6 +158,8 @@ class GlueAdapter(SQLAdapter):
                         type=self.relation_type_map.get(table.get("TableType")),
                     ))
             return relations
+        except client.exceptions.EntityNotFoundException as e:
+            return []
         except Exception as e:
             logger.error(e)
 

@@ -7,6 +7,7 @@ from multiprocessing import get_context
 import agate.data_types
 from botocore.client import BaseClient
 from moto import mock_aws
+import boto3
 
 import agate
 from dbt.config import RuntimeConfig
@@ -17,6 +18,7 @@ from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
 from dbt.adapters.glue.impl import ColumnCsvMappingStrategy
 from dbt_common.clients import agate_helper
+from dbt.adapters.contracts.relation import RelationConfig
 from tests.util import config_from_parts_or_dicts
 from .util import MockAWSService
 
@@ -159,6 +161,40 @@ class TestGlueAdapter(unittest.TestCase):
         column_mappings = [ColumnCsvMappingStrategy("test_column", agate.data_types.Text, "double")]
         code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
         self.assertIn("spark.createDataFrame(csv)", code[0])
+
+    @mock_aws
+    def test_when_database_not_exists_list_relations_without_caching_returns_empty_array(self):
+        config = self._get_config()
+        adapter = GlueAdapter(config, get_context("spawn"))
+        adapter.get_connection = lambda : (None, boto3.client("glue", region_name="us-east-1"))
+        relation = Mock(SparkRelation)
+        relation.schema = 'mockdb'
+        actual = adapter.list_relations_without_caching(relation)
+        self.assertEqual([],actual)
+
+    @mock_aws
+    def test_list_relations_returns_database_tables(self):
+        config = self._get_config()
+        glue_client = boto3.client("glue", region_name="us-east-1")
+
+        # Prepare database tables
+        database_name = 'mockdb'
+        table_names = ['table1', 'table2', 'table3']
+        glue_client.create_database(DatabaseInput={"Name":database_name})
+        for table_name in table_names:
+            glue_client.create_table(DatabaseName=database_name,TableInput={"Name":table_name})
+        expected = [(database_name, table_name) for table_name in table_names]
+
+        # Prepare adapter for test
+        adapter = GlueAdapter(config, get_context("spawn"))
+        adapter.get_connection = lambda : (None, glue_client)
+        relation = Mock(SparkRelation)
+        relation.schema = database_name
+
+        relations = adapter.list_relations_without_caching(relation)
+
+        actual = [(relation.path.schema, relation.path.identifier) for relation in relations]
+        self.assertCountEqual(expected,actual)
 
 
 class TestCsvMappingStrategy:

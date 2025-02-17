@@ -1,7 +1,8 @@
 ## New version
 - Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
-- Allow spawning new isolated sessions for the models that require different session configuration
-- Added configuration property to allow spark casting of seed column types
+- Allow spawning new isolated sessions for the models that require different session configuration.
+- Correctly handle EntityNotFound when listing relations.
+- Added configuration property to allow spark casting of seed column types.
 
 ## v1.9.0
 - Allow to load big seed files
