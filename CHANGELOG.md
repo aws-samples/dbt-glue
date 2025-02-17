@@ -1,6 +1,7 @@
 ## New version
 - Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
-- Allow spawning new isolated sessions for the models that require different session configuration
+- Allow spawning new isolated sessions for the models that require different session configuration.
+- Correctly handle EntityNotFound when listing relations.
 
 ## v1.9.0
 - Allow to load big seed files
