@@ -1,5 +1,7 @@
-## Future Release
-- Allow spawning new isolated sessions for the models that require different session configuration
+## New version
+- Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
+- Allow spawning new isolated sessions for the models that require different session configuration.
+- Correctly handle EntityNotFound when listing relations.
 - Fix the get_columns_in_relation function error when on_schema_change is specified
 
 ## v1.9.0
