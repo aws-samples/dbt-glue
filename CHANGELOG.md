@@ -1,5 +1,6 @@
 ## Future Release
 - Allow spawning new isolated sessions for the models that require different session configuration
+- Fix the get_columns_in_relation function error when on_schema_change is specified
 
 ## v1.9.0
 - Allow to load big seed files

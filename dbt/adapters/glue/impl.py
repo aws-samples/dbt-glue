@@ -226,7 +226,14 @@ class GlueAdapter(SQLAdapter):
         logger.debug("get_columns_in_relation called")
         session, client = self.get_connection()
         computed_schema = self.__compute_schema_based_on_type(schema=relation.schema, identifier=relation.identifier)
-        code = f"""describe {computed_schema}.{relation.identifier}"""
+
+
+        if relation.identifier.endswith('_tmp'):
+            code = f"""describe {relation.identifier}"""
+        else:
+            code = f"""describe {computed_schema}.{relation.identifier}"""
+        logger.debug(f"code: {code}")
+
         columns = []
         try:
             response = session.cursor().execute(code)
