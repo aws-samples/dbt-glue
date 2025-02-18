@@ -1,9 +1,10 @@
-## New version
+## v1.9.2
 - Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
 - Allow spawning new isolated sessions for the models that require different session configuration.
 - Correctly handle EntityNotFound when listing relations.
 - Added configuration property to allow spark casting of seed column types.
-- Fix the get_columns_in_relation function error when on_schema_change is specified
+- Fix the get_columns_in_relation function error when on_schema_change is specified.
+- Upgrade dependencies: dbt-core 1.9.2, dbt-spark 1.9.1, dbt-tests-adapter 1.11.0, mypy 1.15.0, moto 5.0.28, and black 25.1.0.
 
 ## v1.9.0
 - Allow to load big seed files
