@@ -259,35 +259,47 @@ class GlueAdapter(SQLAdapter):
         session, client = self.get_connection()
         computed_schema = self.__compute_schema_based_on_type(schema=relation.schema, identifier=relation.identifier)
 
+        records = []
+        columns = []
+        existing_columns = []
 
-        if relation.identifier.endswith('_tmp') and not relation.identifier.endswith('_dbt_tmp'):
-            code = f"""describe {relation.identifier}"""
-        else:
-            code = f"""describe {computed_schema}.{relation.identifier}"""
+        code = f"""describe {computed_schema}.{relation.identifier}"""
         logger.debug(f"code: {code}")
 
-        columns = []
         try:
             response = session.cursor().execute(code)
             records = self.fetch_all_response(response)
-            existing_columns = []
-
-            for record in records:
-                column_name: str = record[0].strip()
-                column_type: str = record[1].strip()
-                if (
-                    column_name.lower() not in ["", "not partitioned"]
-                    and not column_name.startswith("#")
-                    and column_name not in existing_columns
-                ):
-                    column = self.Column(column=column_name, dtype=column_type)
-                    columns.append(column)
-                    existing_columns.append(column_name)
-
-        except DbtDatabaseError as e:
-            raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
         except Exception as e:
-            logger.error(e)
+            error_msg = str(e)
+            logger.debug(f"First attempt failed with error: {error_msg}")
+
+            # Only try without schema if the error indicates table not found
+            if "TABLE_OR_VIEW_NOT_FOUND" in error_msg:
+                try:
+                    code = f"""describe {relation.identifier}"""
+                    logger.debug(f"Attempting describe without schema: {code}")
+                    response = session.cursor().execute(code)
+                    records = self.fetch_all_response(response)
+                except DbtDatabaseError as e:
+                    raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
+                except Exception as e:
+                    logger.error(f"Second attempt failed with error: {str(e)}")
+                    raise
+            else:
+                # If it's not a table not found error, raise the original exception
+                raise
+
+        for record in records:
+            column_name: str = record[0].strip()
+            column_type: str = record[1].strip()
+            if (
+                column_name.lower() not in ["", "not partitioned"]
+                and not column_name.startswith("#")
+                and column_name not in existing_columns
+            ):
+                column = self.Column(column=column_name, dtype=column_type)
+                columns.append(column)
+                existing_columns.append(column_name)
 
         logger.debug("columns before strip:")
         logger.debug(columns)
