@@ -27,11 +27,41 @@ from dbt.adapters.contracts.relation import RelationConfig
 from dbt_common.exceptions import DbtDatabaseError, CompilationError
 from dbt.adapters.base.impl import catch_as_completed
 from dbt_common.utils import executor
+from dbt_common.clients import agate_helper
 from dbt.adapters.events.logging import AdapterLogger
 
 logger = AdapterLogger("Glue")
 
 
+class ColumnCsvMappingStrategy:
+    _schema_mappings = {
+        "timestamp": "string",
+        "bigint": "double",
+        "date": "string",
+    }
+
+    def __init__(self, column_name, converted_agate_type, specified_type):
+        self.column_name = column_name
+        self.converted_agate_type = converted_agate_type
+        self.specified_type = specified_type
+
+    def as_schema_value(self):
+        return ColumnCsvMappingStrategy._schema_mappings.get(self.converted_agate_type, self.converted_agate_type)
+
+    def as_cast_value(self):
+        return self.specified_type if self.specified_type else self.converted_agate_type
+
+    @classmethod
+    def from_model(cls, model, agate_table):
+        return [
+            ColumnCsvMappingStrategy(
+                column.name,
+                GlueAdapter.convert_agate_type(agate_table, i),
+                model.get("config", {}).get("column_types", {}).get(column.name),
+            )
+            for i, column in enumerate(agate_table.columns)
+        ]
+    
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
@@ -135,6 +165,8 @@ class GlueAdapter(SQLAdapter):
                         type=self.relation_type_map.get(table.get("TableType")),
                     ))
             return relations
+        except client.exceptions.EntityNotFoundException as e:
+            return []
         except Exception as e:
             logger.error(e)
 
@@ -242,7 +274,14 @@ class GlueAdapter(SQLAdapter):
         logger.debug("get_columns_in_relation called")
         session, client = self.get_connection()
         computed_schema = self.__compute_schema_based_on_type(schema=relation.schema, identifier=relation.identifier)
-        code = f"""describe {computed_schema}.{relation.identifier}"""
+
+
+        if relation.identifier.endswith('_tmp') and not relation.identifier.endswith('_dbt_tmp'):
+            code = f"""describe {relation.identifier}"""
+        else:
+            code = f"""describe {computed_schema}.{relation.identifier}"""
+        logger.debug(f"code: {code}")
+
         columns = []
         try:
             response = session.cursor().execute(code)
@@ -535,7 +574,7 @@ class GlueAdapter(SQLAdapter):
             mode = "False"
 
         csv_chunks = self._split_csv_records_into_chunks(json.loads(f.getvalue()))
-        statements = self._map_csv_chunks_to_code(csv_chunks, session, model, mode)
+        statements = self._map_csv_chunks_to_code(csv_chunks, session, model, mode, ColumnCsvMappingStrategy.from_model(model, agate_table))
         try:
             cursor = session.cursor()
             for statement in statements:
@@ -545,7 +584,14 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
 
-    def _map_csv_chunks_to_code(self, csv_chunks: List[List[dict]], session: GlueConnection, model, mode):
+    def _map_csv_chunks_to_code(
+        self,
+        csv_chunks: List[List[dict]],
+        session: GlueConnection,
+        model,
+        mode,
+        column_mappings: List[ColumnCsvMappingStrategy],
+    ):
         statements = []
         for i, csv_chunk in enumerate(csv_chunks):
             is_first = i == 0
@@ -564,8 +610,28 @@ csv.extend({csv_chunk})
 SqlWrapper2.execute("""select 1""")
 '''
             else:
-                code += f'''
+                if session.credentials.enable_spark_seed_casting:
+                    csv_schema = ", ".join(
+                        [f"{mapping.column_name}: {mapping.as_schema_value()}" for mapping in column_mappings]
+                    )
+
+                    cast_columns = ", ".join(
+                        [
+                            f'"cast({mapping.column_name} as {mapping.as_cast_value()}) as {mapping.column_name}"'
+                            for mapping in column_mappings
+                            if (cast_value := mapping.as_cast_value())
+                        ],
+                    )
+
+                    code += f"""
+df = spark.createDataFrame(csv, "{csv_schema}")
+df = df.selectExpr({cast_columns})
+"""
+                else:
+                    code += """
 df = spark.createDataFrame(csv)
+"""
+                code += f'''
 table_name = '{model["schema"]}.{model["name"]}'
 if (spark.sql("show tables in {model["schema"]}").where("tableName == lower('{model["name"]}')").count() > 0):
     df.write\

@@ -355,6 +355,12 @@ class GlueConnection:
             session = response.get("Session", {})
             self._state = session.get("Status")
         except Exception as e:
+            if isinstance(e, botocore.exceptions.ClientError):
+                if e.response['Error']['Code'] == 'EntityNotFoundException':
+                    logger.debug(f"Session {self.session_id} not found")
+                    logger.debug(e)
+                    self._state = None
+                    return self._state
             logger.debug(f"Error while checking state of session {self.session_id}")
             logger.debug(e)
             self._state = GlueSessionState.STOPPED

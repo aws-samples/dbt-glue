@@ -3,9 +3,11 @@ from typing import Optional
 from dbt.adapters.contracts.connection import Credentials
 from dbt_common.exceptions import DbtRuntimeError
 
+
 @dataclass
 class GlueCredentials(Credentials):
-    """ Required connections for a Glue connection"""
+    """Required connections for a Glue connection"""
+
     role_arn: Optional[str] = None  # type: ignore
     region: Optional[str] = None  # type: ignore
     workers: Optional[int] = None  # type: ignore
@@ -36,6 +38,7 @@ class GlueCredentials(Credentials):
     enable_session_per_model: Optional[bool] = False
     use_arrow: Optional[bool] = False
     custom_iceberg_catalog_namespace: Optional[str] = "glue_catalog"
+    enable_spark_seed_casting: Optional[bool] = False
 
     @property
     def type(self):
@@ -93,5 +96,6 @@ class GlueCredentials(Credentials):
             'glue_session_reuse',
             'datalake_formats',
             'enable_session_per_model',
-            'use_arrow'
+            'use_arrow',
+            'enable_spark_seed_casting',
         ]
