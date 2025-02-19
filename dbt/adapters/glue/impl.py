@@ -171,7 +171,8 @@ class GlueAdapter(SQLAdapter):
             else:
                 return False
         except Exception as e:
-            logger.error(e)
+            logger.error(f"Error checking schema existence: {str(e)}")
+            return False
 
     def check_relation_exists(self, relation: BaseRelation) -> bool:
         try:
@@ -232,9 +233,9 @@ class GlueAdapter(SQLAdapter):
                 is_delta=is_delta
             )
             logger.debug(f"""schema : {schema}
-                             identifier : {identifier}
-                             type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
-                        """)
+                 identifier : {identifier}
+                 type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
+            """)
             return relation
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)

@@ -115,6 +115,9 @@
 
 {% macro glue__generate_database_name(custom_database_name=none, node=none) -%}
   {%- set default_database = target.schema -%}
+  {%- if default_database is none or default_database is undefined -%}
+    {{ exceptions.raise_compiler_error("Target schema is undefined") }}
+  {%- endif -%}
   {{ default_database }}
 {%- endmacro %}
 
