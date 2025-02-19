@@ -18,20 +18,9 @@
 
 
 {% macro get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
-  {% if target is none %}
-    {{ exceptions.raise_compiler_error("Target relation is None in get_merge_sql") }}
-  {% endif %}
-
-  {% if source is none %}
-    {{ exceptions.raise_compiler_error("Source relation is None in get_merge_sql") }}
-  {% endif %}
-
   {# /* need dest_columns for merge_exclude_columns, default to use "*" */ #}
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
-  {% if dest_columns is none %}
-    {{ exceptions.raise_compiler_error("Could not get columns for target relation") }}
-  {% endif %}
 
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}

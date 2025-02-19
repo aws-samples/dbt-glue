@@ -165,11 +165,11 @@ class GlueAdapter(SQLAdapter):
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
         try:
-            schemas = self.list_schemas(schema)
-            logger.debug(f"Available schemas: {schemas}")
-            exists = schema in schemas
-            logger.debug(f"Schema {schema} exists: {exists}")
-            return exists
+            list = self.list_schemas(schema)
+            if schema in list:
+                return True
+            else:
+                return False
         except Exception as e:
             logger.error(f"Error checking schema existence: {str(e)}")
             return False
@@ -221,12 +221,7 @@ class GlueAdapter(SQLAdapter):
                 DatabaseName=schema,
                 Name=identifier
             )
-            if not response or 'Table' not in response:
-                logger.debug(f"No table found for {schema}.{identifier}")
-                return None
-
-            table_params = response.get('Table', {}).get('Parameters', {})
-            is_delta = table_params.get("spark.sql.sources.provider") == "delta"
+            is_delta = response.get('Table').get("Parameters").get("spark.sql.sources.provider") == "delta"
 
             # Compute the new schema based on the iceberg requirements
             computed_schema = self.__compute_schema_based_on_type(schema=schema, identifier=identifier)
@@ -237,7 +232,10 @@ class GlueAdapter(SQLAdapter):
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
                 is_delta=is_delta
             )
-            logger.debug(f"Created relation {relation} for database={database}, schema={schema}, identifier={identifier}")
+            logger.debug(f"""schema : {schema}
+                 identifier : {identifier}
+                 type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
+            """)
             return relation
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)

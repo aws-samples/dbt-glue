@@ -1,4 +1,5 @@
 {% materialization incremental, adapter='glue' -%}
+  {% do log("Starting incremental materialization", info=True) %}
   {# /*-- Validate early so we don't run SQL if the file_format + strategy combo is invalid --*/ #}
   {%- set raw_file_format = config.get('file_format', default='parquet') -%}
   {%- set raw_strategy = config.get('incremental_strategy', default='insert_overwrite') -%}
@@ -16,9 +17,7 @@
   {%- if not identifier -%}
     {% do exceptions.raise_compiler_error("Identifier not found in model") %}
   {%- endif -%}
-
   {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
-
 
   {%- if existing_relation is none -%}
     {%- set target_relation = glue__make_target_relation(this, config.get('file_format')) -%}
