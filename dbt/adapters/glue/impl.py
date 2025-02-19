@@ -145,10 +145,6 @@ class GlueAdapter(SQLAdapter):
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
-        if not schema_relation or not schema_relation.schema:
-            logger.debug("Invalid schema_relation")
-            return []
-
         session, client = self.get_connection()
         relations = []
         paginator = client.get_paginator('get_tables')
@@ -168,10 +164,6 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
-        if not schema:
-            logger.debug("Schema is None or empty")
-            return False
-
         try:
             schemas = self.list_schemas(schema)
             logger.debug(f"Available schemas: {schemas}")
