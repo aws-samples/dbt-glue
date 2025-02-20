@@ -215,6 +215,9 @@ class GlueAdapter(SQLAdapter):
 
     def get_relation(self, database, schema, identifier):
         session, client = self.get_connection()
+        if not identifier:
+            logger.debug(f"get_relation returns None for schema : {schema} as identifier is not set")
+            return None
         try:
             response = client.get_table(
                 DatabaseName=schema,

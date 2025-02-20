@@ -5,6 +5,7 @@
 - Added configuration property to allow spark casting of seed column types.
 - Fix the get_columns_in_relation function error when on_schema_change is specified.
 - Upgrade dependencies: dbt-core 1.9.2, dbt-spark 1.9.1, dbt-tests-adapter 1.11.0, mypy 1.15.0, moto 5.0.28, and black 25.1.0.
+- Fix error handling and logging
 
 ## v1.9.0
 - Allow to load big seed files
