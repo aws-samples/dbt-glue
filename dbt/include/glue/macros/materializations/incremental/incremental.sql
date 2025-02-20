@@ -8,7 +8,7 @@
   {# /*-- Set vars --*/ #}
   {%- set language = model['language'] -%}
   {%- set existing_relation_type = adapter.get_table_type(this) -%}
-  {%- set identifier = model.get('alias', model.get('name')) -%}
+  {%- set identifier = model['alias'] -%}
   {%- if not identifier -%}
     {% do exceptions.raise_compiler_error("Identifier not found in model") %}
   {%- endif -%}
