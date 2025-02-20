@@ -1,11 +1,9 @@
 {% materialization table, adapter = 'glue'%}
-  {% do log("Starting table materialization", info=True) %}
   {%- set identifier = model['alias'] -%}
   {%- set grant_config = config.get('grants') -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}
   {%- set lf_grants = config.get('lf_grants') -%}
   {%- set existing_relation_type = adapter.get_table_type(this) -%}
-
   {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
   {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
 

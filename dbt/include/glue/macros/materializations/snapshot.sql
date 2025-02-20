@@ -87,7 +87,6 @@
 
 
 {% materialization snapshot, adapter='glue' %}
-  {% do log("Starting snapshot materialization", info=True) %}
   {%- set target_table = model.get('alias', model.get('name')) -%}
 
   {%- set strategy_name = config.get('strategy') -%}
