@@ -171,7 +171,7 @@ class GlueAdapter(SQLAdapter):
             else:
                 return False
         except Exception as e:
-            logger.error(f"Error checking schema existence: {str(e)}")
+            logger.error(e)
 
     def check_relation_exists(self, relation: BaseRelation) -> bool:
         try:
