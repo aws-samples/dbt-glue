@@ -71,8 +71,7 @@
           {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
           {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
           {% set build_sql %}
-          insert into {{ target_relation }} ({{ dest_cols_csv }})
-          select {{ dest_cols_csv }} from {{ tmp_relation.include(schema=true) }}
+          insert into {{ target_relation }} ({{ dest_cols_csv }}) select {{ dest_cols_csv }} from {{ tmp_relation.include(schema=true) }}
           {% endset %}
 
         {% else %}

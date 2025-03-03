@@ -13,11 +13,10 @@
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
     {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
     {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
-    insert into table {{ target_relation }}
     {%- if schema_change_mode != 'ignore' -%}
-    select {{dest_cols_csv}} from {{ source_relation }}
+    insert into table {{ target_relation }} select {{dest_cols_csv}} from {{ source_relation }}
     {%- else -%}
-    select {{dest_cols_csv}} from {{ source_relation.include(schema=false) }}
+    insert into table {{ target_relation }} select {{dest_cols_csv}} from {{ source_relation.include(schema=false) }}
     {%- endif -%}
 {% endmacro %}
 
