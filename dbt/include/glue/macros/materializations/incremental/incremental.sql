@@ -10,7 +10,7 @@
   {%- set existing_relation_type = adapter.get_table_type(this) -%}
   {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
   {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
-  {%- set tmp_relation = make_temp_relation(this, '_tmp').include(schema=false) -%}
+  {%- set tmp_relation = make_temp_relation(this, '_tmp') -%}
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set incremental_predicates = config.get('predicates', none) or config.get('incremental_predicates', none) -%}
@@ -23,6 +23,7 @@
   {%- set substitute_variables = config.get('substitute_variables', default=[]) -%}
   {%- set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') -%}
   {%- set is_incremental = 'False' -%}
+  {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
 
   {% if existing_relation_type is not none %}
       {%- set target_relation = target_relation.incorporate(type=existing_relation_type if existing_relation_type != "iceberg_table" else "table") -%}
@@ -61,16 +62,30 @@
         {% endif %}
       {% else %}
         {# /*-- Relation must be merged --*/ #}
-        {%- call statement('create_tmp_view') -%}
-          {{ create_table_as(True, tmp_relation, sql) }}
-        {%- endcall -%}
+        {% if file_format == 'iceberg' and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
+          {%- call statement('create_tmp_table') -%}
+            {{ create_temporary_view(tmp_relation, sql) }}
+          {%- endcall -%}
+          {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
+
+          {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
+          {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
+          {% set build_sql %}
+          insert into {{ target_relation }} ({{ dest_cols_csv }}) select {{ dest_cols_csv }} from {{ tmp_relation.include(schema=true) }}
+          {% endset %}
+
+        {% else %}
+          {%- call statement('create_tmp_relation') -%}
+            {{ create_temporary_view(tmp_relation, sql) }}
+          {%- endcall -%}
+          {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
+        {% endif %}
+
         {% set is_incremental = 'True' %}
-        {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
-        {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
       {% endif %}
   {% endif %}
 
-  {# /*-- Excute the main statement --*/ #}
+  {# /*-- Execute the main statement --*/ #}
   {%- call statement('main') -%}
      {{ build_sql }}
   {%- endcall -%}
@@ -83,16 +98,16 @@
   {# /*-- Run post-hooks --*/ #}
   {{ run_hooks(post_hooks) }}
 
-  {# /*-- setup lake formation tags --*/ #}
+  {# /*-- Setup lake formation tags --*/ #}
   {% if lf_tags_config is not none %}
     {{ adapter.add_lf_tags(target_relation, lf_tags_config) }}
   {% endif %}
 
-  {# /*-- setup lake formation grants --*/ #}
+  {# /*-- Setup lake formation grants --*/ #}
   {% if lf_grants is not none %}
     {{ adapter.apply_lf_grants(target_relation, lf_grants) }}
   {% endif %}
-  
+
   {% if is_incremental == 'True' %}
     {{ glue__drop_relation(tmp_relation) }}
     {% if file_format == 'delta' %}

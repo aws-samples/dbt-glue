@@ -275,3 +275,93 @@ class TestTableMatGlue(BaseTableMaterialization):
 class TestValidateConnectionGlue(BaseValidateConnection):
     pass
 
+
+class TestSchemaChangeGlue:
+    """Test schema change handling in Glue adapter with Iceberg tables"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        """Configure project to use Iceberg format for tables"""
+        return {
+            "name": "schema_change_test",
+            "models": {
+                "+file_format": "iceberg",  # Set default file format to Iceberg
+                "+on_schema_change": "sync_all_columns"  # Set default schema change handling
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        """Define test models to demonstrate schema changes"""
+        return {
+            # Initial model with base schema
+            "base_model.sql": """
+select 
+    1 as id, 
+    'John' as first_name, 
+    'Doe' as last_name, 
+    'john.doe@example.com' as email
+union all
+select 
+    2 as id, 
+    'Jane' as first_name, 
+    'Smith' as last_name, 
+    'jane.smith@example.com' as email
+            """,
+
+            # Incremental model with hard-coded configs
+            "incremental_model.sql": """
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='insert_overwrite',
+        file_format='iceberg',
+        on_schema_change='sync_all_columns'
+    )
+}}
+
+{{ log("DEBUG - Model config - file_format: " ~ config.get('file_format'), info=true) }}
+{{ log("DEBUG - Model config - on_schema_change: " ~ config.get('on_schema_change'), info=true) }}
+
+select * from {{ ref('base_model') }}
+            """
+        }
+
+    def test_schema_change_detection(self, project):
+        """Test that schema changes are properly detected and handled"""
+        # Initial run with original models - use full-refresh
+        results = run_dbt(["run", "--select", "base_model incremental_model", "--full-refresh"])
+        assert len(results) == 2, "Initial run should succeed with both models"
+
+        # Check that incremental_model has the expected schema
+        relation = relation_from_name(project.adapter, "incremental_model")
+        initial_columns = [c.name for c in project.adapter.get_columns_in_relation(relation)]
+        print(f"Initial columns: {initial_columns}")
+        assert "email" in initial_columns, "Initial schema should contain email column"
+
+        # Update the base model to add a new column
+        with open(f"{project.project_root}/models/base_model.sql", "w") as f:
+            f.write("""
+    select
+        1 as id,
+        'John' as first_name,
+        'Doe' as last_name,
+        'john.doe@example.com' as email,
+        '555-1234' as phone
+    union all
+    select
+        2 as id,
+        'Jane' as first_name,
+        'Smith' as last_name,
+        'jane.smith@example.com' as email,
+        '555-5678' as phone
+            """)
+
+        results = run_dbt(["run", "--select", "base_model incremental_model", "--full-refresh"])
+        assert len(results) == 2, "Full refresh with schema changes should succeed"
+
+        # Verify the incremental model has the new column after schema change
+        relation = relation_from_name(project.adapter, "incremental_model")
+        updated_columns = [c.name for c in project.adapter.get_columns_in_relation(relation)]
+        print(f"Updated columns: {updated_columns}")
+        assert "phone" in updated_columns, "Schema change should add the phone column"

@@ -51,8 +51,14 @@
 {% endmacro %}
 
 {% macro glue__create_temporary_view(relation, sql) -%}
-  create or replace temporary view {{ relation.include(schema=false) }} as
-    {{ sql }}
+  {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
+  {%- set file_format = config.get('file_format', default='parquet') -%}
+
+  {% if file_format == 'iceberg' and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
+    create or replace table {{ relation.include(schema=true) }} using iceberg as {{ sql }}
+  {% else %}
+    create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
+  {% endif %}
 {% endmacro %}
 
 {% macro glue__file_format_clause() %}
@@ -65,7 +71,7 @@
 {%- endmacro -%}
 
 {% macro glue__create_table_as(temporary, relation, sql) -%}
-  {% if temporary -%}
+  {% if temporary is sameas true -%}
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
     {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
