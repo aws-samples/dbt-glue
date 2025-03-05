@@ -64,7 +64,7 @@
         {# /*-- Relation must be merged --*/ #}
         {% if file_format == 'iceberg' and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
           {%- call statement('create_tmp_table') -%}
-            {{ create_temporary_view(tmp_relation, sql) }}
+            {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
           {%- endcall -%}
           {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
 

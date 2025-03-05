@@ -365,3 +365,136 @@ select * from {{ ref('base_model') }}
         updated_columns = [c.name for c in project.adapter.get_columns_in_relation(relation)]
         print(f"Updated columns: {updated_columns}")
         assert "phone" in updated_columns, "Schema change should add the phone column"
+
+
+class TestIcebergTimestampColumnEnabled:
+    """Test adding update_iceberg_ts column to Iceberg tables when enabled"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        """Configure project to use Iceberg format with timestamp column enabled"""
+        return {
+            "name": "iceberg_timestamp_test_enabled",
+            "models": {
+                "+file_format": "iceberg",  # Set default file format to Iceberg
+                "+add_iceberg_timestamp": True  # Enable timestamp column addition
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        """Define test models"""
+        return {
+            # Base model
+            "base_model.sql": """
+select 
+    1 as id, 
+    'John' as first_name, 
+    'Doe' as last_name
+union all
+select 
+    2 as id, 
+    'Jane' as first_name, 
+    'Smith' as last_name
+            """,
+
+            # Incremental model that references base_model
+            "incremental_model.sql": """
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='insert_overwrite',
+        file_format='iceberg'
+    )
+}}
+
+select * from {{ ref('base_model') }}
+            """
+        }
+
+    def test_iceberg_timestamp_column_added(self, project):
+        """Test that update_iceberg_ts column is automatically added when enabled"""
+        # Run the base model
+        results = run_dbt(["run", "--select", "base_model"])
+        assert len(results) == 1, "Should build base model successfully"
+
+        # Check base model columns
+        base_relation = relation_from_name(project.adapter, "base_model")
+        base_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(base_relation)]
+        assert "update_iceberg_ts" in base_columns, "Base model should have update_iceberg_ts column when enabled"
+
+        # Run the incremental model
+        results = run_dbt(["run", "--select", "incremental_model"])
+        assert len(results) == 1, "Should build incremental model successfully"
+
+        # Check incremental model columns
+        incremental_relation = relation_from_name(project.adapter, "incremental_model")
+        incremental_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(incremental_relation)]
+        assert "update_iceberg_ts" in incremental_columns, "Incremental model should have update_iceberg_ts column when enabled"
+        assert len([c for c in incremental_columns if c == "update_iceberg_ts"]) == 1, "Should not have duplicate update_iceberg_ts columns"
+
+
+class TestIcebergTimestampColumnDisabled:
+    """Test behavior when update_iceberg_ts column is disabled for Iceberg tables"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        """Configure project to use Iceberg format with timestamp column disabled"""
+        return {
+            "name": "iceberg_timestamp_test_disabled",
+            "models": {
+                "+file_format": "iceberg",  # Set default file format to Iceberg
+                "+add_iceberg_timestamp": False  # Disable timestamp column addition
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        """Define test models"""
+        return {
+            # Base model
+            "base_model.sql": """
+select 
+    1 as id, 
+    'John' as first_name, 
+    'Doe' as last_name
+union all
+select 
+    2 as id, 
+    'Jane' as first_name, 
+    'Smith' as last_name
+            """,
+
+            # Incremental model that references base_model
+            "incremental_model.sql": """
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='insert_overwrite',
+        file_format='iceberg'
+    )
+}}
+
+select * from {{ ref('base_model') }}
+            """
+        }
+
+    def test_iceberg_timestamp_column_not_added(self, project):
+        """Test that update_iceberg_ts column is not added when disabled"""
+        # Run the base model
+        results = run_dbt(["run", "--select", "base_model"])
+        assert len(results) == 1, "Should build base model successfully"
+
+        # Check base model columns
+        base_relation = relation_from_name(project.adapter, "base_model")
+        base_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(base_relation)]
+        assert "update_iceberg_ts" not in base_columns, "Base model should NOT have update_iceberg_ts column when disabled"
+
+        # Run the incremental model
+        results = run_dbt(["run", "--select", "incremental_model"])
+        assert len(results) == 1, "Should build incremental model successfully"
+
+        # Check incremental model columns
+        incremental_relation = relation_from_name(project.adapter, "incremental_model")
+        incremental_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(incremental_relation)]
+        assert "update_iceberg_ts" not in incremental_columns, "Incremental model should NOT have update_iceberg_ts column when disabled"

@@ -7,6 +7,7 @@
 - Upgrade dependencies: dbt-core 1.9.2, dbt-spark 1.9.1, dbt-tests-adapter 1.11.0, mypy 1.15.0, moto 5.0.28, and black 25.1.0.
 - Fix the temporary view creation issue when using schema_on_change
 - Fix error handling and logging
+- Adds update_iceberg_ts column with an add_iceberg_timestamp option.
 
 ## v1.9.0
 - Allow to load big seed files
