@@ -22,6 +22,7 @@ class TestGlueMacros(unittest.TestCase):
             "adapter": mock.Mock(),
             "return": lambda r: r,
             "this": mock.Mock(),
+            "add_iceberg_timestamp_column": lambda sql: sql,
             "make_temp_relation": mock.Mock(),
             "set_table_properties": lambda props: f"TBLPROPERTIES ({props})" if props != {} else "",
             "comment_clause": lambda: "",
@@ -29,21 +30,13 @@ class TestGlueMacros(unittest.TestCase):
             "partition_cols": lambda label: f"{label} (part_col)" if label else "",
             "clustered_cols": lambda label: "",
             "get_assert_columns_equivalent": lambda sql: "",
-            # Add sql_header
             "sql_header": None,
-            # Add get_merge_update_columns function
             "get_merge_update_columns": lambda update_cols, exclude_cols, dest_cols: update_cols if update_cols else ["col1", "col2"],
-            # Add incremental_validate_on_schema_change
             "incremental_validate_on_schema_change": lambda on_schema_change, default: default,
-            # Add process_schema_changes
             "process_schema_changes": lambda on_schema_change, tmp_relation, target_relation: None,
-            # Add run_hooks
             "run_hooks": lambda hooks: None,
-            # Add should_full_refresh
             "should_full_refresh": lambda: False,
-            # Add dbt_glue_validate_get_file_format
             "dbt_glue_validate_get_file_format": lambda raw_file_format: raw_file_format,
-            # Add dbt_glue_validate_get_incremental_strategy
             "dbt_glue_validate_get_incremental_strategy": lambda raw_strategy, file_format: raw_strategy,
         }
 
