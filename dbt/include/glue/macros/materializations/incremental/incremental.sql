@@ -64,7 +64,7 @@
         {# /*-- Relation must be merged --*/ #}
         {% if file_format == 'iceberg' and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
           {%- call statement('create_tmp_table') -%}
-            create or replace table {{ tmp_relation.include(schema=true) }} using iceberg as {{ sql }}
+            {{ create_temporary_view(tmp_relation, sql) }}
           {%- endcall -%}
           {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
 
@@ -76,7 +76,7 @@
 
         {% else %}
           {%- call statement('create_tmp_relation') -%}
-            create or replace temporary view {{ tmp_relation.include(schema=false) }} as {{ sql }}
+            {{ create_temporary_view(tmp_relation, sql) }}
           {%- endcall -%}
           {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
         {% endif %}
