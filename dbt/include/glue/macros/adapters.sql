@@ -100,7 +100,7 @@
     {{ glue__location_clause() }}
     {{ comment_clause() }}
     as
-    {{ sql }}
+    {{ add_iceberg_timestamp_column(sql) }}
   {%- endif %}
 {%- endmacro -%}
 
@@ -144,7 +144,7 @@
     {%- endif -%}
     create or replace view {{ relation }}
         as
-    {{ sql }}
+    {{ add_iceberg_timestamp_column(sql) }}
 {% endmacro %}
 
 {% macro glue__create_view(relation, sql) -%}
