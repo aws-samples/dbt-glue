@@ -1,5 +1,5 @@
 {% macro add_iceberg_timestamp_column(sql, relation=none) %}
-  {%- set add_iceberg_timestamp = config.get('add_iceberg_timestamp', true) -%}
+  {%- set add_iceberg_timestamp = config.get('add_iceberg_timestamp', false) -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
 
   {% if add_iceberg_timestamp and file_format == 'iceberg' %}

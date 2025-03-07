@@ -285,16 +285,14 @@ class TestSchemaChangeGlue:
         return {
             "name": "schema_change_test",
             "models": {
-                "+file_format": "iceberg",  # Set default file format to Iceberg
-                "+on_schema_change": "sync_all_columns"  # Set default schema change handling
+                "+file_format": "iceberg",
+                "+on_schema_change": "sync_all_columns"
             }
         }
 
     @pytest.fixture(scope="class")
     def models(self):
-        """Define test models to demonstrate schema changes"""
         return {
-            # Initial model with base schema
             "base_model.sql": """
 select 
     1 as id, 
@@ -314,7 +312,7 @@ select
 {{
     config(
         materialized='incremental',
-        incremental_strategy='insert_overwrite',
+        incremental_strategy='append',
         file_format='iceberg',
         on_schema_change='sync_all_columns'
     )
