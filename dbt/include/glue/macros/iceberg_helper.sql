@@ -14,30 +14,28 @@
 
     {{ log("DEBUG - Found columns: " ~ column_names|join(", "), info=true) }}
 
-    {%- set ns = namespace(has_update_ts_column=false) -%}
+    {%- set ns = namespace(source_columns=[]) -%}
+
     {% for column_name in column_names %}
-      {% if column_name|trim|lower == 'update_iceberg_ts' %}
-        {%- set ns.has_update_ts_column = true -%}
+      {% if column_name|trim|lower != 'update_iceberg_ts' %}
+        {%- do ns.source_columns.append(column_name) -%}
       {% endif %}
     {% endfor %}
 
-    {{ log("DEBUG - has_update_ts_column: " ~ ns.has_update_ts_column, info=true) }}
+    {%- set source_columns_csv = ns.source_columns|join(', ') -%}
 
+    {{ log("DEBUG - Selecting columns: " ~ source_columns_csv, info=true) }}
     WITH source_data AS (
       {{ sql }}
     )
 
-    {% if ns.has_update_ts_column %}
-      {{ log("DEBUG - Using existing update_iceberg_ts column", info=true) }}
-      SELECT * FROM source_data
-    {% else %}
-      {{ log("DEBUG - Adding new update_iceberg_ts column", info=true) }}
-      SELECT
-        s.*,
-        current_timestamp() AS update_iceberg_ts
-      FROM source_data s
-    {% endif %}
-
+    SELECT
+      {% for column_name in ns.source_columns %}
+        s.{{ column_name }}{% if not loop.last %},{% endif %}
+      {% endfor %}
+      {% if ns.source_columns %},{% endif %}
+      current_timestamp() AS update_iceberg_ts
+    FROM source_data s
   {% else %}
     {{ sql }}
   {% endif %}
