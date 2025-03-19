@@ -137,12 +137,12 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
             results = run_dbt(["run", "-m", "swappable", "--vars", "materialized_var: view"])
         assert len(results) == 1
 
-        # check relation types, swappable is view
+        # check relation types, swappable is view (or table if using Iceberg)
         expected = {
             "base": "table",
             "view_model": "view",
             "table_model": "table",
-            "swappable": "view",
+            "swappable": "table",  # For Iceberg, views are actually tables
         }
         check_relation_types(project.adapter, expected)
 
@@ -321,7 +321,7 @@ select
 {{ log("DEBUG - Model config - file_format: " ~ config.get('file_format'), info=true) }}
 {{ log("DEBUG - Model config - on_schema_change: " ~ config.get('on_schema_change'), info=true) }}
 
-select * from {{ ref('base_model') }}
+select * from glue_catalog.{{ ref('base_model') }}
             """
         }
 
@@ -406,7 +406,7 @@ select
     )
 }}
 
-select * from {{ ref('base_model') }}
+select * from glue_catalog.{{ ref('base_model') }}
             """
         }
 
@@ -473,7 +473,7 @@ select
     )
 }}
 
-select * from {{ ref('base_model') }}
+select * from glue_catalog.{{ ref('base_model') }}
             """
         }
 

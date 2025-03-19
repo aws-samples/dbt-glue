@@ -157,7 +157,8 @@
     {%- set is_iceberg = file_format == 'iceberg' -%}
 
     {%- if is_iceberg -%}
-        create or replace table {{ relation }}
+        {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+        create or replace table {{ full_relation }}
         using iceberg
         as
         {{ add_iceberg_timestamp_column(sql) }}
