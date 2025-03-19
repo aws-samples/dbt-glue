@@ -30,7 +30,7 @@
     {%- if schema_change_mode != 'ignore' -%}
     insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ full_source_relation }}
     {%- else -%}
-    insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ full_source_relation }}
+    insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ source_relation.include(schema=false) }}
     {%- endif -%}
 {% endmacro %}
 
