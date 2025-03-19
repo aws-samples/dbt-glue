@@ -8,6 +8,7 @@
 - Fix the temporary view creation issue when using schema_on_change
 - Fix error handling and logging
 - Adds update_iceberg_ts column with an add_iceberg_timestamp option.
+- Fix missing catalog identifier related issues for Iceberg
 
 ## v1.9.0
 - Allow to load big seed files
