@@ -168,6 +168,12 @@
 
       {% do create_columns(target_relation, missing_columns) %}
 
+      {% if missing_columns|length > 0 %}
+        {% call statement('refresh_table_metadata') %}
+          refresh table {{ target_relation }}
+        {% endcall %}
+      {% endif %}
+
       {% set source_columns = adapter.get_columns_in_relation(staging_table)
                                    | rejectattr('name', 'equalto', 'dbt_change_type')
                                    | rejectattr('name', 'equalto', 'DBT_CHANGE_TYPE')
