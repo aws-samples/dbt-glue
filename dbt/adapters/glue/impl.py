@@ -219,6 +219,9 @@ class GlueAdapter(SQLAdapter):
             logger.debug(f"get_relation returns None for schema : {schema} as identifier is not set")
             return None
         try:
+            schema = self._strip_catalog_from_schema(schema)
+
+            logger.debug(f"get_relation schema: {schema}, identifier: {identifier}")
             response = client.get_table(
                 DatabaseName=schema,
                 Name=identifier
@@ -260,7 +263,10 @@ class GlueAdapter(SQLAdapter):
     def get_columns_in_relation(self, relation: BaseRelation):
         logger.debug("get_columns_in_relation called")
         session, client = self.get_connection()
-        computed_schema = self.__compute_schema_based_on_type(schema=relation.schema, identifier=relation.identifier)
+
+        schema = self._strip_catalog_from_schema(relation.schema)
+
+        computed_schema = self.__compute_schema_based_on_type(schema=schema, identifier=relation.identifier)
 
         records = []
         columns = []
@@ -660,6 +666,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
         session, client = self.get_connection()
         table_input = {}
         try:
+            logger.debug(f"_update_additional_location schema: {target_relation.schema}, name: {session.credentials.delta_athena_prefix}_{target_relation.name}")
             table_input = client.get_table(
                 DatabaseName=f"{target_relation.schema}",
                 Name=f"{session.credentials.delta_athena_prefix}_{target_relation.name}",
@@ -821,12 +828,45 @@ SqlWrapper2.execute("""select 1""")
                 logger.error(e)
             self._update_additional_location(target_relation, location)
 
+    def _strip_catalog_from_schema(self, schema):
+        """
+        Utility function to remove the iceberg catalog name from schema if present.
+
+        Args:
+            schema (str): The schema name, possibly prefixed with catalog name
+
+        Returns:
+            str: The schema name without catalog prefix
+        """
+        iceberg_catalog = self.get_custom_iceberg_catalog_namespace()
+
+        # If no custom catalog is configured, return schema as is
+        if not iceberg_catalog:
+            return schema
+
+        # If schema starts with catalog name followed by a dot, remove it
+        if schema.startswith(f"{iceberg_catalog}."):
+            return schema[len(iceberg_catalog) + 1:]
+
+        # If schema contains catalog name with dots on both sides (e.g., in middle)
+        # This handles cases where catalog might be in the middle of a schema path
+        parts = schema.split('.')
+        if iceberg_catalog in parts:
+            parts.remove(iceberg_catalog)
+            return '.'.join(parts)
+
+        return schema
+
     @available
     def get_table_type(self, relation):
         session, client = self.get_connection()
+
+        schema = self._strip_catalog_from_schema(relation.schema)
+
+        logger.debug(f"get_table_type schema: {schema}, name: {relation.name}")
         try:
             response = client.get_table(
-                DatabaseName=relation.schema,
+                DatabaseName=schema,
                 Name=relation.name
             )
         except client.exceptions.EntityNotFoundException as e:
