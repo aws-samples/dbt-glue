@@ -33,7 +33,6 @@
     insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ full_source_relation }}
     {%- endif -%}
 {% endmacro %}
-{% endmacro %}
 
 
 {% macro get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
