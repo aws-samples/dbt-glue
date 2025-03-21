@@ -1,11 +1,18 @@
 {% macro get_insert_overwrite_sql(source_relation, target_relation) %}
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
     {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
+    {%- set file_format = config.get('file_format', default='parquet') -%}
+    {%- set full_target_relation = target_relation -%}
+    {%- set full_source_relation = source_relation -%}
+    {%- if file_format == 'iceberg' -%}
+        {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
+        {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+    {%- endif -%}
     set hive.exec.dynamic.partition.mode=nonstrict
     dbt_next_query
-    insert overwrite table {{ target_relation }}
+    insert overwrite table {{ full_target_relation }}
     {{ partition_cols(label="partition") }}
-    select {{dest_cols_csv}} from {{ source_relation }}
+    select {{dest_cols_csv}} from {{ full_source_relation }}
 {% endmacro %}
 
 
@@ -13,10 +20,17 @@
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
     {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
     {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
-    {%- if schema_change_mode != 'ignore' -%}
-    insert into table {{ target_relation }} select {{dest_cols_csv}} from {{ source_relation }}
+    {%- set file_format = config.get('file_format', default='parquet') -%}
+    {%- set full_target_relation = target_relation -%}
+    {%- set full_source_relation = source_relation -%}
+    {%- if file_format == 'iceberg' -%}
+        {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
+        {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+    {%- endif -%}
+    {%- if file_format == 'iceberg' or schema_change_mode != 'ignore' -%}
+        insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ full_source_relation }}
     {%- else -%}
-    insert into table {{ target_relation }} select {{dest_cols_csv}} from {{ source_relation.include(schema=false) }}
+        insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ source_relation.include(schema=false) }}
     {%- endif -%}
 {% endmacro %}
 
@@ -28,6 +42,13 @@
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
+  {%- set file_format = config.get('file_format', default='parquet') -%}
+  {%- set full_target = target -%}
+  {%- set full_source = source -%}
+  {%- if file_format == 'iceberg' -%}
+      {%- set full_target = glue__make_target_relation(target, file_format) -%}
+      {%- set full_source = glue__make_target_relation(source, file_format) -%}
+  {%- endif -%}
 
   {% if unique_key %}
       {% if unique_key is sequence and unique_key is not mapping and unique_key is not string %}
@@ -49,8 +70,8 @@
 
   {{ sql_header if sql_header is not none }}
 
-  merge into {{ target }} as DBT_INTERNAL_DEST
-      using {{ source }} as DBT_INTERNAL_SOURCE
+  merge into {{ full_target }} as DBT_INTERNAL_DEST
+      using {{ full_source }} as DBT_INTERNAL_SOURCE
       on {{ predicates | join(' and ') }}
 
       when matched then update set

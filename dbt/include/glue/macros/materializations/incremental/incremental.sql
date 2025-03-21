@@ -70,8 +70,10 @@
 
           {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
           {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
+          {%- set full_tmp_relation = glue__make_target_relation(tmp_relation, file_format) -%}
+          {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
           {% set build_sql %}
-          insert into {{ target_relation }} ({{ dest_cols_csv }}) select {{ dest_cols_csv }} from {{ tmp_relation.include(schema=true) }}
+          insert into {{ full_target_relation }} ({{ dest_cols_csv }}) select {{ dest_cols_csv }} from {{ full_tmp_relation }}
           {% endset %}
 
         {% else %}
