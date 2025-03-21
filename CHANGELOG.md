@@ -9,6 +9,7 @@
 - Fix error handling and logging
 - Add update_iceberg_ts column with an add_iceberg_timestamp option.
 - Add refresh table when missing columns are detected
+- Fix ALTER TABLE ADD COLUMN returning None
 
 ## v1.9.0
 - Allow to load big seed files
