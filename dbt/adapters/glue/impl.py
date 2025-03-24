@@ -848,13 +848,6 @@ SqlWrapper2.execute("""select 1""")
         if schema.startswith(f"{iceberg_catalog}."):
             return schema[len(iceberg_catalog) + 1:]
 
-        # If schema contains catalog name with dots on both sides (e.g., in middle)
-        # This handles cases where catalog might be in the middle of a schema path
-        parts = schema.split('.')
-        if iceberg_catalog in parts:
-            parts.remove(iceberg_catalog)
-            return '.'.join(parts)
-
         return schema
 
     @available
