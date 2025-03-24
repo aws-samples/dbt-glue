@@ -45,16 +45,15 @@
     {% set tmp_identifier = target_relation.identifier ~ '__dbt_tmp' %}
 
     {% if target_relation.is_iceberg %}
-      {# iceberg catalog does not support create view, but regular glue does. We removed the catalog and schema #}
       {%- set tmp_relation = api.Relation.create(identifier=tmp_identifier,
-                                                    schema=none,
-                                                    database=none,
-                                                    type='view') -%}
+                                                schema=target_relation.schema,
+                                                database=target_relation.database,
+                                                type='table') -%}
     {% else %}
       {%- set tmp_relation = api.Relation.create(identifier=tmp_identifier,
-                                                    schema=target_relation.schema,
-                                                    database=none,
-                                                    type='view') -%}
+                                                schema=target_relation.schema,
+                                                database=none,
+                                                type='view') -%}
     {% endif %}
 
     {% set select = snapshot_staging_table(strategy, sql, target_relation) %}
@@ -100,6 +99,12 @@
           schema=model.schema,
           identifier=target_table,
           type='table') -%}
+  {%- set table_type = adapter.get_table_type(target_relation) -%}
+
+  {%- set file_format = config.get('file_format') or 'parquet' -%}
+  {%- if file_format == 'iceberg' -%}
+    {%- set target_relation = glue__make_target_relation(target_relation, file_format) -%}
+  {%- endif -%}
 
   {%- if file_format not in ['delta', 'iceberg', 'hudi'] -%}
     {% set invalid_format_msg -%}
@@ -110,12 +115,16 @@
   {% endif %}
 
   {%- if target_relation_exists -%}
-    {%- if not target_relation.is_delta and not target_relation.is_iceberg and not target_relation.is_hudi -%}
+    {%- set table_type = adapter.get_table_type(target_relation) -%}
+
+    {%- if table_type == 'iceberg_table' or target_relation.is_iceberg or target_relation.is_delta or target_relation.is_hudi -%}
+      {% do log("DEBUG: Table format check passed.", info=true) %}
+    {%- else -%}
       {% set invalid_format_msg -%}
         The existing table {{ model.schema }}.{{ target_table }} is in another format than 'delta' or 'iceberg' or 'hudi'
       {%- endset %}
       {% do exceptions.raise_compiler_error(invalid_format_msg) %}
-    {% endif %}
+    {%- endif -%}
   {% endif %}
 
   {% if not adapter.check_schema_exists(model.database, model.schema) %}

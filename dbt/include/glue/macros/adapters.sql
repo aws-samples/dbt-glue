@@ -58,21 +58,30 @@
     {%- set first_iceberg_load = (file_format == 'iceberg') -%}
     {%- set non_null_catalog = (iceberg_catalog is not none) -%}
     {%- if non_null_catalog and first_iceberg_load %}
-        {# /* We add the iceberg catalog is the following cases */ #}
-        {%- do return(relation.incorporate(path={"schema": iceberg_catalog ~ '.' ~ relation.schema, "identifier": relation.identifier})) -%}
+        {# Check if the schema already includes the catalog to avoid duplication #}
+        {%- if relation.schema.startswith(iceberg_catalog ~ '.') %}
+            {%- do return(relation) -%}
+        {%- else %}
+            {%- do return(relation.incorporate(path={"schema": iceberg_catalog ~ '.' ~ relation.schema, "identifier": relation.identifier})) -%}
+        {%- endif %}
     {%- else -%}
-        {# /* Otherwise we keep the relation as it is */ #}
         {%- do return(relation) -%}
     {%- endif %}
 {% endmacro %}
 
 {% macro glue__drop_relation(relation) -%}
+  {%- set file_format = config.get('file_format', default='parquet') -%}
+  {%- set full_relation = relation -%}
+
+  {%- if file_format == 'iceberg' -%}
+    {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+  {%- endif -%}
 
   {% call statement('drop_relation', auto_begin=False) -%}
       {%- if relation.type == 'view' %}
           drop view if exists {{ this }}
       {%- else -%}
-          drop table if exists {{ relation }}
+          drop table if exists {{ full_relation }}
       {%- endif %}
   {%- endcall %}
 {% endmacro %}
@@ -84,11 +93,11 @@
 {% endmacro %}
 
 {% macro glue__create_temporary_view(relation, sql) -%}
-  {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
 
-  {% if file_format == 'iceberg' and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
-    create or replace table {{ relation.include(schema=true) }} using iceberg as {{ sql }}
+  {% if file_format == 'iceberg' %}
+    {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+    create or replace table {{ full_relation }} using iceberg as {{ sql }}
   {% else %}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% endif %}
@@ -118,7 +127,12 @@
       {% endif %}
     {%- endset %}
 
-        {{ create_statement_string }} {{ relation }}
+    {%- set full_relation = relation -%}
+    {%- if file_format == 'iceberg' -%}
+      {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+    {%- endif -%}
+
+        {{ create_statement_string }} {{ full_relation }}
         {% set contract_config = config.get('contract') %}
         {% if contract_config.enforced %}
           {{ get_assert_columns_equivalent(sql) }}
@@ -172,12 +186,23 @@
 
 {% macro glue__create_view_as(relation, sql) -%}
     {%- set contract_config = config.get('contract') -%}
-    {%- if contract_config.enforced -%}
-      {{ get_assert_columns_equivalent(sql) }}
-    {%- endif -%}
-    create or replace view {{ relation }}
+    {%- set file_format = config.get('file_format') or 'parquet' -%}
+    {%- set is_iceberg = file_format == 'iceberg' -%}
+
+    {%- if is_iceberg -%}
+        {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+        create or replace table {{ full_relation }}
+        using iceberg
         as
-    {{ add_iceberg_timestamp_column(sql) }}
+        {{ add_iceberg_timestamp_column(sql) }}
+    {%- else -%}
+        {%- if contract_config.enforced -%}
+          {{ get_assert_columns_equivalent(sql) }}
+        {%- endif -%}
+        create or replace view {{ relation }}
+            as
+        {{ add_iceberg_timestamp_column(sql) }}
+    {%- endif -%}
 {% endmacro %}
 
 {% macro glue__create_view(relation, sql) -%}
