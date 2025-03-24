@@ -10,6 +10,39 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro spark__alter_relation_add_remove_columns(relation, add_columns, remove_columns) %}
+
+  {% if remove_columns %}
+    {% if relation.is_delta %}
+      {% set platform_name = 'Delta Lake' %}
+    {% elif relation.is_iceberg %}
+      {% set platform_name = 'Iceberg' %}
+    {% else %}
+      {% set platform_name = 'Apache Spark' %}
+    {% endif %}
+    {{ exceptions.raise_compiler_error(platform_name + ' does not support dropping columns from tables') }}
+  {% endif %}
+
+  {% if add_columns is none %}
+    {% set add_columns = [] %}
+  {% endif %}
+
+  {% if add_columns|length > 0 %}
+    {% set sql -%}
+      alter {{ relation.type }} {{ relation }} add columns
+      {% for column in add_columns %}
+        {{ column.name }} {{ column.data_type }}{{ ',' if not loop.last }}
+      {% endfor %}
+    {%- endset -%}
+
+    {# Use statement instead of run_query to avoid expecting a result #}
+    {% call statement('alter_columns') %}
+      {{ sql }}
+    {% endcall %}
+  {% endif %}
+
+{% endmacro %}
+
 
 {% macro glue__create_csv_table(model, agate_table) -%}
     {{ adapter.create_csv_table(model, agate_table) }}
