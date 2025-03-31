@@ -3,16 +3,12 @@
   {%- set file_format = config.get('file_format', default='parquet') -%}
 
   {% if add_iceberg_timestamp and file_format == 'iceberg' %}
-    {{ log("DEBUG - Adding Iceberg timestamp column", info=true) }}
-
     {% set query_sql %}
       SELECT * FROM ({{ sql }}) AS _dbt_temp LIMIT 0
     {% endset %}
 
     {% set results = run_query(query_sql) %}
     {% set column_names = results.column_names %}
-
-    {{ log("DEBUG - Found columns: " ~ column_names|join(", "), info=true) }}
 
     {%- set ns = namespace(source_columns=[]) -%}
 
@@ -24,7 +20,6 @@
 
     {%- set source_columns_csv = ns.source_columns|join(', ') -%}
 
-    {{ log("DEBUG - Selecting columns: " ~ source_columns_csv, info=true) }}
     WITH source_data AS (
       {{ sql }}
     )

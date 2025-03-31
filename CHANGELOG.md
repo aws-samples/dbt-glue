@@ -1,3 +1,6 @@
+## v1.9.3
+- Reduce debug logging
+
 ## v1.9.2
 - Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
 - Allow spawning new isolated sessions for the models that require different session configuration.
