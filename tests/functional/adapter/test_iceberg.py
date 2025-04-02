@@ -583,3 +583,44 @@ class TestIcebergMultipleRuns:
 
         # Assuming no duplicates between base and added
         assert result[0] == 30, "Incremental model should have combined records from both runs (10 + 20 = 30)"
+
+
+class TestIcebergTableRefresh:
+    """Test case to reproduce the issue with refreshing Iceberg tables."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        """Configure project to use Iceberg format for tables"""
+        return {
+            "name": "iceberg_refresh_test",
+            "models": {
+                "+file_format": "iceberg"
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "simple_model.sql": """
+{{ config(
+    materialized='table',
+    file_format='iceberg'
+) }}
+
+select 1 as id, 'test' as name
+"""
+        }
+
+    def test_iceberg_refresh(self, project):
+        """Test that we can run an Iceberg table model twice without errors.
+        This test reproduces the issue reported in GitHub issue #537.
+        """
+        # First run - should succeed
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"
+
+        # Second run - should also succeed
+        results = run_dbt(["run"])
+        assert len(results) == 1
+        assert results[0].status == "success"

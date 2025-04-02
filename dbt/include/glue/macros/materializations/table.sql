@@ -13,7 +13,7 @@
   -- create or replace table instead of dropping, so we don't have the table unavailable
   {% if existing_relation is not none %}
     {% set is_delta = (existing_relation.is_delta and config.get('file_format', validator=validation.any[basestring]) == 'delta') %}
-    {% set is_iceberg = (existing_relation.is_iceberg and config.get('file_format', validator=validation.any[basestring]) == 'iceberg') %}
+    {% set is_iceberg = ((existing_relation_type == 'iceberg_table' or existing_relation.is_iceberg) and config.get('file_format', validator=validation.any[basestring]) == 'iceberg') %}
   {% else %}
     {% set is_delta = false %}
     {% set is_iceberg = false %}

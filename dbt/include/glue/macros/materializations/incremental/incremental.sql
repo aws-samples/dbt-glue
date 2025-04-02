@@ -10,6 +10,10 @@
   {%- set existing_relation_type = adapter.get_table_type(this) -%}
   {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
   {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
+
+  {% if existing_relation_type is not none %}
+      {%- set target_relation = target_relation.incorporate(type=existing_relation_type if existing_relation_type != "iceberg_table" else "table") -%}
+  {% endif %}
   {%- set tmp_relation = make_temp_relation(this, '_tmp') -%}
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
