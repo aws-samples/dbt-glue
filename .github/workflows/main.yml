@@ -82,7 +82,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        verify-package-python-version: ["3.12", "3.13"]
 
     env:
       TOXENV: "unit"
@@ -171,7 +172,7 @@ jobs:
           path: dist/
 
   test-build:
-    name: verify packages / python ${{ matrix.python-version }} / ${{ matrix.os }}
+    name: verify packages / python ${{ matrix.verify-package-python-version }} / ${{ matrix.os }}
 
     if: needs.build.outputs.is_alpha == 0
 
