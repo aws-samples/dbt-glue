@@ -171,7 +171,7 @@ jobs:
           path: dist/
 
   test-build:
-    name: verify packages / python ${{ matrix.verify-package-python-version }} / ${{ matrix.os }}
+    name: verify packages / python ${{ matrix.python-version }} / ${{ matrix.os }}
 
     if: needs.build.outputs.is_alpha == 0
 
