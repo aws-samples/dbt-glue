@@ -78,7 +78,7 @@
   {%- endif -%}
 
   {% call statement('drop_relation', auto_begin=False) -%}
-      {%- if relation.type == 'view' %}
+      {%- if relation.type == 'view' and file_format != 'iceberg' %}
           drop view if exists {{ this }}
       {%- else -%}
           drop table if exists {{ full_relation }}
@@ -156,8 +156,13 @@
 {%- endmacro %}
 
 {% macro glue__drop_view(relation) -%}
+  {%- set file_format = config.get('file_format', default='parquet') -%}
   {% call statement('drop_view', auto_begin=False) -%}
-    drop view if exists {{ relation }}
+    {%- if file_format != 'iceberg' %}
+      drop view if exists {{ relation }}
+    {%- else -%}
+      drop table if exists {{ relation }}
+    {%- endif %}
   {%- endcall %}
 {% endmacro %}
 

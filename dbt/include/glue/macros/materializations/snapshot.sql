@@ -74,13 +74,22 @@
 
 {% macro glue__create_columns(relation, columns) %}
     {% if columns|length > 0 %}
-    {% call statement() %}
-      alter table {{ relation }} add columns (
-        {% for column in columns %}
-          `{{ column.name }}` {{ column.data_type }} {{- ',' if not loop.last -}}
-        {% endfor %}
-      );
-    {% endcall %}
+      {% set filtered_columns = [] %}
+      {% for column in columns %}
+        {% if not column.name.startswith('dbt_') %}
+          {% do filtered_columns.append(column) %}
+        {% endif %}
+      {% endfor %}
+
+      {% if filtered_columns|length > 0 %}
+        {% call statement() %}
+          alter table {{ relation }} add columns (
+            {% for column in filtered_columns %}
+              `{{ column.name }}` {{ column.data_type }} {{- ',' if not loop.last -}}
+            {% endfor %}
+          );
+        {% endcall %}
+      {% endif %}
     {% endif %}
 {% endmacro %}
 
@@ -117,9 +126,7 @@
   {%- if target_relation_exists -%}
     {%- set table_type = adapter.get_table_type(target_relation) -%}
 
-    {%- if table_type == 'iceberg_table' or target_relation.is_iceberg or target_relation.is_delta or target_relation.is_hudi -%}
-      {% do log("DEBUG: Table format check passed.", info=true) %}
-    {%- else -%}
+    {%- if table_type != 'iceberg_table' and not target_relation.is_iceberg and not target_relation.is_delta and not target_relation.is_hudi -%}
       {% set invalid_format_msg -%}
         The existing table {{ model.schema }}.{{ target_table }} is in another format than 'delta' or 'iceberg' or 'hudi'
       {%- endset %}
