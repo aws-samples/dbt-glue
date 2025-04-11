@@ -1,6 +1,7 @@
 ## v1.9.3
 - Reduce debug logging
 - Fix invalid Spark relation type: iceberg_table
+- Fix Iceberg snapshot issue of incorrect DROP VIEW calls
 
 ## v1.9.2
 - Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
