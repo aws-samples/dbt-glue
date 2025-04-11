@@ -74,6 +74,8 @@
 
 {% macro glue__create_columns(relation, columns) %}
     {% if columns|length > 0 %}
+      {#-- This is to avoid adding dbt_unique_key_N accidentally to the table. #}
+      {#-- It causes further issues in subsequent dbt snapshot runs. #}
       {% set filtered_columns = [] %}
       {% for column in columns %}
         {% if not column.name.startswith('dbt_') %}
