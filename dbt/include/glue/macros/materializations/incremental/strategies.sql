@@ -7,6 +7,8 @@
     {%- if file_format == 'iceberg' -%}
         {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
         {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+     {%- else -%}
+        {%- set full_source_relation = full_source_relation.include(database=false, schema=false) -%}
     {%- endif -%}
     set hive.exec.dynamic.partition.mode=nonstrict
     dbt_next_query
