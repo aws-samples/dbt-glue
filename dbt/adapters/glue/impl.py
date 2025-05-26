@@ -1066,3 +1066,42 @@ custom_glue_code_for_dbt_adapter
             raise DbtDatabaseError(msg="GlueExecutePySparkFailed") from e
         except Exception as e:
             logger.error(e)
+
+    @available
+    def execute_python(self, code: str, **kwargs) -> Any:
+        """Execute Python code in Glue Interactive Session.
+        
+        Args:
+            code: The Python code to execute
+            **kwargs: Additional execution options
+            
+        Returns:
+            The result of code execution
+        """
+        session = self.connections.get_thread_connection().handle
+        
+        # Add imports and setup code for Python models
+        setup_code = """
+custom_glue_code_for_dbt_adapter
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+
+# Get or create SparkSession
+spark = SparkSession.builder.getOrCreate()
+"""
+        
+        # Combine setup code with user code
+        full_code = setup_code + "\n" + code
+        
+        logger.debug(f"""python code:
+        {full_code}
+        """)
+        
+        try:
+            result = session.cursor().execute(full_code)
+            return result
+        except DbtDatabaseError as e:
+            raise DbtDatabaseError(msg="GlueExecutePythonFailed") from e
+        except Exception as e:
+            logger.error(e)
+            raise

@@ -1,0 +1,32 @@
+version: 2
+
+models:
+  - name: my_python_model
+    description: "A basic Python model test"
+    columns:
+      - name: id
+        description: "The primary key for this table"
+        tests:
+          - unique
+          - not_null
+      - name: name
+        description: "The name"
+      - name: value
+        description: "The value"
+        tests:
+          - not_null
+
+  - name: my_incremental_model
+    description: "An incremental Python model test"
+    columns:
+      - name: id
+        description: "The primary key for this table"
+        tests:
+          - unique
+          - not_null
+      - name: name
+        description: "The name"
+      - name: value
+        description: "The value"
+        tests:
+          - not_null
