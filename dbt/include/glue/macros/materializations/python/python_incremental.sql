@@ -22,7 +22,7 @@
   {% else %}
     {% if unique_key is not none %}
       -- Merge based on unique key
-      {{ create_python_merge_table(model, 'df', unique_key) }}
+      {{ glue__create_python_merge_table(model, 'df', unique_key) }}
     {% else %}
       -- Append without merge
       {{ glue__py_write_table(model, 'df') }}

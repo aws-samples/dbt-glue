@@ -3,19 +3,3 @@ version: 1.0
 config-version: 2
 
 macro-paths: ["macros"]
-
-materializations:
-  table:
-    adapter: "glue"
-  view:
-    adapter: "glue"
-  incremental:
-    adapter: "glue"
-  snapshot:
-    adapter: "glue"
-  python_model:
-    supported_languages: ["python"]
-    adapter: "glue"
-  python_incremental:
-    supported_languages: ["python"]
-    adapter: "glue"

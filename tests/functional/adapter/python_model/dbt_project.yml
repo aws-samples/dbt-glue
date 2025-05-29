@@ -18,5 +18,3 @@ clean-targets:
 models:
   python_model_test:
     +materialized: table
-    example:
-      +schema: python_model_test

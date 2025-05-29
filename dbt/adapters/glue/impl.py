@@ -5,18 +5,19 @@ import re
 import uuid
 import boto3
 from dbt.adapters.glue.util import get_columns_from_result, get_pandas_dataframe_from_result_file
-from typing import Set, Dict, List, Any, Iterable, FrozenSet, Tuple
+from typing import Set, Dict, List, Any, Iterable, FrozenSet, Tuple, Type
 
 import agate
 from concurrent.futures import Future
 
-from dbt.adapters.base import available
+from dbt.adapters.base import available, PythonJobHelper
 from dbt.adapters.base.relation import BaseRelation, InformationSchema
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.column import GlueColumn
 from dbt.adapters.glue.gluedbapi import GlueConnection
 from dbt.adapters.glue.relation import SparkRelation
+from dbt.adapters.glue.python_submissions import GluePythonJobHelper
 from dbt.adapters.glue.lakeformation import (
     LfGrantsConfig,
     LfPermissions,
@@ -1078,25 +1079,92 @@ custom_glue_code_for_dbt_adapter
         Returns:
             The result of code execution
         """
-        session = self.connections.get_thread_connection().handle
+        conn = self.connections.get_thread_connection()
+        credentials = conn.credentials
+        
+        # Create a Python job helper
+        model_name = kwargs.get('model_name', 'python_model')
+        schema = kwargs.get('schema', credentials.schema)
+        
+        parsed_model = {
+            "alias": model_name,
+            "schema": schema,
+            "config": kwargs.get('config', {})
+        }
+        
+        python_job_helper = GluePythonJobHelper(parsed_model, credentials)
         
         # Add imports and setup code for Python models
         setup_code = """
-custom_glue_code_for_dbt_adapter
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 
 # Get or create SparkSession
 spark = SparkSession.builder.getOrCreate()
-"""
+
+# Set up the schema
+schema = "{schema}"
+print(f"DEBUG: Setting up model in schema: {{schema}}")
+
+class dbtObj:
+    def __init__(self, table_function):
+        self.table_function = table_function
         
-        # Combine setup code with user code
-        full_code = setup_code + "\n" + code
+    def config(self, **config_args):
+        # This is a placeholder for dbt config in Python models
+        print(f"DEBUG: dbt.config called with: {{config_args}}")
+        pass
+        
+    def ref(self, name):
+        return self.table_function(name)
+        
+    def source(self, source_name, table_name):
+        return self.table_function(f"{{source_name}}.{{table_name}}")
+
+# Add explicit table creation and registration code
+def register_table(df, table_name):
+    print(f"DEBUG: Registering table {{schema}}.{{table_name}}")
+    # Save the DataFrame as a table
+    df.write.mode("overwrite").saveAsTable(f"{{schema}}.{{table_name}}")
+    # Refresh the table to make it available
+    spark.sql(f"REFRESH TABLE {{schema}}.{{table_name}}")
+    print(f"DEBUG: Table {{schema}}.{{table_name}} registered successfully")
+    return df
+
+# Execute the model function
+dbt = dbtObj(spark.table)
+""".format(schema=schema)
+        
+        # Combine setup code with user code and add table registration
+        full_code = setup_code + "\n" + code + """
+
+# Get the DataFrame from the model function
+df = model(dbt, spark)
+
+# Register the DataFrame as a table
+if df is not None:
+    register_table(df, "{model_name}")
+else:
+    raise Exception("Model function did not return a DataFrame")
+""".format(model_name=model_name)
         
         logger.debug(f"""python code:
         {full_code}
         """)
         
+        # Submit the Python code for execution
+        python_job_helper.submit(full_code)
+        
+        # Create a result object that dbt expects
+        class DbtResult:
+            def __init__(self, response):
+                self.response = response
+                
+            def get(self, key, default=None):
+                return default
+                
+        # Return a dict with a 'main' key that dbt's _build_run_model_result expects
+        return {"main": DbtResult({"status": "success"}), "status": "success"}
         try:
             result = session.cursor().execute(full_code)
             return result
@@ -1105,3 +1173,19 @@ spark = SparkSession.builder.getOrCreate()
         except Exception as e:
             logger.error(e)
             raise
+            
+    def generate_python_submission_response(self, submission_result: Any) -> Any:
+        """Generate a response object after Python model submission"""
+        return self.connections.get_response(None)
+
+    @property
+    def default_python_submission_method(self) -> str:
+        """Define the default submission method for Python models"""
+        return "glue_session"
+
+    @property
+    def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
+        """Define the available Python submission helpers"""
+        return {
+            "glue_session": GluePythonJobHelper,
+        }

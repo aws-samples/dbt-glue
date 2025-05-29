@@ -1,4 +1,4 @@
-{% materialization table, adapter = 'glue'%}
+{% materialization table, adapter = 'glue', supported_languages=['sql']%}
   {%- set identifier = model['alias'] -%}
   {%- set grant_config = config.get('grants') -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}

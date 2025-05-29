@@ -292,7 +292,7 @@
 
 {% endmacro %}
 
-{% macro py_get_writer_options() %}
+{% macro adapters__py_get_writer_options() %}
     {%- set file_format = config.get('file_format', 'parquet') -%}
     {%- set location = adapter.get_location(this) -%}
     {%- set partition_by = config.get('partition_by', none) -%}

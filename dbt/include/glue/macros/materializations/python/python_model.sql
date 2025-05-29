@@ -12,17 +12,17 @@
   -- Setup
   {{ run_hooks(pre_hooks) }}
 
-  -- Execute the Python code
-  {% set result = adapter.execute_python(model['compiled_code']) %}
+  -- Execute the Python code with model information
+  {% set result = adapter.execute_python(
+      model['compiled_code'], 
+      model_name=model['alias'],
+      schema=model['schema'],
+      config=model['config']
+  ) %}
 
-  -- Write the DataFrame to a table
-  {% if existing_relation is none %}
-    {{ glue__py_write_table(model, 'df') }}
-  {% else %}
-    {{ glue__py_write_table(model, 'df') }}
-  {% endif %}
-
+  -- Return the target relation
   {{ run_hooks(post_hooks) }}
 
-  {{ return({'relations': [target_relation]}) }}
+  -- Return success
+  {% do return({'relations': [target_relation], 'load_result': result}) %}
 {% endmaterialization %}
