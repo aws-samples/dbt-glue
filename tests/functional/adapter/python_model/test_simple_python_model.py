@@ -26,6 +26,11 @@ def model(dbt, spark):
     # Create and return a Spark DataFrame
     df = spark.createDataFrame(data, columns)
     print("DEBUG: Created DataFrame with schema:", df.schema)
+    
+    # Print the DataFrame for debugging
+    print("DEBUG: DataFrame content:")
+    df.show()
+    
     return df
 """
         }
@@ -42,7 +47,12 @@ def model(dbt, spark):
         relation = relation_from_name(project.adapter, "simple_python_model")
         
         # Query the model and check the results
-        result = project.run_sql(f"SELECT * FROM {relation}", fetch="all")
+        result = project.run_sql(f"SELECT * FROM {relation} ORDER BY id", fetch="all")
+        
+        # Print the results for debugging
+        print("Query results:")
+        for row in result:
+            print(row)
         
         # Check that we have the expected number of rows
         assert len(result) == 4

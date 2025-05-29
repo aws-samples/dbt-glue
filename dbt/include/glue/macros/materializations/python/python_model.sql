@@ -23,6 +23,6 @@
   -- Return the target relation
   {{ run_hooks(post_hooks) }}
 
-  -- Return success
-  {% do return({'relations': [target_relation], 'load_result': result}) %}
+  -- Return success with the relations
+  {{ return({'relations': [target_relation]}) }}
 {% endmaterialization %}

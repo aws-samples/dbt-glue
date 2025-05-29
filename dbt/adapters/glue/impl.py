@@ -1155,16 +1155,8 @@ else:
         # Submit the Python code for execution
         python_job_helper.submit(full_code)
         
-        # Create a result object that dbt expects
-        class DbtResult:
-            def __init__(self, response):
-                self.response = response
-                
-            def get(self, key, default=None):
-                return default
-                
-        # Return a dict with a 'main' key that dbt's _build_run_model_result expects
-        return {"main": DbtResult({"status": "success"}), "status": "success"}
+        # Return an empty dict - the dbt-core code has been patched to handle this
+        return {}
         try:
             result = session.cursor().execute(full_code)
             return result
