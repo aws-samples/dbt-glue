@@ -1,5 +1,8 @@
 import os
+import boto3
 import pytest
+from botocore.config import Config
+from unittest.mock import ANY, patch
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
                                            ephemeral_view_sql)
@@ -16,7 +19,6 @@ from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnect
 from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
                             get_manifest, relation_from_name, run_dbt)
 from tests.util import get_s3_location
-
 
 # override schema_base_yml to set missing database
 schema_base_yml = """
@@ -46,6 +48,13 @@ model_base = """
 base_materialized_var_sql = config_materialized_var + config_incremental_strategy + model_base
 
 table_with_custom_meta = config_materialized_with_custom_meta + model_base
+
+def assert_not_called_with(mock_obj, *args, **kwargs):
+    try:
+        mock_obj.assert_called_with(*args, **kwargs)
+    except AssertionError:
+        return
+    raise AssertionError(f"Expected {mock_obj._format_mock_call_signature(args, kwargs)} to not have been called.")
 
 @pytest.mark.skip(
     reason="Fails because the test tries to fetch the table metadata during the compile step, "
@@ -85,15 +94,86 @@ class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
             "swappable.sql": base_materialized_var_sql,
             "schema.yml": schema_base_yml,
         }
-    def test_base(self, project):
-        super().test_base(project)
-        catalog = run_dbt(["docs", "generate"])
-        compile_results = catalog._compile_results.results
-        assert len(compile_results) > 0, "No models were found in the compile results."
-        for result in compile_results:
-            node = result.node
-            if node.name == "table_model":
-                assert node.config.meta, f"Meta parameter is not present for table_model."
+
+    def test_create_session(self, dbt_profile_target):
+        with patch('boto3.session.Session', wraps=boto3.session.Session) as mock_boto_session:
+            boto_session = boto3.session.Session()
+            glue_client = boto_session.client(
+                "glue",
+                region_name=dbt_profile_target['region'],
+                config=Config(
+                    retries={
+                        'max_attempts': 10,
+                        'mode': 'adaptive'
+                    }
+                )
+            )
+            mock_boto_session.return_value = boto_session
+
+            with patch.object(boto_session, 'client', wraps=boto_session.client) as mock_glue_client:
+                mock_glue_client.return_value = glue_client
+                with patch.object(glue_client, 'create_session', wraps=glue_client.create_session) as mock_create_session:
+                    run_dbt(["seed"])
+                    run_dbt()
+                    mock_create_session.assert_called_with(
+                        Id='dbt-glue__model_base_table_model',
+                        Role=ANY,
+                        DefaultArguments=ANY,
+                        Command=ANY,
+                        WorkerType=ANY,
+                        Timeout=ANY,
+                        RequestOrigin=ANY,
+                        GlueVersion=ANY,
+                        NumberOfWorkers=3,
+                        IdleTimeout=2,
+                    )
+                    # stop the session so that repeated runs will still call create_session
+                    glue_client.stop_session(
+                        Id='dbt-glue__model.base.table_model_custom_meta',
+                    )
+
+class TestSimpleMaterializationsWithUnrelatedMeta(TestSimpleMaterializationsGlue):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "view_model.sql": base_view_sql,
+            "table_model.sql": '\n{{ config(materialized="table", meta={"unrelated_field": "base", "other_unrelated_field": 2}) }}\n' + model_base,
+            "swappable.sql": base_materialized_var_sql,
+            "schema.yml": schema_base_yml,
+        }
+
+    def test_create_session(self, dbt_profile_target):
+        with patch('boto3.session.Session', wraps=boto3.session.Session) as mock_boto_session:
+            boto_session = boto3.session.Session()
+            glue_client = boto_session.client(
+                "glue",
+                region_name=dbt_profile_target['region'],
+                config=Config(
+                    retries={
+                        'max_attempts': 10,
+                        'mode': 'adaptive'
+                    }
+                )
+            )
+            mock_boto_session.return_value = boto_session
+
+            with patch.object(boto_session, 'client', wraps=boto_session.client) as mock_glue_client:
+                mock_glue_client.return_value = glue_client
+                with patch.object(glue_client, 'create_session', wraps=glue_client.create_session) as mock_create_session:
+                    run_dbt(["seed"])
+                    run_dbt()
+                    assert_not_called_with(mock_create_session,
+                        Id='dbt-glue__model_base_table_model',
+                        Role=ANY,
+                        DefaultArguments=ANY,
+                        Command=ANY,
+                        WorkerType=ANY,
+                        Timeout=ANY,
+                        RequestOrigin=ANY,
+                        GlueVersion=ANY,
+                        NumberOfWorkers=ANY,
+                        IdleTimeout=ANY,
+                    )
 
 class TestSingularTestsGlue(BaseSingularTests):
     pass
