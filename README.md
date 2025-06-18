@@ -7,6 +7,8 @@ dbt is the T in ELT. Organize, cleanse, denormalize, filter, rename, and pre-agg
 
 # dbt-glue
 
+test
+
 The `dbt-glue` package implements the [dbt adapter](https://docs.getdbt.com/docs/contributing/building-a-new-adapter) protocol for AWS Glue's Spark engine. 
 It supports running dbt against Spark, through the new Glue Interactive Sessions API.
 
