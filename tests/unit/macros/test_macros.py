@@ -14,13 +14,16 @@ class TestGlueMacros(unittest.TestCase):
         )
 
         self.config = {}
+        self.return_value = None
         self.default_context = {
             "validation": mock.Mock(),
             "model": mock.Mock(),
             "exceptions": mock.Mock(),
             "config": mock.Mock(),
             "adapter": mock.Mock(),
-            "return": lambda r: r,
+            "target": mock.Mock(),
+            #"return": lambda r: r,
+            "return": self._capture_return,
             "this": mock.Mock(),
             "add_iceberg_timestamp_column": lambda sql: sql,
             "make_temp_relation": mock.Mock(),
@@ -66,6 +69,10 @@ class TestGlueMacros(unittest.TestCase):
     def __get_template(self, template_filename):
         return self.jinja_env.get_template(template_filename, globals=self.default_context)
 
+    def _capture_return(self, value):
+        self.return_value = value
+        return value
+    
     def __run_macro(self, template, name, *args, **kwargs):
         """Run a macro with the given template and arguments"""
         def dispatch(macro_name, macro_namespace=None, packages=None):
@@ -73,17 +80,17 @@ class TestGlueMacros(unittest.TestCase):
 
         self.default_context["adapter"].dispatch = dispatch
 
-        # Convert any mock args to their string representation for better test output
-        str_args = []
-        for arg in args:
-            if isinstance(arg, mock.Mock):
-                mock_str = f"Mock('{arg}')"
-                arg = mock_str
-            str_args.append(arg)
-
         macro = getattr(template.module, name)
-        value = macro(*args, **kwargs) if len(kwargs) == 0 else macro(*args, **kwargs)
-        return re.sub(r"\s\s+", " ", value)
+        value = macro(*args, **kwargs)
+        value = re.sub(r"\s\s+", " ", value)
+
+        # If return_value was set, use it; otherwise, use rendered output
+        if value == " " and self.return_value is not None:
+            value = self.return_value
+            
+        self.return_value = None
+
+        return value
 
     def test_macros_load(self):
         """Test that macros can be loaded"""
@@ -203,6 +210,54 @@ class TestGlueMacros(unittest.TestCase):
         )
         # Verify it still returns something without throwing an exception
         self.assertTrue(True)
+
+    def test_glue_make_temp_relation(self):
+        """Test temp relation creation for Iceberg"""
+        template = self.__get_template("adapters.sql")
+        target_relation = mock.Mock()
+        target_relation.schema = "target_schema"
+        target_relation.identifier = "target_table"
+        temp_relation_suffix = "_test_tmp"
+
+        # Enhanced incorporate to return a new mock with updated schema/identifier
+        def incorporate_side_effect(*, path=None, **kwargs):
+            new_relation = mock.Mock()
+            new_relation.schema = path.get("schema", target_relation.schema) if path else target_relation.schema
+            new_relation.identifier = path.get("identifier", target_relation.identifier) if path else target_relation.identifier
+            return new_relation
+
+        target_relation.incorporate.side_effect = incorporate_side_effect
+
+        # Setup for Iceberg with custom catalog
+        self.default_context["adapter"].get_custom_iceberg_catalog_namespace = mock.Mock(return_value="iceberg_catalog")
+
+        # Setup for temp schema being set in target profile
+        self.default_context["target"].temp_schema = 'test_schema'
+        
+        # Test that temp relation is created with temp schema as provided in target profile
+        temp_relation = self.__run_macro(
+            template, "glue__make_temp_relation", target_relation, temp_relation_suffix
+        )
+        target_relation.incorporate.assert_called_once()
+
+        # Verify it still returns something without throwing an exception
+        self.assertTrue(True)
+
+        self.assertNotEqual(temp_relation.schema, target_relation.schema)
+        self.assertEqual(temp_relation.schema, self.default_context["target"].temp_schema)
+        self.assertEqual(temp_relation.identifier, target_relation.identifier + temp_relation_suffix)
+
+        # Setup for temp schema being set in target profile
+        self.default_context["target"].temp_schema = None
+
+        # Test that temp relation is created with target relation schema when temp_schema not provided in target profile
+        temp_relation = self.__run_macro(
+            template, "glue__make_temp_relation", target_relation, temp_relation_suffix
+        )
+
+        self.assertNotEqual(temp_relation.schema, self.default_context["target"].temp_schema)
+        self.assertEqual(temp_relation.schema, target_relation.schema)
+        self.assertEqual(temp_relation.identifier, target_relation.identifier + temp_relation_suffix)
 
     def test_simple_get_insert_strategies(self):
         """Test the simple insert strategies separately"""
