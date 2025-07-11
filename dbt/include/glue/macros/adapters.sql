@@ -87,11 +87,11 @@
 {% endmacro %}
 
 {% macro glue__make_temp_relation(base_relation, suffix) %}
-    {% set tmp_identifier = base_relation.identifier ~ suffix %}
-    {#-- If target profile has temp_schema set, allows _tmp relations to be built in separate catalog when physicalized #}
-    {% set tmp_schema = target.temp_schema if target.temp_schema else base_relation.schema %}
-    {% set tmp_relation = base_relation.incorporate(path={"schema": tmp_schema, "identifier": tmp_identifier}) -%}
-    {% do return(tmp_relation) %}
+  {% set tmp_identifier = base_relation.identifier ~ suffix %}
+  {#-- If target profile has temp_schema set, allows _tmp relations to be built in separate catalog when physicalized #}
+  {% set tmp_schema = target.temp_schema if target.temp_schema else base_relation.schema %}
+  {% set tmp_relation = base_relation.incorporate(path={"schema": tmp_schema, "identifier": tmp_identifier}) -%}
+  {% do return(tmp_relation) %}
 {% endmacro %}
 
 {% macro glue__create_temporary_view(relation, sql) -%}
