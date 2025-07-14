@@ -14,8 +14,12 @@ pytest_plugins = ["dbt.tests.fixtures.project"]
 # Use different datatabase for each test class
 @pytest.fixture(scope="class")
 def unique_schema(request, prefix) -> str:
-    database_suffix = ''.join(random.choices(string.digits, k=4))
-    return f"dbt_functional_test_{database_suffix}"
+    provided_test_schema = os.getenv('DBT_GLUE_TEST_SCHEMA')
+    if provided_test_schema:
+        return provided_test_schema
+    else:
+        database_suffix = ''.join(random.choices(string.digits, k=4))
+        return f"dbt_functional_test_{database_suffix}"
 
 @pytest.fixture(scope="class")
 def use_arrow():
@@ -39,7 +43,7 @@ def dbt_profile_target(unique_schema, use_arrow):
         'location': get_s3_location(),
         'datalake_formats': 'delta,iceberg',
         'conf': f"spark.sql.extensions=io.delta.sql.DeltaSparkSessionExtension,org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.sql.catalog.spark_catalog=org.apache.spark.sql.delta.catalog.DeltaCatalog --conf spark.sql.legacy.allowNonEmptyLocationInCTAS=true --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.warehouse={get_s3_location()} --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.sources.partitionOverwriteMode=dynamic",
-        'glue_session_reuse': True,
+        'glue_session_reuse': False,
         'use_arrow': use_arrow
     }
 
