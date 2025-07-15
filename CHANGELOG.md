@@ -1,3 +1,6 @@
+## dbt-glue next
+- Allow temporary tables to be created in different schema/database than target model using profile temp-schema variable
+
 ## v1.9.4
 - Reduce debug logging
 - Fix invalid Spark relation type: iceberg_table
