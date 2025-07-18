@@ -26,6 +26,7 @@ class GlueCredentials(Credentials):
     tags: Optional[str] = None
     database: Optional[str] = None  # type: ignore
     schema: Optional[str] = None  # type: ignore
+    temp_schema: Optional[str] = None
     seed_format: Optional[str] = "parquet"
     seed_mode: Optional[str] = "overwrite"
     default_arguments: Optional[str] = None
@@ -75,6 +76,7 @@ class GlueCredentials(Credentials):
             'worker_type',
             'session_provisioning_timeout_in_seconds',
             'schema',
+            'temp_schema',
             'location',
             'extra_jars',
             'idle_timeout',

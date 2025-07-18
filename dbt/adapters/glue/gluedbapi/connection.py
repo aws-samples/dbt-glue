@@ -64,8 +64,10 @@ class GlueConnection:
 
         if self.credentials.enable_session_per_model:
             if self._session_id_suffix:
+                # Glue Session Names must not have periods, so replace with underscores
+                sanitized_suffix = self._session_id_suffix.replace('.', '_')
                 # Suffix would be the model name, already unique
-                id = f'{id}__{self._session_id_suffix}'
+                id = f'{id}__{sanitized_suffix}'
             else:
                 # Ensure no duplicate session id across models
                 id = f'{id}__{iam_role_name}__{uuid.uuid4()}'

@@ -14,8 +14,12 @@ pytest_plugins = ["dbt.tests.fixtures.project"]
 # Use different datatabase for each test class
 @pytest.fixture(scope="class")
 def unique_schema(request, prefix) -> str:
-    database_suffix = ''.join(random.choices(string.digits, k=4))
-    return f"dbt_functional_test_{database_suffix}"
+    provided_test_schema = os.getenv('DBT_GLUE_TEST_SCHEMA')
+    if provided_test_schema:
+        return provided_test_schema
+    else:
+        database_suffix = ''.join(random.choices(string.digits, k=4))
+        return f"dbt_functional_test_{database_suffix}"
 
 @pytest.fixture(scope="class")
 def use_arrow():
