@@ -1107,8 +1107,11 @@ schema = "{schema}"
 print(f"DEBUG: Setting up model in schema: {{schema}}")
 
 class dbtObj:
-    def __init__(self, table_function):
+    def __init__(self, table_function, schema, model_name):
         self.table_function = table_function
+        self.schema = schema
+        self.model_name = model_name
+        self.this = f"{schema}.{model_name}"
         
     def config(self, **config_args):
         # This is a placeholder for dbt config in Python models
@@ -1120,6 +1123,14 @@ class dbtObj:
         
     def source(self, source_name, table_name):
         return self.table_function(f"{{source_name}}.{{table_name}}")
+        
+    def is_incremental(self):
+        # Check if the target table exists by trying to query it
+        try:
+            spark.sql(f"SELECT 1 FROM {{self.this}} LIMIT 1")
+            return True
+        except:
+            return False
 
 # Add explicit table creation and registration code
 def register_table(df, table_name):
@@ -1132,18 +1143,30 @@ def register_table(df, table_name):
     return df
 
 # Execute the model function
-dbt = dbtObj(spark.table)
-""".format(schema=schema)
+dbt = dbtObj(spark.table, schema, "{model_name}")
+""".format(schema=schema, model_name=model_name)
         
         # Combine setup code with user code and add table registration
         full_code = setup_code + "\n" + code + """
 
-# Get the DataFrame from the model function
-df = model(dbt, spark)
+# Execute the model function
+try:
+    df = model(dbt, spark)
+    print("DEBUG: Model function executed successfully, got DataFrame: " + str(type(df)))
+except NameError as e:
+    if "model" in str(e):
+        try:
+            df = main(dbt, spark)
+            print("DEBUG: Main function executed successfully, got DataFrame: " + str(type(df)))
+        except NameError:
+            raise Exception("Neither 'model' nor 'main' function found in the Python code")
+    else:
+        raise e
 
 # Register the DataFrame as a table
 if df is not None:
     register_table(df, "{model_name}")
+    print("DEBUG: Successfully registered table {model_name}")
 else:
     raise Exception("Model function did not return a DataFrame")
 """.format(model_name=model_name)
