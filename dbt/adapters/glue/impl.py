@@ -1157,14 +1157,6 @@ else:
         
         # Return an empty dict - the dbt-core code has been patched to handle this
         return {}
-        try:
-            result = session.cursor().execute(full_code)
-            return result
-        except DbtDatabaseError as e:
-            raise DbtDatabaseError(msg="GlueExecutePythonFailed") from e
-        except Exception as e:
-            logger.error(e)
-            raise
             
     def generate_python_submission_response(self, submission_result: Any) -> Any:
         """Generate a response object after Python model submission"""

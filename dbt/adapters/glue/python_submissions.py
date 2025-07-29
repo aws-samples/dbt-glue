@@ -13,6 +13,10 @@ class GluePythonJobHelper(PythonJobHelper):
         self.identifier = parsed_model["alias"]
         self.schema = parsed_model["schema"]
         self.parsed_model = parsed_model
+        
+        # Extract packages from model config (dbt Core standard)
+        self.packages = parsed_model.get("config", {}).get("packages", [])
+        
         self.timeout = self.parsed_model["config"].get("timeout", 60 * 60)  # Default 1 hour
         self.polling_interval = 10
         
@@ -33,6 +37,17 @@ class GluePythonJobHelper(PythonJobHelper):
         workers = self.credentials.workers
         worker_type = self.credentials.worker_type
         
+        # Prepare default arguments
+        default_arguments = {
+            '--enable-glue-datacatalog': 'true'
+        }
+        
+        # Handle packages from dbt config using AWS Glue's --additional-python-modules
+        if self.packages:
+            package_list = ','.join(self.packages)
+            default_arguments['--additional-python-modules'] = package_list
+            print(f"DEBUG: Installing Python packages: {package_list}")
+            
         # Start the session
         response = glue_client.create_session(
             Id=session_id,
@@ -41,9 +56,7 @@ class GluePythonJobHelper(PythonJobHelper):
                 'Name': 'glueetl',
                 'PythonVersion': '3'
             },
-            DefaultArguments={
-                '--enable-glue-datacatalog': 'true'
-            },
+            DefaultArguments=default_arguments,
             Timeout=self.timeout,
             NumberOfWorkers=workers,
             WorkerType=worker_type
