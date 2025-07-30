@@ -122,12 +122,73 @@ print("DEBUG: Temp view has", temp_count, "rows")
 table_name = "{{ full_relation }}"
 print("DEBUG: Creating Iceberg table:", table_name)
 
+# Check if this is an incremental model with merge strategy
+materialized = "{{ config.get('materialized', 'python_model') }}"
+incremental_strategy = "{{ config.get('incremental_strategy', 'append') }}"
+unique_key = "{{ config.get('unique_key', none) }}"
+
+print("DEBUG: materialized =", materialized)
+print("DEBUG: incremental_strategy =", incremental_strategy)
+print("DEBUG: unique_key =", unique_key)
+
+is_incremental_merge = (materialized == "incremental" and 
+                       incremental_strategy == "merge" and 
+                       unique_key != "None" and 
+                       unique_key != "none" and 
+                       unique_key != "")
+
+print("DEBUG: is_incremental_merge =", is_incremental_merge)
+
+# Check if target table already exists (for incremental logic)
+table_exists = False
 try:
-    # For Iceberg, use CREATE OR REPLACE with catalog-qualified name
-    create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
-    print("DEBUG: Executing SQL:", create_sql)
-    spark.sql(create_sql)
-    print("DEBUG: Iceberg table created successfully")
+    spark.sql(f"DESCRIBE TABLE {table_name}")
+    table_exists = True
+    print("DEBUG: Target table exists - this is an incremental run")
+except Exception as e:
+    print("DEBUG: Target table does not exist - this is a full refresh run")
+
+try:
+    if is_incremental_merge and table_exists:
+        # For incremental merge, use MERGE INTO statement
+        print("DEBUG: Using MERGE INTO for incremental update")
+        
+        # Parse unique_key (handle both string and list formats)
+        if unique_key.startswith('[') and unique_key.endswith(']'):
+            # List format: ['id'] or ['id', 'name']
+            import ast
+            unique_key_list = ast.literal_eval(unique_key)
+        else:
+            # String format: 'id'
+            unique_key_list = [unique_key]
+        
+        print("DEBUG: unique_key_list =", unique_key_list)
+        
+        # Create the merge conditions
+        merge_conditions = []
+        for key in unique_key_list:
+            merge_conditions.append(f"target.{key} = source.{key}")
+        merge_condition = " AND ".join(merge_conditions)
+        
+        merge_sql = f"""
+        MERGE INTO {table_name} AS target
+        USING temp_python_df AS source
+        ON {merge_condition}
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+        """
+        
+        print("DEBUG: Executing MERGE SQL:", merge_sql)
+        spark.sql(merge_sql)
+        print("DEBUG: MERGE completed successfully")
+        
+    else:
+        # For first run or non-merge strategies, use CREATE OR REPLACE
+        print("DEBUG: Using CREATE OR REPLACE TABLE for full refresh")
+        create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
+        print("DEBUG: Executing SQL:", create_sql)
+        spark.sql(create_sql)
+        print("DEBUG: Iceberg table created successfully")
     
     # Clean up temp view to avoid conflicts with subsequent models
     spark.sql("DROP VIEW IF EXISTS temp_python_df")
@@ -154,10 +215,14 @@ except Exception as e:
 writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")
 {%- endif %}
 
-# Refresh the table to make it available
+# Refresh the table to make it available - use catalog-qualified name for Iceberg
+{%- if file_format == 'iceberg' -%}
+spark.sql("REFRESH TABLE {{ full_relation }}")
+print("DEBUG: Successfully wrote table {{ full_relation }}")
+{%- else -%}
 spark.sql("REFRESH TABLE {{ target_relation.schema }}.{{ target_relation.identifier }}")
-
 print("DEBUG: Successfully wrote table {{ target_relation.schema }}.{{ target_relation.identifier }}")
+{%- endif %}
 print("DEBUG: Python model execution completed successfully")
 {% endmacro %}
 

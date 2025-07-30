@@ -12,7 +12,7 @@ from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 # Basic Python model test
 basic_python_model = """
 def model(dbt, spark):
-    dbt.config(materialized='python_model')
+    dbt.config(materialized='python_model', file_format='iceberg')
     
     # Create a simple DataFrame
     data = [
@@ -84,13 +84,15 @@ class TestPythonModel:
         results = run_dbt(["run"])
         assert len(results) == 2
         
-        # Test basic model
+        # Test basic model - use catalog-aware query like existing Iceberg tests
         relation = project.adapter.Relation.create(
             schema=project.test_schema,
             identifier="my_python_model"
         )
         
-        result = project.run_sql(f"SELECT * FROM {relation} ORDER BY id", fetch="all")
+        # Use catalog-aware table name for Iceberg tables (following test_iceberg.py pattern)
+        catalog_table_name = f"glue_catalog.{relation.schema}.{relation.identifier}"
+        result = project.run_sql(f"SELECT * FROM {catalog_table_name} ORDER BY id", fetch="all")
         assert len(result) == 4
         assert result[0][0] == 1  # First row, id column
         
@@ -100,12 +102,14 @@ class TestPythonModel:
             identifier="my_incremental_model"
         )
         
-        result = project.run_sql(f"SELECT * FROM {relation} ORDER BY id", fetch="all")
+        # Use catalog-aware table name for Iceberg tables
+        catalog_table_name = f"glue_catalog.{relation.schema}.{relation.identifier}"
+        result = project.run_sql(f"SELECT * FROM {catalog_table_name} ORDER BY id", fetch="all")
         assert len(result) == 4
-        
+
         # Run incremental model again
         results = run_dbt(["run", "--models", "my_incremental_model"])
-        result = project.run_sql(f"SELECT * FROM {relation} ORDER BY id", fetch="all")
+        result = project.run_sql(f"SELECT * FROM {catalog_table_name} ORDER BY id", fetch="all")
         assert len(result) == 8  # Should have 4 new rows
 
 class TestPythonModelErrors:
