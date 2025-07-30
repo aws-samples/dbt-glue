@@ -116,7 +116,7 @@
   {%- endif -%}
 
   {# /*-- To not break existing workloads, but I think this doesn't need to be here since it can be addeed as post_hook query --*/ #}
-  {%- if file_format == 'iceberg' and expire_snapshots == 'True' -%}
+  {%- if file_format == 'iceberg' and expire_snapshots == 'True' and language != 'python' -%}
     {%- set result = adapter.iceberg_expire_snapshots(target_relation) -%}
   {%- endif -%}
 
