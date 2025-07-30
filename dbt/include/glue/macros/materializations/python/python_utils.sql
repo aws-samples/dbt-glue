@@ -103,9 +103,6 @@ writer = writer.option("path", "{{ custom_location }}")
 
 # For Iceberg tables, use SQL approach to avoid parsing issues
 {%- if file_format == 'iceberg' -%}
-table_name = "{{ target_relation.schema }}.{{ target_relation.identifier }}"
-print("DEBUG: Creating Iceberg table:", table_name)
-
 # Create temp view first
 df.createOrReplaceTempView("temp_python_df")
 print("DEBUG: Created temp view temp_python_df")
@@ -115,6 +112,9 @@ temp_count = spark.sql("SELECT COUNT(*) FROM temp_python_df").collect()[0][0]
 print("DEBUG: Temp view has", temp_count, "rows")
 
 # Use SQL to create the Iceberg table
+table_name = "{{ target_relation.schema }}.{{ target_relation.identifier }}"
+print("DEBUG: Creating Iceberg table:", table_name)
+
 try:
     # For Iceberg, use CREATE OR REPLACE to handle both first run and incremental runs
     create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"

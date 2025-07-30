@@ -63,6 +63,16 @@ def project_config_update():
 
 class TestPythonModel:
     @pytest.fixture(scope="class")
+    def project_config_update(self):
+        """Configure project to use Iceberg format for incremental models"""
+        return {
+            "name": "python_model_test",
+            "models": {
+                "+file_format": "iceberg"  # Set Iceberg as default format
+            }
+        }
+
+    @pytest.fixture(scope="class")
     def models(self):
         return {
             "my_python_model.py": basic_python_model,
