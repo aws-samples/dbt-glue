@@ -101,7 +101,7 @@ writer = writer.partitionBy({{ partition_by | tojson }})
 writer = writer.option("path", "{{ custom_location }}")
 {%- endif %}
 
-# For Iceberg tables, use SQL approach to avoid parsing issues
+# For Iceberg tables, use SQL approach exclusively (saveAsTable doesn't support Iceberg)
 {%- if file_format == 'iceberg' -%}
 # Create temp view first
 df.createOrReplaceTempView("temp_python_df")
@@ -111,8 +111,8 @@ print("DEBUG: Created temp view temp_python_df")
 temp_count = spark.sql("SELECT COUNT(*) FROM temp_python_df").collect()[0][0]
 print("DEBUG: Temp view has", temp_count, "rows")
 
-# Use SQL to create the Iceberg table
-table_name = "{{ target_relation.schema }}.{{ target_relation.identifier }}"
+# Use SQL to create the Iceberg table (target_relation already includes catalog)
+table_name = "{{ target_relation }}"
 print("DEBUG: Creating Iceberg table:", table_name)
 
 try:
@@ -130,9 +130,8 @@ except Exception as e:
         print("DEBUG: Iceberg table created with IF NOT EXISTS")
     except Exception as e2:
         print("DEBUG: Both Iceberg approaches failed:", str(e2))
-        print("DEBUG: Falling back to standard saveAsTable approach")
-        # Fallback to standard approach if Iceberg creation fails
-        writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")
+        # For Iceberg, we must use SQL - no fallback to saveAsTable
+        raise Exception("Failed to create Iceberg table: " + str(e2))
 {%- else -%}
 # For non-Iceberg tables, use the standard saveAsTable approach
 writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")
