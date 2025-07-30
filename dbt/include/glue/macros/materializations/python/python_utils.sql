@@ -116,15 +116,23 @@ print("DEBUG: Temp view has", temp_count, "rows")
 
 # Use SQL to create the Iceberg table
 try:
-    create_sql = "CREATE TABLE IF NOT EXISTS " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
+    # For Iceberg, use CREATE OR REPLACE to handle both first run and incremental runs
+    create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
     print("DEBUG: Executing SQL:", create_sql)
     spark.sql(create_sql)
     print("DEBUG: Iceberg table created successfully")
 except Exception as e:
     print("DEBUG: Error creating Iceberg table:", str(e))
-    print("DEBUG: Falling back to standard saveAsTable approach")
-    # Fallback to standard approach if Iceberg creation fails
-    writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")
+    print("DEBUG: Trying with CREATE TABLE IF NOT EXISTS...")
+    try:
+        create_sql_fallback = "CREATE TABLE IF NOT EXISTS " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
+        spark.sql(create_sql_fallback)
+        print("DEBUG: Iceberg table created with IF NOT EXISTS")
+    except Exception as e2:
+        print("DEBUG: Both Iceberg approaches failed:", str(e2))
+        print("DEBUG: Falling back to standard saveAsTable approach")
+        # Fallback to standard approach if Iceberg creation fails
+        writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")
 {%- else -%}
 # For non-Iceberg tables, use the standard saveAsTable approach
 writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")

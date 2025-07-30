@@ -1,4 +1,5 @@
 import pytest
+import time
 from dbt.tests.util import run_dbt
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
@@ -33,8 +34,8 @@ incremental_python_model = """
 def model(dbt, spark):
     dbt.config(
         materialized='incremental',
-        file_format='parquet',
-        incremental_strategy='insert_overwrite',
+        file_format='iceberg',
+        incremental_strategy='merge',
         unique_key='id'
     )
     
