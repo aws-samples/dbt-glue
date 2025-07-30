@@ -78,7 +78,7 @@ if not isinstance(df, pyspark.sql.dataframe.DataFrame):
     raise Exception("Model function must return a Spark DataFrame, got " + str(type(df)))
 
 # Write the DataFrame to the target table
-print("DEBUG: Writing DataFrame to table " + schema + "." + model_name)
+print("DEBUG: Writing DataFrame to table {{ target_relation.schema }}.{{ target_relation.identifier }}")
 writer = df.write.mode("overwrite").option("overwriteSchema", "true")
 
 # Apply file format and other options from config
@@ -101,8 +101,20 @@ writer = writer.partitionBy({{ partition_by | tojson }})
 writer = writer.option("path", "{{ custom_location }}")
 {%- endif %}
 
-# Save the table
+# For Iceberg tables, use SQL approach to avoid parsing issues
+{%- if file_format == 'iceberg' -%}
+table_name = "{{ target_relation.schema }}.{{ target_relation.identifier }}"
+print("DEBUG: Creating Iceberg table:", table_name)
+
+# Create temp view first
+df.createOrReplaceTempView("temp_python_df")
+
+# Use SQL to create the Iceberg table
+spark.sql("CREATE TABLE IF NOT EXISTS " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df")
+{%- else -%}
+# For non-Iceberg tables, use the standard saveAsTable approach
 writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")
+{%- endif %}
 
 # Refresh the table to make it available
 spark.sql("REFRESH TABLE {{ target_relation.schema }}.{{ target_relation.identifier }}")
