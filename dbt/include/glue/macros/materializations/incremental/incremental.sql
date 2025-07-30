@@ -83,11 +83,13 @@
           {% endset %}
 
         {% else %}
-          {%- call statement('create_tmp_relation') -%}
-            {{ create_temporary_view(tmp_relation, sql) }}
-            {%- set is_tmp_relation_created = 'True' -%} 
-          {%- endcall -%}
-          {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
+          {%- if language != 'python' -%}
+            {%- call statement('create_tmp_relation') -%}
+              {{ create_temporary_view(tmp_relation, sql) }}
+              {%- set is_tmp_relation_created = 'True' -%} 
+            {%- endcall -%}
+            {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
+          {%- endif -%}
         {% endif %}
 
         {% set is_incremental = 'True' %}
