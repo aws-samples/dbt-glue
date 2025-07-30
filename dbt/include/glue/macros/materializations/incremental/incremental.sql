@@ -1,4 +1,4 @@
-{% materialization incremental, adapter='glue' -%}
+{% materialization incremental, adapter='glue', supported_languages=['sql', 'python'] -%}
   {# /*-- Validate early so we don't run SQL if the file_format + strategy combo is invalid --*/ #}
   {%- set raw_file_format = config.get('file_format', default='parquet') -%}
   {%- set raw_strategy = config.get('incremental_strategy', default='insert_overwrite') -%}
@@ -95,9 +95,25 @@
   {% endif %}
 
   {# /*-- Execute the main statement --*/ #}
-  {%- call statement('main') -%}
-     {{ build_sql }}
-  {%- endcall -%}
+  {%- if language == 'python' -%}
+    {# For Python models, use a simpler approach - just execute Python code directly #}
+    {%- if existing_relation_type is none or should_full_refresh() -%}
+      {# First run or full refresh - create table directly #}
+      {%- call statement('main', language='python') -%}
+        {{ glue__py_write_table(compiled_code=model['compiled_code'], target_relation=target_relation) }}
+      {%- endcall -%}
+    {%- else -%}
+      {# Incremental run - for now, just overwrite (we can enhance this later) #}
+      {%- call statement('main', language='python') -%}
+        {{ glue__py_write_table(compiled_code=model['compiled_code'], target_relation=target_relation) }}
+      {%- endcall -%}
+    {%- endif -%}
+  {%- else -%}
+    {# Original SQL logic #}
+    {%- call statement('main') -%}
+       {{ build_sql }}
+    {%- endcall -%}
+  {%- endif -%}
 
   {# /*-- To not break existing workloads, but I think this doesn't need to be here since it can be addeed as post_hook query --*/ #}
   {%- if file_format == 'iceberg' and expire_snapshots == 'True' -%}

@@ -102,12 +102,12 @@ writer = writer.option("path", "{{ custom_location }}")
 {%- endif %}
 
 # Save the table
-writer.saveAsTable("{{ target_relation }}")
+writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")
 
 # Refresh the table to make it available
-spark.sql("REFRESH TABLE {{ target_relation }}")
+spark.sql("REFRESH TABLE {{ target_relation.schema }}.{{ target_relation.identifier }}")
 
-print("DEBUG: Successfully wrote table {{ target_relation }}")
+print("DEBUG: Successfully wrote table {{ target_relation.schema }}.{{ target_relation.identifier }}")
 print("DEBUG: Python model execution completed successfully")
 {% endmacro %}
 

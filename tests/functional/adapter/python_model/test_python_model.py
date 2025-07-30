@@ -32,7 +32,9 @@ def model(dbt, spark):
 incremental_python_model = """
 def model(dbt, spark):
     dbt.config(
-        materialized='python_incremental',
+        materialized='incremental',
+        file_format='iceberg',
+        incremental_strategy='merge',
         unique_key='id'
     )
     
