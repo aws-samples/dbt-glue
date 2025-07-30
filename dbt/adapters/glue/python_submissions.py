@@ -1,5 +1,4 @@
 import time
-import uuid
 from typing import Any, Dict
 
 from dbt.adapters.base import PythonJobHelper
@@ -21,131 +20,34 @@ class GluePythonJobHelper(PythonJobHelper):
         self.polling_interval = 10
         
     def submit(self, compiled_code: str) -> None:
-        """Submit Python code to AWS Glue for execution"""
-        import boto3
+        """Submit Python code to existing Glue session for execution"""
+        # Import here to avoid circular imports
+        from dbt.adapters.glue.gluedbapi.connection import GlueConnection
         
-        # Create a Glue session client
-        glue_client = boto3.client(
-            'glue',
-            region_name=self.credentials.region
-        )
+        # Create connection using existing logic (reuses session creation)
+        connection = GlueConnection(self.credentials)
         
-        # Create a session
-        session_id = f"dbt-python-{uuid.uuid4()}"
+        # Establish connection by getting cursor (this triggers session creation/reuse)
+        cursor = connection.cursor()
         
-        # Use existing configuration from credentials
-        workers = self.credentials.workers
-        worker_type = self.credentials.worker_type
+        # Get the Glue client and session ID from the existing connection
+        glue_client = connection.client
+        session_id = connection.session_id
         
-        # Prepare default arguments
-        default_arguments = {
-            '--enable-glue-datacatalog': 'true'
-        }
-        
-        # Handle packages from dbt config using AWS Glue's --additional-python-modules
-        if self.packages:
-            package_list = ','.join(self.packages)
-            default_arguments['--additional-python-modules'] = package_list
-            print(f"DEBUG: Installing Python packages: {package_list}")
-            
-        # Start the session
-        response = glue_client.create_session(
-            Id=session_id,
-            Role=self.credentials.role_arn,
-            Command={
-                'Name': 'glueetl',
-                'PythonVersion': '3'
-            },
-            DefaultArguments=default_arguments,
-            Timeout=self.timeout,
-            NumberOfWorkers=workers,
-            WorkerType=worker_type
-        )
+        print(f"DEBUG: Using Glue session: {session_id}")
         
         try:
-            # Wait for session to be ready
-            self._wait_for_session_ready(glue_client, session_id)
-            
-            # Add debugging code to check databases and tables
-            debug_code = """
-print("DEBUG: Running diagnostic queries...")
-print("DEBUG: Available databases:")
-databases_df = spark.sql("SHOW DATABASES")
-databases_df.show(truncate=False)
-
-print(f"DEBUG: Current database: {spark.catalog.currentDatabase()}")
-
-print(f"DEBUG: Setting database to {schema}")
-spark.sql(f"USE {schema}")
-
-print("DEBUG: Tables in current database:")
-tables_df = spark.sql("SHOW TABLES")
-tables_df.show(truncate=False)
-"""
-            
-            # Insert schema information into debug code
-            debug_code = debug_code.replace("{schema}", self.schema)
-            
-            # Run the debug code first
-            debug_statement_id = self._run_statement(glue_client, session_id, debug_code)
-            self._wait_for_statement_completion(glue_client, session_id, debug_statement_id)
-            
             # Run the actual Python code
             statement_id = self._run_statement(glue_client, session_id, compiled_code)
             
             # Wait for completion
             self._wait_for_statement_completion(glue_client, session_id, statement_id)
             
-            # Run another debug query to see if the table was created
-            post_debug_code = f"""
-print("DEBUG: After model execution - Tables in {self.schema}:")
-tables_df = spark.sql("SHOW TABLES")
-tables_df.show(truncate=False)
-
-print("DEBUG: Attempting to describe the created table:")
-try:
-    desc_df = spark.sql("DESCRIBE {self.schema}.{self.identifier}")
-    desc_df.show(truncate=False)
-except Exception as e:
-    print(f"DEBUG: Error describing table: {{e}}")
-    
-# Try to refresh the table
-try:
-    print("DEBUG: Attempting to refresh the table...")
-    spark.sql("REFRESH TABLE {self.schema}.{self.identifier}")
-    print("DEBUG: Table refreshed successfully")
-except Exception as e:
-    print(f"DEBUG: Error refreshing table: {{e}}")
-"""
-            
-            post_debug_statement_id = self._run_statement(glue_client, session_id, post_debug_code)
-            self._wait_for_statement_completion(glue_client, session_id, post_debug_statement_id)
-            
-        finally:
-            # Clean up the session
-            try:
-                glue_client.delete_session(Id=session_id)
-            except Exception:
-                pass
-    
-    def _wait_for_session_ready(self, glue_client, session_id):
-        """Wait for the Glue session to be ready"""
-        start_time = time.time()
-        while time.time() - start_time < self.timeout:
-            response = glue_client.get_session(Id=session_id)
-            status = response['Session']['Status']
-            
-            if status == 'READY':
-                return
-            elif status in ('FAILED', 'TIMEOUT', 'STOPPING', 'STOPPED'):
-                raise DbtRuntimeError(f"Glue session failed with status: {status}")
-                
-            time.sleep(self.polling_interval)
-            
-        raise DbtRuntimeError("Timed out waiting for Glue session to be ready")
+        except Exception as e:
+            raise DbtRuntimeError(f"Python model execution failed: {str(e)}")
     
     def _run_statement(self, glue_client, session_id, code):
-        """Run a Python statement in the Glue session"""
+        """Run a Python statement in the existing Glue session"""
         response = glue_client.run_statement(
             SessionId=session_id,
             Code=code

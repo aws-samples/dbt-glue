@@ -86,6 +86,13 @@ writer = df.write.mode("overwrite").option("overwriteSchema", "true")
 {%- set partition_by = config.get('partition_by', none) -%}
 {%- set custom_location = config.get('custom_location', '') -%}
 
+# Determine the correct relation to use (with catalog prefix for Iceberg)
+{%- if file_format == 'iceberg' -%}
+    {%- set full_relation = glue__make_target_relation(this, file_format) -%}
+{%- else -%}
+    {%- set full_relation = this -%}
+{%- endif -%}
+
 {%- if file_format %}
 writer = writer.format("{{ file_format }}")
 {%- endif %}
@@ -111,16 +118,21 @@ print("DEBUG: Created temp view temp_python_df")
 temp_count = spark.sql("SELECT COUNT(*) FROM temp_python_df").collect()[0][0]
 print("DEBUG: Temp view has", temp_count, "rows")
 
-# Use SQL to create the Iceberg table (target_relation already includes catalog)
-table_name = "{{ target_relation }}"
+# Use the catalog-aware relation for Iceberg table creation
+table_name = "{{ full_relation }}"
 print("DEBUG: Creating Iceberg table:", table_name)
 
 try:
-    # For Iceberg, use CREATE OR REPLACE to handle both first run and incremental runs
+    # For Iceberg, use CREATE OR REPLACE with catalog-qualified name
     create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
     print("DEBUG: Executing SQL:", create_sql)
     spark.sql(create_sql)
     print("DEBUG: Iceberg table created successfully")
+    
+    # Clean up temp view to avoid conflicts with subsequent models
+    spark.sql("DROP VIEW IF EXISTS temp_python_df")
+    print("DEBUG: Cleaned up temp view")
+    
 except Exception as e:
     print("DEBUG: Error creating Iceberg table:", str(e))
     print("DEBUG: Trying with CREATE TABLE IF NOT EXISTS...")
@@ -128,6 +140,11 @@ except Exception as e:
         create_sql_fallback = "CREATE TABLE IF NOT EXISTS " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
         spark.sql(create_sql_fallback)
         print("DEBUG: Iceberg table created with IF NOT EXISTS")
+        
+        # Clean up temp view
+        spark.sql("DROP VIEW IF EXISTS temp_python_df")
+        print("DEBUG: Cleaned up temp view")
+        
     except Exception as e2:
         print("DEBUG: Both Iceberg approaches failed:", str(e2))
         # For Iceberg, we must use SQL - no fallback to saveAsTable
