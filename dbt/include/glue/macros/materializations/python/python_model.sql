@@ -1,5 +1,5 @@
 {% materialization python_model, adapter='glue', supported_languages=['python'] %}
-  {%- set config = model['config'] -%}
+  {%- set language = model['language'] -%}
   {%- set target_relation = this.incorporate(type='table') -%}
   {%- set existing_relation = load_relation(this) -%}
   {%- set should_full_refresh = should_full_refresh() -%}
@@ -12,13 +12,10 @@
   -- Setup
   {{ run_hooks(pre_hooks) }}
 
-  -- Execute the Python code with model information
-  {% set result = adapter.execute_python(
-      model['compiled_code'], 
-      model_name=model['alias'],
-      schema=model['schema'],
-      config=model['config']
-  ) %}
+  -- Build model using standard statement approach
+  {%- call statement('main', language=language) -%}
+    {{ glue__py_write_table(compiled_code=model['compiled_code'], target_relation=target_relation) }}
+  {%- endcall -%}
 
   -- Return the target relation
   {{ run_hooks(post_hooks) }}

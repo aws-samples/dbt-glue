@@ -1,9 +1,8 @@
 {% materialization python_incremental, adapter='glue', supported_languages=['python'] %}
-  {%- set config = model['config'] -%}
+  {%- set language = model['language'] -%}
   {%- set target_relation = this.incorporate(type='table') -%}
   {%- set existing_relation = load_relation(this) -%}
   {%- set should_full_refresh = should_full_refresh() -%}
-  {%- set unique_key = config.get('unique_key') -%}
 
   {% if existing_relation is not none and should_full_refresh %}
     {{ adapter.drop_relation(existing_relation) }}
@@ -13,23 +12,14 @@
   -- Setup
   {{ run_hooks(pre_hooks) }}
 
-  -- Execute the Python code
-  {% set result = adapter.execute_python(model['compiled_code']) %}
+  -- Build model using standard statement approach
+  {%- call statement('main', language=language) -%}
+    {{ glue__py_write_table(compiled_code=model['compiled_code'], target_relation=target_relation) }}
+  {%- endcall -%}
 
-  -- Write the DataFrame to a table
-  {% if existing_relation is none %}
-    {{ glue__py_write_table(model, 'df') }}
-  {% else %}
-    {% if unique_key is not none %}
-      -- Merge based on unique key
-      {{ glue__create_python_merge_table(model, 'df', unique_key) }}
-    {% else %}
-      -- Append without merge
-      {{ glue__py_write_table(model, 'df') }}
-    {% endif %}
-  {% endif %}
-
+  -- Return the target relation
   {{ run_hooks(post_hooks) }}
 
+  -- Return success with the relations
   {{ return({'relations': [target_relation]}) }}
 {% endmaterialization %}

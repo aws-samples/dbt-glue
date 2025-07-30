@@ -77,7 +77,7 @@ class TestPythonModel:
             identifier="my_python_model"
         )
         
-        result = project.run_sql(f"SELECT * FROM {relation}", fetch="all")
+        result = project.run_sql(f"SELECT * FROM {relation} ORDER BY id", fetch="all")
         assert len(result) == 4
         assert result[0][0] == 1  # First row, id column
         
@@ -87,12 +87,12 @@ class TestPythonModel:
             identifier="my_incremental_model"
         )
         
-        result = project.run_sql(f"SELECT * FROM {relation}", fetch="all")
+        result = project.run_sql(f"SELECT * FROM {relation} ORDER BY id", fetch="all")
         assert len(result) == 4
         
         # Run incremental model again
         results = run_dbt(["run", "--models", "my_incremental_model"])
-        result = project.run_sql(f"SELECT * FROM {relation}", fetch="all")
+        result = project.run_sql(f"SELECT * FROM {relation} ORDER BY id", fetch="all")
         assert len(result) == 8  # Should have 4 new rows
 
 class TestPythonModelErrors:
