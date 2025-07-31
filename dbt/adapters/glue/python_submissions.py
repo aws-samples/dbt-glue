@@ -1,4 +1,6 @@
 import time
+import time
+import uuid
 from typing import Any, Dict
 
 from dbt.adapters.base import PythonJobHelper

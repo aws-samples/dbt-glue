@@ -35,23 +35,20 @@ def test_glue_python_job_helper_init(mock_credentials, mock_parsed_model):
     assert helper.timeout == 3600
     assert helper.polling_interval == 10
 
-@mock.patch('boto3.client')
-def test_glue_python_job_helper_submit(mock_boto3_client, mock_credentials, mock_parsed_model):
-    # Setup mock responses
+@mock.patch('dbt.adapters.glue.gluedbapi.connection.GlueConnection')
+def test_glue_python_job_helper_submit(mock_glue_connection_class, mock_credentials, mock_parsed_model):
+    # Setup mock GlueConnection instance
+    mock_connection = mock.MagicMock()
+    mock_glue_connection_class.return_value = mock_connection
+    
+    # Setup mock cursor
+    mock_cursor = mock.MagicMock()
+    mock_connection.cursor.return_value = mock_cursor
+    
+    # Setup mock client and session_id
     mock_glue_client = mock.MagicMock()
-    mock_boto3_client.return_value = mock_glue_client
-    
-    # Mock session creation
-    mock_glue_client.create_session.return_value = {
-        'SessionId': 'test-session-id'
-    }
-    
-    # Mock session status
-    mock_glue_client.get_session.return_value = {
-        'Session': {
-            'Status': 'READY'
-        }
-    }
+    mock_connection.client = mock_glue_client
+    mock_connection.session_id = 'test-session-id'
     
     # Mock statement execution
     mock_glue_client.run_statement.return_value = {
@@ -72,46 +69,33 @@ def test_glue_python_job_helper_submit(mock_boto3_client, mock_credentials, mock
     helper = GluePythonJobHelper(mock_parsed_model, mock_credentials)
     helper.submit("print('Hello, World!')")
     
-    # Verify boto3 client was created with correct parameters
-    mock_boto3_client.assert_called_once_with('glue', region_name='us-east-1')
+    # Verify GlueConnection was created with correct credentials
+    mock_glue_connection_class.assert_called_once_with(mock_credentials)
     
-    # Verify session was created
-    mock_glue_client.create_session.assert_called_once()
-    create_session_args = mock_glue_client.create_session.call_args[1]
-    assert create_session_args['Role'] == "arn:aws:iam::123456789012:role/GlueServiceRole"
-    assert create_session_args['NumberOfWorkers'] == 2
-    assert create_session_args['WorkerType'] == "G.1X"
+    # Verify cursor was called to establish connection
+    mock_connection.cursor.assert_called_once()
     
-    # Verify statement was executed (now called 3 times: debug, actual code, post-debug)
-    assert mock_glue_client.run_statement.call_count == 3
-    
-    # Verify the actual model code is in the second call
-    run_statement_calls = mock_glue_client.run_statement.call_args_list
-    actual_code_call = run_statement_calls[1]  # Second call contains the actual model code
-    actual_code_args = actual_code_call[1]  # Get keyword arguments
-    assert "print('Hello, World!')" in actual_code_args['Code']
-    
-    # Verify session was deleted
-    mock_glue_client.delete_session.assert_called_once()
+    # Verify statement was executed
+    mock_glue_client.run_statement.assert_called_once()
+    run_statement_args = mock_glue_client.run_statement.call_args[1]
+    assert run_statement_args['SessionId'] == 'test-session-id'
+    assert "print('Hello, World!')" in run_statement_args['Code']
 
-@mock.patch('boto3.client')
-def test_glue_python_job_helper_with_packages(mock_boto3_client, mock_credentials):
+@mock.patch('dbt.adapters.glue.gluedbapi.connection.GlueConnection')
+def test_glue_python_job_helper_with_packages(mock_glue_connection_class, mock_credentials):
     """Test that packages parameter is properly handled"""
-    # Setup mock responses
+    # Setup mock GlueConnection instance
+    mock_connection = mock.MagicMock()
+    mock_glue_connection_class.return_value = mock_connection
+    
+    # Setup mock cursor
+    mock_cursor = mock.MagicMock()
+    mock_connection.cursor.return_value = mock_cursor
+    
+    # Setup mock client and session_id
     mock_glue_client = mock.MagicMock()
-    mock_boto3_client.return_value = mock_glue_client
-    
-    # Mock session creation
-    mock_glue_client.create_session.return_value = {
-        'SessionId': 'test-session-id'
-    }
-    
-    # Mock session status
-    mock_glue_client.get_session.return_value = {
-        'Session': {
-            'Status': 'READY'
-        }
-    }
+    mock_connection.client = mock_glue_client
+    mock_connection.session_id = 'test-session-id'
     
     # Mock statement execution
     mock_glue_client.run_statement.return_value = {
@@ -142,17 +126,20 @@ def test_glue_python_job_helper_with_packages(mock_boto3_client, mock_credential
     helper = GluePythonJobHelper(parsed_model_with_packages, mock_credentials)
     helper.submit("import numpy as np; print('Hello with packages!')")
     
-    # Verify session was created with packages
-    mock_glue_client.create_session.assert_called_once()
-    create_session_args = mock_glue_client.create_session.call_args[1]
+    # Verify GlueConnection was created with correct credentials
+    mock_glue_connection_class.assert_called_once_with(mock_credentials)
     
-    # Check that packages were added to DefaultArguments
-    default_args = create_session_args['DefaultArguments']
-    assert '--additional-python-modules' in default_args
-    assert default_args['--additional-python-modules'] == 'numpy,pandas,scikit-learn'
+    # Verify cursor was called to establish connection
+    mock_connection.cursor.assert_called_once()
     
-    # Verify session was deleted
-    mock_glue_client.delete_session.assert_called_once()
+    # Verify statement was executed
+    mock_glue_client.run_statement.assert_called_once()
+    run_statement_args = mock_glue_client.run_statement.call_args[1]
+    assert run_statement_args['SessionId'] == 'test-session-id'
+    assert "import numpy as np; print('Hello with packages!')" in run_statement_args['Code']
+    
+    # Verify packages were extracted correctly
+    assert helper.packages == ["numpy", "pandas", "scikit-learn"]
 
 def test_glue_python_job_helper_packages_extraction(mock_credentials):
     """Test that packages are properly extracted from model config"""

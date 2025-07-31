@@ -7,10 +7,6 @@ from tests.util import get_s3_location, get_region, cleanup_s3_location
 s3bucket = get_s3_location()
 region = get_region()
 
-# Import the standard functional fixtures as a plugin
-# Note: fixtures with session scope need to be local
-pytest_plugins = ["dbt.tests.fixtures.project"]
-
 # Use different database for each test class
 @pytest.fixture(scope="class")
 def unique_schema(request, prefix) -> str:
