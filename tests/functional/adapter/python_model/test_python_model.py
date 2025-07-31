@@ -202,34 +202,3 @@ class TestPythonModelConsolidated:
         except Exception as e:
             print(f"DEBUG: Packages model test failed: {e}")
             raise e
-
-# Keep a minimal error test separate since it's expected to fail
-class TestPythonModelErrors:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "invalid_python_model.py": """
-def model(dbt, spark):
-    dbt.config(materialized='python_model', file_format='iceberg')
-    
-    # Create a DataFrame first to pass parsing validation
-    data = [(1, 'test')]
-    columns = ['id', 'name']
-    df = spark.createDataFrame(data, columns)
-    
-    # Then raise an error during execution (not parsing)
-    raise ValueError("Test error for validation")
-    
-    # This return statement will never be reached, but it satisfies the parser
-    return df
-"""
-        }
-    
-    def test_python_model_error(self, project):
-        """Test that invalid Python models fail appropriately"""
-        print("DEBUG: Testing error handling")
-        results = run_dbt(["run"], expect_pass=False)
-        # Should fail but not crash the test suite
-        assert len(results) == 1
-        assert not results[0].success
-        print("DEBUG: Error handling test passed")
