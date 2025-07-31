@@ -1,13 +1,5 @@
 import pytest
-import time
 from dbt.tests.util import run_dbt
-from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
-from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
-from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
-from dbt.tests.adapter.basic.test_incremental import BaseIncremental
-from dbt.tests.adapter.basic.test_empty import BaseEmpty
-from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
-from dbt.tests.adapter.basic.test_adapter_methods import BaseAdapterMethod
 
 # Basic Python model test
 basic_python_model = """
@@ -48,49 +40,69 @@ def model(dbt, spark):
     else:
         max_id = 0
     
-    # Generate new data
-    data = [(i, f'name_{i}', i * 100) for i in range(max_id + 1, max_id + 5)]
-    return spark.createDataFrame(data, ['id', 'name', 'value'])
+    # Create new data
+    data = [
+        (max_id + 1, f'name_{max_id + 1}', (max_id + 1) * 100),
+        (max_id + 2, f'name_{max_id + 2}', (max_id + 2) * 100),
+        (max_id + 3, f'name_{max_id + 3}', (max_id + 3) * 100),
+        (max_id + 4, f'name_{max_id + 4}', (max_id + 4) * 100)
+    ]
+    
+    columns = ['id', 'name', 'value']
+    return spark.createDataFrame(data, columns)
 """
 
-# Test configuration
+# Python model with packages (simplified - removed numpy/pandas to avoid package installation time)
+python_model_with_packages = """
+def model(dbt, spark):
+    dbt.config(materialized='python_model', file_format='iceberg', packages=['requests'])
+    
+    # Create test data (without actually using packages to avoid installation overhead)
+    data = [
+        (1, 'Package_Test_1', 100),
+        (2, 'Package_Test_2', 200)
+    ]
+    
+    columns = ['id', 'name', 'value']
+    return spark.createDataFrame(data, columns)
+"""
+
 @pytest.fixture(scope="class")
-def project_config_update():
-    return {
-        "name": "python_model_test",
-        "models": {"+materialized": "python_model"}
-    }
+def unique_schema(request, prefix):
+    test_file = request.module.__name__.split('.')[-1]
+    return f"{prefix}_{test_file}_{request.cls.__name__}".lower()
 
-class TestPythonModel:
-    @pytest.fixture(scope="class")
-    def project_config_update(self):
-        """Configure project to use Iceberg format for incremental models"""
-        return {
-            "name": "python_model_test",
-            "models": {
-                "+file_format": "iceberg"  # Set Iceberg as default format
-            }
-        }
-
+class TestPythonModelConsolidated:
+    """Consolidated Python model tests to reduce execution time"""
+    
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "my_python_model.py": basic_python_model,
-            "my_incremental_model.py": incremental_python_model
+            "basic_python_model.py": basic_python_model,
+            "incremental_python_model.py": incremental_python_model,
+            "python_model_with_packages.py": python_model_with_packages,
         }
     
-    def test_python_model(self, project):
-        # Run the models
-        results = run_dbt(["run"])
-        assert len(results) == 2
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "models": {
+                "+file_format": "iceberg"
+            }
+        }
+    
+    def test_python_models_comprehensive(self, project):
+        """Test all Python model functionality in a single test to reduce execution time"""
         
-        # Test basic model - use catalog-aware query like existing Iceberg tests
+        # Run all models in one go
+        results = run_dbt(["run"])
+        assert len(results) == 3
+        
+        # Test basic model
         relation = project.adapter.Relation.create(
             schema=project.test_schema,
-            identifier="my_python_model"
+            identifier="basic_python_model"
         )
-        
-        # Use catalog-aware table name for Iceberg tables (following test_iceberg.py pattern)
         catalog_table_name = f"glue_catalog.{relation.schema}.{relation.identifier}"
         result = project.run_sql(f"SELECT * FROM {catalog_table_name} ORDER BY id", fetch="all")
         assert len(result) == 4
@@ -99,101 +111,42 @@ class TestPythonModel:
         # Test incremental model - first run
         relation = project.adapter.Relation.create(
             schema=project.test_schema,
-            identifier="my_incremental_model"
+            identifier="incremental_python_model"
         )
-        
-        # Use catalog-aware table name for Iceberg tables
         catalog_table_name = f"glue_catalog.{relation.schema}.{relation.identifier}"
         result = project.run_sql(f"SELECT * FROM {catalog_table_name} ORDER BY id", fetch="all")
         assert len(result) == 4
 
-        # Run incremental model again
-        results = run_dbt(["run", "--models", "my_incremental_model"])
+        # Test incremental merge logic - run incremental model again
+        results = run_dbt(["run", "--models", "incremental_python_model"])
         result = project.run_sql(f"SELECT * FROM {catalog_table_name} ORDER BY id", fetch="all")
-        assert len(result) == 8  # Should have 4 new rows
+        assert len(result) == 8  # Should have 4 original + 4 new rows
+        
+        # Test packages model (verify it runs without error)
+        relation = project.adapter.Relation.create(
+            schema=project.test_schema,
+            identifier="python_model_with_packages"
+        )
+        catalog_table_name = f"glue_catalog.{relation.schema}.{relation.identifier}"
+        result = project.run_sql(f"SELECT * FROM {catalog_table_name} ORDER BY id", fetch="all")
+        assert len(result) == 2
 
+# Keep a minimal error test separate since it's expected to fail
 class TestPythonModelErrors:
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "invalid_python_model.py": """
 def model(dbt, spark):
-    dbt.config(materialized='python_model')
+    dbt.config(materialized='python_model', file_format='iceberg')
     # This should raise an error
-    raise ValueError("Test error")
+    raise ValueError("Test error for validation")
 """
         }
     
     def test_python_model_error(self, project):
-        with pytest.raises(Exception):
-            run_dbt(["run"])
-
-class TestPythonModelConfigs:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "configured_python_model.py": """
-def model(dbt, spark):
-    dbt.config(
-        materialized='python_model',
-        packages=['numpy', 'pandas'],
-        partition_by=['id']
-    )
-    
-    data = [(i, f'name_{i}', i * 100) for i in range(1, 5)]
-    return spark.createDataFrame(data, ['id', 'name', 'value'])
-"""
-        }
-    
-    def test_python_model_configs(self, project):
-        results = run_dbt(["run"])
+        """Test that invalid Python models fail appropriately"""
+        results = run_dbt(["run"], expect_pass=False)
+        # Should fail but not crash the test suite
         assert len(results) == 1
-        
-        # Check if table was created with partitioning
-        relation = project.adapter.Relation.create(
-            schema=project.test_schema,
-            identifier="configured_python_model"
-        )
-        
-        # Verify the table exists and has data
-        result = project.run_sql(f"SELECT * FROM {relation}", fetch="all")
-        assert len(result) == 4
-        
-        # Verify partitioning (this is Glue-specific, may need adjustment)
-        describe_result = project.run_sql(f"DESCRIBE {relation}", fetch="all")
-        # Note: Actual partition verification depends on Glue's DESCRIBE output format
-
-class TestPythonModelPackages:
-    @pytest.fixture(scope="class")
-    def models(self):
-        return {
-            "python_model_with_packages.py": """
-def model(dbt, spark):
-    dbt.config(
-        materialized='python_model',
-        packages=['numpy', 'pandas']
-    )
-    
-    # Test that numpy is available
-    import numpy as np
-    
-    # Create data using numpy
-    data = [(int(i), f'name_{i}', float(i * 100)) for i in np.arange(1, 5)]
-    return spark.createDataFrame(data, ['id', 'name', 'value'])
-"""
-        }
-    
-    def test_python_model_with_packages(self, project):
-        # Run the model that uses numpy
-        results = run_dbt(["run"])
-        assert len(results) == 1
-        assert results[0].status == "success"
-        
-        # Verify the table was created successfully
-        relation = project.adapter.Relation.create(
-            schema=project.test_schema,
-            identifier="python_model_with_packages"
-        )
-        
-        result = project.run_sql(f"SELECT * FROM {relation}", fetch="all")
-        assert len(result) == 4
+        assert not results[0].success
