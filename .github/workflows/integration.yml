@@ -91,12 +91,20 @@ jobs:
           path: integ_results.csv
           overwrite: true
 
+  # simple test job to verify multiple jobs work
+  test-multiple-jobs:
+    name: Test Multiple Jobs
+    if: contains(github.event.pull_request.labels.*.name, 'enable-functional-tests')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Simple test
+        run: echo "This is a test job to verify multiple jobs work"
+
   # separate job for Python model tests in PRs
   python-models-pr:
     name: Python Models - PR / python ${{ matrix.python-version }}
     if: contains(github.event.pull_request.labels.*.name, 'enable-functional-tests')
-    # Run independently of the main functional tests
-    needs: []
 
     runs-on: ubuntu-latest
     timeout-minutes: 45  # Shorter timeout since we only run Python model tests
