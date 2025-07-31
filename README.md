@@ -190,7 +190,7 @@ Install boto3 package
 
 ```bash
 $ sudo yum install gcc krb5-devel.x86_64 python3-devel.x86_64 -y
-$ pip3 install —-upgrade boto3
+$ pip3 install --upgrade boto3
 ```
 
 Install the package:
@@ -242,7 +242,7 @@ The table below describes all the options.
 | default_arguments	                      | The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: `--enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true` | no        |
 | glue_session_id                         | re-use a glue-session to run multiple dbt run commands. Will create a new glue-session using glue_session_id if it does not exists yet.                                                                                                                                                           | no        | 
 | glue_session_reuse                      | re-use the glue-session to run multiple dbt run commands: If set to true, the glue session will not be closed for re-use. If set to false, the session will be closed. The glue session will close after idle_timeout time is expired after idle_timeout time                                     | no        | 
-| datalake_formats	                       | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `ìceberg` or `delta`                                                                                                                                                                                         |no|
+| datalake_formats	                       | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `iceberg` or `delta`                                                                                                                                                                                         |no|
 | use_arrow	                           | (experimental) use an arrow file instead of stdout to have better scalability.                                                                                                                                                                                                                    |no|
 | enable_spark_seed_casting	              | Allows spark to cast the columns depending on the specified model column types. Default `False`.        |no|
 
@@ -265,7 +265,7 @@ When materializing a model as `table`, you may include several optional configs 
 
 ## Python models (Experimental)
 
-**⚠️ Experimental Feature**: Python model support is currently experimental and may have limitations or breaking changes in future versions.
+**WARNING: Experimental Feature**: Python model support is currently experimental and may have limitations or breaking changes in future versions.
 
 dbt-glue supports [Python models](https://docs.getdbt.com/docs/build/python-models) that allow you to apply transformations to your data using Python code and libraries, rather than SQL. This enables more complex data transformations, statistical analysis, and machine learning workflows within your dbt project.
 
