@@ -211,8 +211,17 @@ class TestPythonModelErrors:
             "invalid_python_model.py": """
 def model(dbt, spark):
     dbt.config(materialized='python_model', file_format='iceberg')
-    # This should raise an error
+    
+    # Create a DataFrame first to pass parsing validation
+    data = [(1, 'test')]
+    columns = ['id', 'name']
+    df = spark.createDataFrame(data, columns)
+    
+    # Then raise an error during execution (not parsing)
     raise ValueError("Test error for validation")
+    
+    # This return statement will never be reached, but it satisfies the parser
+    return df
 """
         }
     
