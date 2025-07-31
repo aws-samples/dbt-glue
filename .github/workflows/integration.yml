@@ -105,6 +105,7 @@ jobs:
         python-version: ["3.13"] # Use single version to avoid resource conflicts
 
     env:
+      TOXENV: "python-models"
       PYTEST_ADDOPTS: "-v --color=yes --csv python_model_results.csv -s"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
@@ -125,8 +126,8 @@ jobs:
           sudo apt-get install libsasl2-dev
           python -m pip install --user --upgrade pip
           python -m pip --version
-          python -m pip install -r dev-requirements.txt
-          python -m pip install -e .
+          python -m pip install tox
+          tox --version
 
       - name: Generate session name
         id: session
@@ -145,7 +146,7 @@ jobs:
       - name: Run Python model tests
         run: |
           export DBT_S3_LOCATION=${{ secrets.DBT_S3_LOCATION }}/python-models-pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${{ matrix.python-version }}
-          python -m pytest -v -s tests/functional/adapter/python_model/ --csv python_model_results.csv
+          tox
 
       - name: Get current date
         if: always()
@@ -241,6 +242,7 @@ jobs:
         python-version: ["3.13"] # Use single version to avoid resource conflicts
 
     env:
+      TOXENV: "python-models"
       PYTEST_ADDOPTS: "-v --color=yes --csv python_model_results.csv -s"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
@@ -261,8 +263,8 @@ jobs:
           sudo apt-get install libsasl2-dev
           python -m pip install --user --upgrade pip
           python -m pip --version
-          python -m pip install -r dev-requirements.txt
-          python -m pip install -e .
+          python -m pip install tox
+          tox --version
 
       - name: Generate session name
         id: session
@@ -281,7 +283,7 @@ jobs:
       - name: Run Python model tests
         run: |
           export DBT_S3_LOCATION=${{ secrets.DBT_S3_LOCATION }}/python-models-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${{ matrix.python-version }}
-          python -m pytest -v -s tests/functional/adapter/python_model/ --csv python_model_results.csv
+          tox
 
       - name: Get current date
         if: always()
