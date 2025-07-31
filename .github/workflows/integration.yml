@@ -92,9 +92,11 @@ jobs:
           overwrite: true
 
   # separate job for Python model tests in PRs
-  python-model-tests-pr:
-    name: Python Model Tests - PR / python ${{ matrix.python-version }}
+  python-models-pr:
+    name: Python Models - PR / python ${{ matrix.python-version }}
     if: contains(github.event.pull_request.labels.*.name, 'enable-functional-tests')
+    # Run independently of the main functional tests
+    needs: []
 
     runs-on: ubuntu-latest
     timeout-minutes: 45  # Shorter timeout since we only run Python model tests
@@ -229,8 +231,8 @@ jobs:
           path: unit_results.csv
           overwrite: true
   # separate job for Python model tests to avoid timeout and isolate potential issues
-  python-model-tests-main:
-    name: Python Model Tests - main / python ${{ matrix.python-version }}
+  python-models-main:
+    name: Python Models - main / python ${{ matrix.python-version }}
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     runs-on: ubuntu-latest
