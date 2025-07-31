@@ -7,6 +7,7 @@
 - Fix invalid Spark relation type: iceberg_table
 - Fix Iceberg snapshot issue of incorrect DROP VIEW calls
 - Upgrade dependencies: dbt-core 1.9.4, dbt-spark 1.9.2, moto 5.1.3.
+- Fix schema removal issue from DROP VIEW and get_insert_overwrite_sql strategy
 
 ## v1.9.2
 - Correctly handle EntityNotFound when trying to determine session state, setting state to does not exist instead of STOPPED.
