@@ -35,7 +35,7 @@ jobs:
 
     env:
       TOXENV: "integration"
-      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv"
+      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv --ignore=tests/functional/adapter/python_model/"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
@@ -87,8 +87,87 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: unit_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
-          path: unit_results.csv
+          name: integ_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
+          path: integ_results.csv
+          overwrite: true
+
+  # simple test job to verify multiple jobs work
+  test-multiple-jobs:
+    name: Test Multiple Jobs
+    if: contains(github.event.pull_request.labels.*.name, 'enable-functional-tests')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Simple test
+        run: echo "This is a test job to verify multiple jobs work"
+
+  # separate job for Python model tests in PRs
+  python-models-pr:
+    name: Python Models - PR / python ${{ matrix.python-version }}
+    if: contains(github.event.pull_request.labels.*.name, 'enable-functional-tests')
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # Shorter timeout since we only run Python model tests
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"] # Use single version to avoid resource conflicts
+
+    env:
+      TOXENV: "python-models"
+      PYTEST_ADDOPTS: "-v --color=yes --csv python_model_results.csv -s"
+      DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
+      DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
+      DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsasl2-dev
+          python -m pip install --user --upgrade pip
+          python -m pip --version
+          python -m pip install tox
+          tox --version
+
+      - name: Generate session name
+        id: session
+        run: |
+          repo="${GITHUB_REPOSITORY#${GITHUB_REPOSITORY_OWNER}/}"
+          echo "name=${repo}-python-models-pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-session-name: ${{ steps.session.outputs.name }}
+          role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
+          aws-region: ${{ secrets.DBT_GLUE_REGION }}
+          mask-aws-account-id: true
+
+      - name: Run Python model tests
+        run: |
+          export DBT_S3_LOCATION=${{ secrets.DBT_S3_LOCATION }}/python-models-pr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${{ matrix.python-version }}
+          tox
+
+      - name: Get current date
+        if: always()
+        id: date
+        run: echo "date=$(date +'%Y-%m-%dT%H_%M_%S')" >> $GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python_model_results_pr_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
+          path: python_model_results.csv
           overwrite: true
 
   # workflow that is invoked when a push to main happens
@@ -106,7 +185,7 @@ jobs:
 
     env:
       TOXENV: "integration"
-      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv -s"
+      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv -s --ignore=tests/functional/adapter/python_model/"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
@@ -158,4 +237,72 @@ jobs:
         with:
           name: unit_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
           path: unit_results.csv
+          overwrite: true
+  # separate job for Python model tests to avoid timeout and isolate potential issues
+  python-models-main:
+    name: Python Models - main / python ${{ matrix.python-version }}
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # Shorter timeout since we only run Python model tests
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"] # Use single version to avoid resource conflicts
+
+    env:
+      TOXENV: "python-models"
+      PYTEST_ADDOPTS: "-v --color=yes --csv python_model_results.csv -s"
+      DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
+      DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
+      DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libsasl2-dev
+          python -m pip install --user --upgrade pip
+          python -m pip --version
+          python -m pip install tox
+          tox --version
+
+      - name: Generate session name
+        id: session
+        run: |
+          repo="${GITHUB_REPOSITORY#${GITHUB_REPOSITORY_OWNER}/}"
+          echo "name=${repo}-python-models-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-session-name: ${{ steps.session.outputs.name }}
+          role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
+          aws-region: ${{ secrets.DBT_GLUE_REGION }}
+          mask-aws-account-id: true
+
+      - name: Run Python model tests
+        run: |
+          export DBT_S3_LOCATION=${{ secrets.DBT_S3_LOCATION }}/python-models-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${{ matrix.python-version }}
+          tox
+
+      - name: Get current date
+        if: always()
+        id: date
+        run: echo "date=$(date +'%Y-%m-%dT%H_%M_%S')" >> $GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python_model_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
+          path: python_model_results.csv
           overwrite: true
