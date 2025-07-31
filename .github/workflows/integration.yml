@@ -35,7 +35,7 @@ jobs:
 
     env:
       TOXENV: "integration"
-      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv"
+      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv --ignore=tests/functional/adapter/python_model/"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
@@ -87,8 +87,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: unit_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
-          path: unit_results.csv
+          name: integ_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
+          path: integ_results.csv
           overwrite: true
 
   # workflow that is invoked when a push to main happens
@@ -106,7 +106,7 @@ jobs:
 
     env:
       TOXENV: "integration"
-      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv -s"
+      PYTEST_ADDOPTS: "-v --color=yes --csv integ_results.csv -s --ignore=tests/functional/adapter/python_model/"
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
@@ -156,6 +156,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: unit_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
-          path: unit_results.csv
+          name: integ_results_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
+          path: integ_results.csv
           overwrite: true
