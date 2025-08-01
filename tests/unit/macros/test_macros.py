@@ -181,7 +181,7 @@ class TestGlueMacros(unittest.TestCase):
 
         # For views
         relation.type = "view"
-        self.config["file_format"] = "parquet"
+        
         # We know that glue__drop_relation should generate a "drop view if exists" statement
         expected_view_sql = "drop view if exists test_table"
         # Just assert what we expect it would do without running the actual macro
