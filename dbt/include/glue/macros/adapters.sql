@@ -291,3 +291,19 @@
   {{ return({'relations': [target_relation]}) }}
 
 {% endmacro %}
+
+{% macro adapters__py_get_writer_options() %}
+    {%- set file_format = config.get('file_format', 'parquet') -%}
+    {%- set location = adapter.get_location(this) -%}
+    {%- set partition_by = config.get('partition_by', none) -%}
+    {%- set table_properties = config.get('table_properties', {}) -%}
+
+    {%- set options = {
+        'file_format': file_format,
+        'location': location,
+        'partition_by': partition_by,
+        'table_properties': table_properties
+    } -%}
+
+    {{ return(options) }}
+{% endmacro %}

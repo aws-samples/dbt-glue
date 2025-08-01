@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 from dbt.adapters.contracts.connection import Credentials
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -40,6 +40,8 @@ class GlueCredentials(Credentials):
     use_arrow: Optional[bool] = False
     custom_iceberg_catalog_namespace: Optional[str] = "glue_catalog"
     enable_spark_seed_casting: Optional[bool] = False
+    # Python model specific fields
+    packages: Optional[List[str]] = None
 
     @property
     def type(self):
@@ -54,6 +56,9 @@ class GlueCredentials(Credentials):
         data = super().__pre_deserialize__(data)
         if "database" not in data:
             data["database"] = None
+        # Convert packages from string to list if provided as comma-separated string
+        if "packages" in data and isinstance(data["packages"], str):
+            data["packages"] = [pkg.strip() for pkg in data["packages"].split(",")]
         return data
 
     def __post_init__(self):
@@ -100,4 +105,5 @@ class GlueCredentials(Credentials):
             'enable_session_per_model',
             'use_arrow',
             'enable_spark_seed_casting',
+            'packages',
         ]

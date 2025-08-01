@@ -190,7 +190,7 @@ Install boto3 package
 
 ```bash
 $ sudo yum install gcc krb5-devel.x86_64 python3-devel.x86_64 -y
-$ pip3 install —-upgrade boto3
+$ pip3 install --upgrade boto3
 ```
 
 Install the package:
@@ -242,7 +242,7 @@ The table below describes all the options.
 | default_arguments	                      | The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: `--enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true` | no        |
 | glue_session_id                         | re-use a glue-session to run multiple dbt run commands. Will create a new glue-session using glue_session_id if it does not exists yet.                                                                                                                                                           | no        | 
 | glue_session_reuse                      | re-use the glue-session to run multiple dbt run commands: If set to true, the glue session will not be closed for re-use. If set to false, the session will be closed. The glue session will close after idle_timeout time is expired after idle_timeout time                                     | no        | 
-| datalake_formats	                       | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `ìceberg` or `delta`                                                                                                                                                                                         |no|
+| datalake_formats	                       | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `iceberg` or `delta`                                                                                                                                                                                         |no|
 | use_arrow	                           | (experimental) use an arrow file instead of stdout to have better scalability.                                                                                                                                                                                                                    |no|
 | enable_spark_seed_casting	              | Allows spark to cast the columns depending on the specified model column types. Default `False`.        |no|
 
@@ -262,6 +262,167 @@ When materializing a model as `table`, you may include several optional configs 
 | hudi_options          | When using file_format `hudi`, gives the ability to overwrite any of the default configuration options.                                                                                                                                                      | Optional                                | `{'hoodie.schema.on.read.enable': 'true'}`        |
 | meta                  | Spawns isolated Glue session with different session configuration. Use Case: When specific models require configurations different from the default session settings. For example, a particular model might require more Glue workers or larger worker type. | Optional                                | `meta = { "workers": 50, "worker_type": "G.1X" }` |
 | add_iceberg_timestamp | Add `update_iceberg_ts` column on Iceberg tables. (default: false)                                                                                                                                                                                           | Optional                                | `true`                                            |
+
+## Python models (Experimental)
+
+**WARNING: Experimental Feature**: Python model support is currently experimental and may have limitations or breaking changes in future versions.
+
+dbt-glue supports [Python models](https://docs.getdbt.com/docs/build/python-models) that allow you to apply transformations to your data using Python code and libraries, rather than SQL. This enables more complex data transformations, statistical analysis, and machine learning workflows within your dbt project.
+
+### Requirements
+
+- **AWS Glue version 4.0 or later** (recommended for best Python support)
+- **Iceberg file format** (required for Python models)
+- **Proper Iceberg configuration** in your profile (see configuration example below)
+
+### Configuration
+
+Python models require Iceberg file format and specific Spark configurations. Add the following to your `profiles.yml`:
+
+```yaml
+your_profile:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      # ... other configurations ...
+      datalake_formats: iceberg
+      conf: >-
+        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+        --conf spark.sql.catalog.glue_catalog.warehouse=s3://your-warehouse-path
+        --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+        --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+```
+
+### Basic Usage
+
+Create a Python model by adding a `.py` file to your `models/` directory:
+
+```python
+def model(dbt, spark):
+    # Configure the model
+    dbt.config(materialized='python_model', file_format='iceberg')
+    
+    # Create your DataFrame using Spark
+    data = [
+        (1, 'Alice', 100),
+        (2, 'Bob', 200),
+        (3, 'Charlie', 300)
+    ]
+    columns = ['id', 'name', 'value']
+    
+    # Return a Spark DataFrame
+    return spark.createDataFrame(data, columns)
+```
+
+### Referencing Other Models
+
+You can reference other dbt models and sources in your Python models:
+
+```python
+def model(dbt, spark):
+    dbt.config(materialized='python_model', file_format='iceberg')
+    
+    # Reference another dbt model
+    customers_df = dbt.ref('customers')
+    
+    # Reference a source
+    orders_df = dbt.source('raw_data', 'orders')
+    
+    # Perform transformations
+    result_df = customers_df.join(orders_df, 'customer_id')
+    
+    return result_df
+```
+
+### Incremental Python Models
+
+Python models support incremental materialization with merge strategy:
+
+```python
+def model(dbt, spark):
+    dbt.config(
+        materialized='incremental',
+        file_format='iceberg',
+        incremental_strategy='merge',
+        unique_key='id'
+    )
+    
+    # Get source data
+    source_df = dbt.ref('raw_events')
+    
+    if dbt.is_incremental():
+        # Only process new records for incremental runs
+        max_date = spark.sql(f"SELECT MAX(event_date) FROM {dbt.this}").collect()[0][0]
+        source_df = source_df.filter(source_df.event_date > max_date)
+    
+    # Apply transformations
+    transformed_df = source_df.groupBy('user_id').agg(
+        count('*').alias('event_count'),
+        max('event_date').alias('last_event_date')
+    )
+    
+    return transformed_df
+```
+
+### Configuration Options
+
+Python models support the same configuration options as regular models, plus some Python-specific ones:
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `materialized` | Materialization type (`python_model` or `incremental`) | `python_model` |
+| `file_format` | File format (must be `iceberg` for Python models) | `iceberg` |
+| `incremental_strategy` | Strategy for incremental models | `merge` |
+| `unique_key` | Unique key for merge operations | `['id']` |
+| `partition_by` | Partition columns | `['date_column']` |
+
+### Limitations
+
+- **File format**: Only Iceberg file format is supported for Python models
+- **Glue version**: Requires AWS Glue 4.0 or later for optimal support
+- **Session configuration**: Requires proper Iceberg Spark extensions configuration
+- **Return type**: Model function must return exactly one Spark DataFrame
+- **Performance**: Python models may have longer execution times compared to SQL models
+
+### Best Practices
+
+1. **Use appropriate file formats**: Always use `file_format='iceberg'` for Python models
+2. **Optimize DataFrame operations**: Use Spark DataFrame operations efficiently
+3. **Handle incremental logic**: Use `dbt.is_incremental()` for conditional processing
+4. **Test thoroughly**: Python models are experimental, so test extensively
+5. **Monitor performance**: Python models may require more resources than SQL models
+
+### Example: Data Science Workflow
+
+```python
+def model(dbt, spark):
+    dbt.config(
+        materialized='python_model',
+        file_format='iceberg',
+        partition_by=['analysis_date']
+    )
+    
+    # Import required libraries (available in Glue environment)
+    from pyspark.sql.functions import col, when, avg, stddev
+    from datetime import datetime
+    
+    # Get source data
+    sales_df = dbt.ref('sales_data')
+    
+    # Perform statistical analysis
+    stats_df = sales_df.groupBy('product_category').agg(
+        avg('sales_amount').alias('avg_sales'),
+        stddev('sales_amount').alias('stddev_sales'),
+        count('*').alias('transaction_count')
+    )
+    
+    # Add analysis metadata
+    result_df = stats_df.withColumn('analysis_date', lit(datetime.now().date()))
+    
+    return result_df
+```
 
 ## Incremental models
 
@@ -1025,11 +1186,13 @@ For more information, check the dbt documentation about [testing a new adapter](
 
 ### Supported Functionality
 
-Most dbt Core functionality is supported, but some features are only available with Apache Hudi.
+Most dbt Core functionality is supported, but some features are only available with Apache Hudi or specific configurations.
 
 Apache Hudi-only features:
 1. Incremental model updates by `unique_key` instead of `partition_by` (see [`merge` strategy](glue-configs#the-merge-strategy))
 
+Experimental features:
+1. [Python models](#python-models-experimental) (requires Iceberg file format and AWS Glue 4.0+)
 
 Some dbt features, available on the core adapters, are not yet supported on Glue:
 1. [Persisting](persist_docs) column-level descriptions as database comments
