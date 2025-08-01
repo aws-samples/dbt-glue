@@ -1180,6 +1180,31 @@ or
 ```bash
 $ python3 -m pytest -s 
 ```
+
+### Testing S3 Tables (Experimental)
+
+Amazon S3 Tables support is currently being tested. To run S3 tables-specific tests:
+
+1. Set additional environment variables:
+```bash
+$ export DBT_S3_TABLES_BUCKET=my-s3-tables-bucket
+```
+
+2. Run S3 tables tests:
+```bash
+$ python3 -m pytest tests/functional/adapter/s3_tables/ -v
+```
+
+Or using tox:
+```bash
+$ tox -e s3-tables
+```
+
+The S3 tables tests help us understand:
+- Which dbt features work with S3 tables out-of-the-box
+- What configurations are required for S3 tables
+- Which features need adapter modifications
+
 For more information, check the dbt documentation about [testing a new adapter](https://docs.getdbt.com/docs/contributing/testing-a-new-adapter).
 
 ## Caveats
@@ -1193,6 +1218,7 @@ Apache Hudi-only features:
 
 Experimental features:
 1. [Python models](#python-models-experimental) (requires Iceberg file format and AWS Glue 4.0+)
+2. **Amazon S3 Tables** (currently in testing phase - see S3 tables tests for current status)
 
 Some dbt features, available on the core adapters, are not yet supported on Glue:
 1. [Persisting](persist_docs) column-level descriptions as database comments
