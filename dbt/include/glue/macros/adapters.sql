@@ -75,8 +75,6 @@
 
   {%- if file_format == 'iceberg' -%}
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
-  {%- else -%}
-    {%- set full_relation = relation.include(schema=false) -%}
   {%- endif -%}
 
   {% call statement('drop_relation', auto_begin=False) -%}
