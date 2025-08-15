@@ -263,7 +263,9 @@ When materializing a model as `table`, you may include several optional configs 
 | meta                  | Spawns isolated Glue session with different session configuration. Use Case: When specific models require configurations different from the default session settings. For example, a particular model might require more Glue workers or larger worker type. | Optional                                | `meta = { "workers": 50, "worker_type": "G.1X" }` |
 | add_iceberg_timestamp | Add `update_iceberg_ts` column on Iceberg tables. (default: false)                                                                                                                                                                                           | Optional                                | `true`                                            |
 
-## Amazon S3 Tables Support
+## Amazon S3 Tables Support (Experimental)
+
+**WARNING: Experimental Feature**: Amazon S3 Tables support is currently experimental and may have limitations or breaking changes in future versions.
 
 dbt-glue supports [Amazon S3 Tables](https://aws.amazon.com/s3/features/tables/), a new table type for analytics workloads that provides Apache Iceberg compatibility with automatic optimization and management.
 
@@ -296,12 +298,14 @@ your_profile:
       type: glue
       # ... other configurations ...
       conf: >-
-        --conf spark.sql.defaultCatalog=glue_catalog
-        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
         --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+        --conf spark.sql.defaultCatalog=glue_catalog
         --conf spark.sql.catalog.glue_catalog.warehouse=s3://your-warehouse-path
         --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
         --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+        --conf spark.sql.catalog.glue_catalog.glue.id=YOUR_ACCOUNT_ID:s3tablescatalog/your-s3-tables-bucket
+      datalake_formats: iceberg
 ```
 
 ### Key Features
