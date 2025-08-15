@@ -55,12 +55,17 @@ jobs:
         pip install -r dev-requirements.txt
         pip install -e .
 
+    - name: Generate session name
+      id: session
+      run: echo "name=dbt-glue-s3-tables-${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ secrets.DBT_GLUE_ROLE_ARN }}
+        role-session-name: ${{ steps.session.outputs.name }}
+        role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
         aws-region: ${{ secrets.DBT_GLUE_REGION }}
-        audience: sts.amazonaws.com
+        mask-aws-account-id: true
 
     - name: Run S3 Tables Tests
       run: |
@@ -109,12 +114,17 @@ jobs:
         pip install -r dev-requirements.txt
         pip install -e .
 
+    - name: Generate session name
+      id: session
+      run: echo "name=dbt-glue-s3-tables-${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ secrets.DBT_GLUE_ROLE_ARN }}
+        role-session-name: ${{ steps.session.outputs.name }}
+        role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
         aws-region: ${{ secrets.DBT_GLUE_REGION }}
-        audience: sts.amazonaws.com
+        mask-aws-account-id: true
 
     - name: Run S3 Tables Tests
       run: |
