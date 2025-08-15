@@ -586,7 +586,7 @@ class TestS3TablesIntegration:
         
         # View on S3 table
         view_on_s3_sql = """
-        {{ config(materialized='view') }}
+        {{ config(materialized='table', file_format='s3tables') }}
         select 
             s.category,
             s.name,
