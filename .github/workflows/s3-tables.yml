@@ -55,12 +55,13 @@ jobs:
         pip install -r dev-requirements.txt
         pip install -e .
 
-    - name: Configure AWS credentials
+    - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: ${{ secrets.DBT_GLUE_ROLE_ARN }}
+        role-session-name: ${{ steps.session.outputs.name }}
+        role-to-assume: arn:aws:iam::${{ secrets.DBT_AWS_ACCOUNT }}:role/dbt-glue
         aws-region: ${{ secrets.DBT_GLUE_REGION }}
-        audience: sts.amazonaws.com
+        mask-aws-account-id: true
 
     - name: Run S3 Tables Tests
       run: |
