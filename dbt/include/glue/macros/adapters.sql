@@ -3,7 +3,9 @@
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
   {%- set materialized = config.get('materialized') -%}
 
-  {%- if custom_location is not none %}
+  {%- if file_format == 's3tables' -%}
+    {# S3 Tables automatically manages location, so no LOCATION clause needed #}
+  {%- elif custom_location is not none %}
     location '{{ custom_location }}'
   {%- else -%}
     {{ adapter.get_location(this) }}
@@ -107,7 +109,9 @@
 
 {% macro glue__file_format_clause() %}
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
-  {%- if file_format is not none %}
+  {%- if file_format == 's3tables' -%}
+    {# S3 Tables automatically manages format, so no USING clause needed #}
+  {%- elif file_format is not none %}
     using {{ file_format }}
   {%- else -%}
     using PARQUET
@@ -122,7 +126,7 @@
     {%- set table_properties = config.get('table_properties', default={}) -%}
 
     {%- set create_statement_string -%}
-      {% if file_format in ['delta', 'iceberg'] -%}
+      {% if file_format in ['delta', 'iceberg', 's3tables'] -%}
         create or replace table
       {%- else -%}
         create table
@@ -130,7 +134,7 @@
     {%- endset %}
 
     {%- set full_relation = relation -%}
-    {%- if file_format == 'iceberg' -%}
+    {%- if file_format in ['iceberg', 's3tables'] -%}
       {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     {%- endif -%}
 

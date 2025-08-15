@@ -1,4 +1,4 @@
-{{ config(materialized='table', file_format='iceberg') }}
+{{ config(materialized='table', file_format='s3tables') }}
 
 select 
     1 as id,
