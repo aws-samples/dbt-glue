@@ -7,12 +7,14 @@
     {%- if file_format == 'iceberg' -%}
         {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
         {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+    {%- else -%}
+        {%- set full_source_relation =  source_relation.include(schema=false) -%}
     {%- endif -%}
     set hive.exec.dynamic.partition.mode=nonstrict
     dbt_next_query
     insert overwrite table {{ full_target_relation }}
     {{ partition_cols(label="partition") }}
-    select {{dest_cols_csv}} from {{ full_source_relation }}
+    select {{dest_cols_csv}} from {{ full_source_relation }} 
 {% endmacro %}
 
 

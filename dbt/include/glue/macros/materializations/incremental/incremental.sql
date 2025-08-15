@@ -137,7 +137,14 @@
 
   {% if is_incremental == 'True' %}
     {% if is_tmp_relation_created == 'True' %}
-      {{ glue__drop_relation(tmp_relation) }}
+        {% if file_format != 'iceberg' %}
+            {% call statement('drop_relation') -%}
+                {%- set tmp_relation_view = tmp_relation.include(schema=false) -%}
+                drop view if exists {{ tmp_relation_view }}
+            {%- endcall %}
+        {% else %}
+          {{ glue__drop_relation(tmp_relation) }}
+        {% endif %}
     {% endif %}
     {% if file_format == 'delta' %}
       {{ adapter.delta_update_manifest(target_relation, custom_location, partition_by) }}
