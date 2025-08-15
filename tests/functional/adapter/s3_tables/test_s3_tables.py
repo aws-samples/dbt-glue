@@ -242,7 +242,7 @@ class TestS3TablesBasicMaterializations:
             
             # Clean up the direct table
             try:
-                drop_sql = f"drop table glue_catalog.{project.adapter.config.credentials.schema}.s3_table_model_direct"
+                drop_sql = f"drop table glue_catalog.{project.adapter.config.credentials.schema}.s3_table_model_direct purge"
                 project.run_sql(drop_sql, fetch="none")
                 print("✅ Direct table cleanup succeeded!")
             except Exception as e:

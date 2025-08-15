@@ -75,13 +75,15 @@
   {%- set file_format = config.get('file_format', default='parquet') -%}
   {%- set full_relation = relation -%}
 
-  {%- if file_format == 'iceberg' -%}
+  {%- if file_format in ['iceberg', 's3tables'] -%}
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
   {%- endif -%}
 
   {% call statement('drop_relation', auto_begin=False) -%}
-      {%- if relation.type == 'view' and file_format != 'iceberg' %}
+      {%- if relation.type == 'view' and file_format not in ['iceberg', 's3tables'] %}
           drop view if exists {{ this }}
+      {%- elif file_format == 's3tables' -%}
+          drop table if exists {{ full_relation }} purge
       {%- else -%}
           drop table if exists {{ full_relation }}
       {%- endif %}
@@ -164,8 +166,10 @@
 {% macro glue__drop_view(relation) -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
   {% call statement('drop_view', auto_begin=False) -%}
-    {%- if file_format != 'iceberg' %}
+    {%- if file_format not in ['iceberg', 's3tables'] %}
       drop view if exists {{ relation }}
+    {%- elif file_format == 's3tables' -%}
+      drop table if exists {{ relation }} purge
     {%- else -%}
       drop table if exists {{ relation }}
     {%- endif %}
