@@ -1,6 +1,7 @@
 ## dbt-glue next
 - Allow temporary tables to be created in different schema/database than target model using profile temp-schema variable
 - Add experimental Python model support with Iceberg file format (requires AWS Glue 4.0+)
+- Fix issue where including unrelated values in `meta` section would create new sessions when `glue_session_id` is set
 
 ## v1.9.4
 - Reduce debug logging
