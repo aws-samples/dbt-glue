@@ -39,6 +39,8 @@ jobs:
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
+      DBT_S3_LOCATION: ${{ secrets.DBT_S3_LOCATION }}
+      DBT_S3_TABLES_BUCKET: ${{ secrets.DBT_S3_TABLES_BUCKET }}
 
     steps:
       - name: Check out the repository
@@ -110,6 +112,8 @@ jobs:
       DBT_AWS_ACCOUNT: ${{ secrets.DBT_AWS_ACCOUNT }}
       DBT_GLUE_ROLE_ARN: ${{ secrets.DBT_GLUE_ROLE_ARN }}
       DBT_GLUE_REGION: ${{ secrets.DBT_GLUE_REGION }}
+      DBT_S3_LOCATION: ${{ secrets.DBT_S3_LOCATION }}
+      DBT_S3_TABLES_BUCKET: ${{ secrets.DBT_S3_TABLES_BUCKET }}
 
     steps:
       - name: Check out the repository
