@@ -359,7 +359,7 @@ class TestS3TablesIncremental:
         {{ config(
             materialized="incremental",
             incremental_strategy="append", 
-            file_format="iceberg"
+            file_format="s3tables"
         ) }}
         select 
             {{ var('run_number', 1) }} as run_id,
