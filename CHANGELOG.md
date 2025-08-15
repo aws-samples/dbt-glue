@@ -223,3 +223,4 @@
   - Added Conf param for Glue to add custom spark configuration options.
   - Updated glue.sql.sources.partitionOverwriteMode to spark.sql.sources.partitionOverwriteMode to work partition overwrite properly.
 - Override default types for STRING from TEXT to STRING
+
