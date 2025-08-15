@@ -43,6 +43,7 @@ jobs:
       with:
         role-to-assume: ${{ secrets.DBT_GLUE_ROLE_ARN }}
         aws-region: ${{ secrets.DBT_GLUE_REGION }}
+        audience: sts.amazonaws.com
 
     - name: Run S3 Tables Tests
       run: |
