@@ -67,7 +67,7 @@
         {% endif %}
       {% else %}
         {# /*-- Relation must be merged --*/ #}
-        {% if file_format == 'iceberg' and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
+        {% if file_format in ['iceberg', 's3tables'] and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
           {%- call statement('create_tmp_table') -%}
             {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
             {%- set is_tmp_relation_created = 'True' -%} 

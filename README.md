@@ -254,7 +254,7 @@ When materializing a model as `table`, you may include several optional configs 
 
 | Option                | Description                                                                                                                                                                                                                                                  | Required?                               | Example                                           |
 |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|---------------------------------------------------|
-| file_format           | The file format to use when creating tables (`parquet`, `csv`, `json`, `text`, `jdbc` or `orc`).                                                                                                                                                             | Optional                                | `parquet`                                         |
+| file_format           | The file format to use when creating tables (`parquet`, `csv`, `json`, `text`, `jdbc`, `orc`, `delta`, `iceberg`, `hudi`, or `s3tables`).                                                                                                                   | Optional                                | `parquet`                                         |
 | partition_by          | Partition the created table by the specified columns. A directory is created for each partition.                                                                                                                                                             | Optional                                | `date_day`                                        |
 | clustered_by          | Each partition in the created table will be split into a fixed number of buckets by the specified columns.                                                                                                                                                   | Optional                                | `country_code`                                    |
 | buckets               | The number of buckets to create while clustering                                                                                                                                                                                                             | Required if `clustered_by` is specified | `8`                                               |
@@ -262,6 +262,90 @@ When materializing a model as `table`, you may include several optional configs 
 | hudi_options          | When using file_format `hudi`, gives the ability to overwrite any of the default configuration options.                                                                                                                                                      | Optional                                | `{'hoodie.schema.on.read.enable': 'true'}`        |
 | meta                  | Spawns isolated Glue session with different session configuration. Use Case: When specific models require configurations different from the default session settings. For example, a particular model might require more Glue workers or larger worker type. | Optional                                | `meta = { "workers": 50, "worker_type": "G.1X" }` |
 | add_iceberg_timestamp | Add `update_iceberg_ts` column on Iceberg tables. (default: false)                                                                                                                                                                                           | Optional                                | `true`                                            |
+
+## Amazon S3 Tables Support
+
+dbt-glue supports [Amazon S3 Tables](https://aws.amazon.com/s3/features/tables/), a new table type for analytics workloads that provides Apache Iceberg compatibility with automatic optimization and management.
+
+### Configuration
+
+To use S3 Tables, set `file_format='s3tables'` in your model configuration:
+
+```sql
+{{ config(
+    materialized='table',
+    file_format='s3tables'
+) }}
+
+select 
+    id,
+    name,
+    created_at
+from {{ ref('source_table') }}
+```
+
+### Profile Configuration
+
+S3 Tables require specific Spark configurations in your `profiles.yml`:
+
+```yaml
+your_profile:
+  target: dev
+  outputs:
+    dev:
+      type: glue
+      # ... other configurations ...
+      conf: >-
+        --conf spark.sql.defaultCatalog=glue_catalog
+        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+        --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+        --conf spark.sql.catalog.glue_catalog.warehouse=s3://your-warehouse-path
+        --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+        --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+```
+
+### Key Features
+
+- **Automatic Management**: S3 Tables automatically handle location and format configuration
+- **Iceberg Compatibility**: Built on Apache Iceberg for ACID transactions and schema evolution
+- **Optimized Performance**: Automatic compaction, clustering, and optimization
+- **Seamless Integration**: Works with existing AWS analytics services
+
+### Supported Operations
+
+- ✅ **Table materialization** - `materialized='table'`
+- ✅ **Partitioning** - `partition_by=['column']`
+- ✅ **Table properties** - Custom Iceberg table properties
+- ✅ **CTAS operations** - Create Table As Select
+- ✅ **DROP operations** - Automatic PURGE handling
+- ⚠️ **Incremental models** - Basic support (under development)
+- ❌ **Views** - Not supported (use tables instead)
+
+### Example Model
+
+```sql
+{{ config(
+    materialized='table',
+    file_format='s3tables',
+    partition_by=['year', 'month']
+) }}
+
+select 
+    customer_id,
+    order_date,
+    extract(year from order_date) as year,
+    extract(month from order_date) as month,
+    total_amount
+from {{ ref('raw_orders') }}
+where order_date >= '2024-01-01'
+```
+
+### Requirements
+
+- **AWS Glue 4.0 or later** (recommended)
+- **S3 Tables bucket** configured in your AWS account
+- **Proper IAM permissions** for S3 Tables operations
+- **Iceberg Spark extensions** configured in your profile
 
 ## Python models (Experimental)
 
