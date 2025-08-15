@@ -308,23 +308,6 @@ your_profile:
       datalake_formats: iceberg
 ```
 
-### Key Features
-
-- **Automatic Management**: S3 Tables automatically handle location and format configuration
-- **Iceberg Compatibility**: Built on Apache Iceberg for ACID transactions and schema evolution
-- **Optimized Performance**: Automatic compaction, clustering, and optimization
-- **Seamless Integration**: Works with existing AWS analytics services
-
-### Supported Operations
-
-- ✅ **Table materialization** - `materialized='table'`
-- ✅ **Partitioning** - `partition_by=['column']`
-- ✅ **Table properties** - Custom Iceberg table properties
-- ✅ **CTAS operations** - Create Table As Select
-- ✅ **DROP operations** - Automatic PURGE handling
-- ⚠️ **Incremental models** - Basic support (under development)
-- ❌ **Views** - Not supported (use tables instead)
-
 ### Example Model
 
 ```sql
