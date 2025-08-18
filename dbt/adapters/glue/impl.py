@@ -227,7 +227,6 @@ class GlueAdapter(SQLAdapter):
             s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
             if s3_tables_bucket:
                 schema_stripped = self._strip_catalog_from_schema(schema)
-                logger.debug(f"get_relation S3 Tables - schema: {schema_stripped}, identifier: {identifier}, catalog: {s3_tables_bucket}")
                 try:
                     response = client.get_table(
                         CatalogId=s3_tables_bucket,
@@ -243,7 +242,6 @@ class GlueAdapter(SQLAdapter):
                         type='table'
                     )
                 except Exception as e:
-                    logger.debug(f"S3 Tables get_relation failed: {e}")
                     return None
         
         try:
@@ -891,7 +889,6 @@ SqlWrapper2.execute("""select 1""")
             s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
             if s3_tables_bucket:
                 schema = self._strip_catalog_from_schema(relation.schema)
-                logger.debug(f"get_table_type S3 Tables - schema: {schema}, name: {relation.name}, catalog: {s3_tables_bucket}")
                 try:
                     response = client.get_table(
                         CatalogId=s3_tables_bucket,
@@ -900,7 +897,6 @@ SqlWrapper2.execute("""select 1""")
                     )
                     return 's3_table'
                 except Exception as e:
-                    logger.debug(f"S3 Tables get_table failed: {e}")
                     return 's3_table'  # Assume it's S3 table even if get_table fails
 
         schema = self._strip_catalog_from_schema(relation.schema)

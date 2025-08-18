@@ -40,7 +40,7 @@ The following environment variables are required for testing:
 export DBT_GLUE_ROLE_ARN="arn:aws:iam::123456789012:role/GlueInteractiveSessionRole"
 export DBT_GLUE_REGION="us-east-1"
 export DBT_S3_LOCATION="s3://my-test-bucket/dbt-test/"
-export DBT_S3_TABLES_BUCKET="my-s3-tables-bucket"
+export DBT_S3_TABLES_BUCKET="123456789012:s3tablescatalog/my-s3-tables-bucket"
 
 # Run S3 tables tests
 python -m pytest tests/functional/adapter/s3_tables/ -v

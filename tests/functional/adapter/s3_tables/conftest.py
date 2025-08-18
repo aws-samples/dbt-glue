@@ -8,17 +8,11 @@ from tests.util import get_s3_location, get_region, cleanup_s3_location
 
 def grant_minimal_lake_formation_permissions(database_name: str, role_arn: str, s3_tables_bucket: str):
     """Grant minimal Lake Formation permissions for S3 tables operations"""
-    print(f"🔍 Starting Lake Formation permission grant for database: {database_name}")
-    print(f"🔍 Role ARN: {role_arn}")
-    print(f"🔍 S3 Tables Bucket: {s3_tables_bucket}")
-    
     try:
         lf_client = boto3.client('lakeformation', region_name=get_region())
         account_id = s3_tables_bucket.split(':')[0]
-        print(f"🔍 Extracted account ID: {account_id}")
         
         # Grant database permissions
-        print(f"🚀 Granting database permissions...")
         lf_client.grant_permissions(
             CatalogId=account_id,
             Principal={'DataLakePrincipalIdentifier': role_arn},
@@ -26,10 +20,8 @@ def grant_minimal_lake_formation_permissions(database_name: str, role_arn: str, 
             Permissions=['ALL'],
             PermissionsWithGrantOption=['ALL']
         )
-        print(f"✅ Database permissions granted successfully")
         
         # Grant table wildcard permissions
-        print(f"🚀 Granting table wildcard permissions...")
         lf_client.grant_permissions(
             CatalogId=account_id,
             Principal={'DataLakePrincipalIdentifier': role_arn},
@@ -37,15 +29,11 @@ def grant_minimal_lake_formation_permissions(database_name: str, role_arn: str, 
             Permissions=['ALL'],
             PermissionsWithGrantOption=['ALL']
         )
-        print(f"✅ Table wildcard permissions granted successfully")
         
-        print(f"✅ Granted Lake Formation permissions for database: {database_name}")
+        print(f"Granted Lake Formation permissions for database: {database_name}")
         
     except Exception as e:
-        print(f"❌ Failed to grant Lake Formation permissions: {str(e)}")
-        print(f"❌ Exception type: {type(e).__name__}")
-        import traceback
-        print(f"❌ Full traceback: {traceback.format_exc()}")
+        print(f"Failed to grant Lake Formation permissions: {str(e)}")
         # Don't fail the test, just warn
 
 
@@ -139,15 +127,11 @@ def s3_tables_namespace(unique_schema):
         
         # Grant Lake Formation permissions for this database
         role_arn = os.getenv('DBT_GLUE_ROLE_ARN')
-        print(f"🔍 Debug: DBT_GLUE_ROLE_ARN = {role_arn}")
-        print(f"🔍 Debug: s3_tables_bucket = {s3_tables_bucket}")
-        print(f"🔍 Debug: namespace = {namespace}")
         
         if role_arn:
-            print(f"🚀 Attempting to grant Lake Formation permissions...")
             grant_minimal_lake_formation_permissions(namespace, role_arn, s3_tables_bucket)
         else:
-            print(f"⚠️ DBT_GLUE_ROLE_ARN not set - skipping Lake Formation permissions")
+            print("DBT_GLUE_ROLE_ARN not set - skipping Lake Formation permissions")
         
     except Exception as e:
         # Show the actual error for debugging but don't fail setup
