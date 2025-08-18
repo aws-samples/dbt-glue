@@ -7,8 +7,8 @@
   
   {# /*-- Set vars --*/ #}
   {%- set language = model['language'] -%}
-  {%- set existing_relation_type = adapter.get_table_type(this) -%}
-  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set existing_relation_type = adapter.get_table_type(this, file_format) -%}
+  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, file_format=file_format) -%}
   {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
 
   {% if existing_relation_type is not none %}
@@ -67,7 +67,7 @@
         {% endif %}
       {% else %}
         {# /*-- Relation must be merged --*/ #}
-        {% if file_format == 'iceberg' and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
+        {% if file_format in ['iceberg', 's3tables'] and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
           {%- call statement('create_tmp_table') -%}
             {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
             {%- set is_tmp_relation_created = 'True' -%} 

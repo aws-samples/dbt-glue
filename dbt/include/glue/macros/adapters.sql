@@ -3,7 +3,9 @@
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
   {%- set materialized = config.get('materialized') -%}
 
-  {%- if custom_location is not none %}
+  {%- if file_format == 's3tables' -%}
+    {# S3 Tables automatically manages location, so no LOCATION clause needed #}
+  {%- elif custom_location is not none %}
     location '{{ custom_location }}'
   {%- else -%}
     {{ adapter.get_location(this) }}
@@ -73,13 +75,15 @@
   {%- set file_format = config.get('file_format', default='parquet') -%}
   {%- set full_relation = relation -%}
 
-  {%- if file_format == 'iceberg' -%}
+  {%- if file_format in ['iceberg', 's3tables'] -%}
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
   {%- endif -%}
 
   {% call statement('drop_relation', auto_begin=False) -%}
-      {%- if relation.type == 'view' and file_format != 'iceberg' %}
+      {%- if relation.type == 'view' and file_format not in ['iceberg', 's3tables'] %}
           drop view if exists {{ this }}
+      {%- elif file_format == 's3tables' -%}
+          drop table if exists {{ full_relation }} purge
       {%- else -%}
           drop table if exists {{ full_relation }}
       {%- endif %}
@@ -107,7 +111,9 @@
 
 {% macro glue__file_format_clause() %}
   {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
-  {%- if file_format is not none %}
+  {%- if file_format == 's3tables' -%}
+    {# S3 Tables automatically manages format, so no USING clause needed #}
+  {%- elif file_format is not none %}
     using {{ file_format }}
   {%- else -%}
     using PARQUET
@@ -122,7 +128,7 @@
     {%- set table_properties = config.get('table_properties', default={}) -%}
 
     {%- set create_statement_string -%}
-      {% if file_format in ['delta', 'iceberg'] -%}
+      {% if file_format in ['delta', 'iceberg', 's3tables'] -%}
         create or replace table
       {%- else -%}
         create table
@@ -130,7 +136,7 @@
     {%- endset %}
 
     {%- set full_relation = relation -%}
-    {%- if file_format == 'iceberg' -%}
+    {%- if file_format in ['iceberg', 's3tables'] -%}
       {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     {%- endif -%}
 
@@ -160,8 +166,10 @@
 {% macro glue__drop_view(relation) -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
   {% call statement('drop_view', auto_begin=False) -%}
-    {%- if file_format != 'iceberg' %}
+    {%- if file_format not in ['iceberg', 's3tables'] %}
       drop view if exists {{ relation }}
+    {%- elif file_format == 's3tables' -%}
+      drop table if exists {{ relation }} purge
     {%- else -%}
       drop table if exists {{ relation }}
     {%- endif %}
@@ -254,8 +262,9 @@
 
 {% macro create_or_replace_view() %}
   {%- set identifier = model['alias'] -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
 
-  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, file_format=file_format) -%}
   {%- set exists_as_view = (old_relation is not none and old_relation.is_view) -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}
   {%- set lf_grants = config.get('lf_grants') -%}

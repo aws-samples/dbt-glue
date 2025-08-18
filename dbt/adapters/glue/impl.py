@@ -163,6 +163,7 @@ class GlueAdapter(SQLAdapter):
             return []
         except Exception as e:
             logger.error(e)
+            return []
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
         try:
@@ -214,11 +215,35 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
             logger.error("rename_relation exception")
 
-    def get_relation(self, database, schema, identifier):
+    def get_relation(self, database, schema, identifier, file_format=None):
         session, client = self.get_connection()
         if not identifier:
             logger.debug(f"get_relation returns None for schema : {schema} as identifier is not set")
             return None
+        
+        if file_format == 's3tables':
+            # Use S3 Tables catalog ID for get_table call
+            import os
+            s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
+            if s3_tables_bucket:
+                schema_stripped = self._strip_catalog_from_schema(schema)
+                try:
+                    response = client.get_table(
+                        CatalogId=s3_tables_bucket,
+                        DatabaseName=schema_stripped,
+                        Name=identifier
+                    )
+                    # Create relation for S3 Tables
+                    computed_schema = self.__compute_schema_based_on_type(schema=schema_stripped, identifier=identifier)
+                    return self.Relation.create(
+                        database=computed_schema,
+                        schema=computed_schema,
+                        identifier=identifier,
+                        type='table'
+                    )
+                except Exception as e:
+                    return None
+        
         try:
             schema = self._strip_catalog_from_schema(schema)
 
@@ -338,7 +363,10 @@ class GlueAdapter(SQLAdapter):
             columns = get_columns_from_result(results)
         else:
             items = response.get("results", [])
-            columns = [column.get("name") for column in response.get("description")]
+            description = response.get("description", [])
+            if description is None:
+                description = []
+            columns = [column.get("name") for column in description]
         logger.debug(f"fetch_all_response results: {columns}")
         for item in items:
             record = []
@@ -852,8 +880,24 @@ SqlWrapper2.execute("""select 1""")
         return schema
 
     @available
-    def get_table_type(self, relation):
+    def get_table_type(self, relation, file_format=None):
         session, client = self.get_connection()
+        
+        if file_format == 's3tables':
+            # Use S3 Tables catalog ID for get_table call
+            import os
+            s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
+            if s3_tables_bucket:
+                schema = self._strip_catalog_from_schema(relation.schema)
+                try:
+                    response = client.get_table(
+                        CatalogId=s3_tables_bucket,
+                        DatabaseName=schema,
+                        Name=relation.name
+                    )
+                    return 's3_table'
+                except Exception as e:
+                    return 's3_table'  # Assume it's S3 table even if get_table fails
 
         schema = self._strip_catalog_from_schema(relation.schema)
 

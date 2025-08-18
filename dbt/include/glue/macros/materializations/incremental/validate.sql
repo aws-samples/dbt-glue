@@ -1,7 +1,7 @@
 {% macro dbt_glue_validate_get_file_format(raw_file_format) %}
   {#-- Validate the file format #}
 
-  {% set accepted_formats = ['text', 'csv', 'json', 'jdbc', 'parquet', 'orc', 'hive', 'delta', 'iceberg', 'libsvm', 'hudi'] %}
+  {% set accepted_formats = ['text', 'csv', 'json', 'jdbc', 'parquet', 'orc', 'hive', 'delta', 'iceberg', 'libsvm', 'hudi', 's3tables'] %}
 
   {% set invalid_file_format_msg -%}
     Invalid file format provided: {{ raw_file_format }}

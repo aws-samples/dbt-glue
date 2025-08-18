@@ -3,24 +3,27 @@
   {%- set grant_config = config.get('grants') -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}
   {%- set lf_grants = config.get('lf_grants') -%}
-  {%- set existing_relation_type = adapter.get_table_type(this) -%}
-  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- set existing_relation_type = adapter.get_table_type(this, file_format) -%}
+  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, file_format=file_format) -%}
   {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
 
   {{ run_hooks(pre_hooks) }}
   -- setup: if the target relation already exists, drop it
-  -- in case if the existing and future table is delta or iceberg, we want to do a
+  -- in case if the existing and future table is delta, iceberg, or s3tables, we want to do a
   -- create or replace table instead of dropping, so we don't have the table unavailable
   {% if existing_relation is not none %}
     {% set is_delta = (existing_relation.is_delta and config.get('file_format', validator=validation.any[basestring]) == 'delta') %}
     {% set is_iceberg = ((existing_relation_type == 'iceberg_table' or existing_relation.is_iceberg) and config.get('file_format', validator=validation.any[basestring]) == 'iceberg') %}
+    {% set is_s3tables = (config.get('file_format', validator=validation.any[basestring]) == 's3tables') %}
   {% else %}
     {% set is_delta = false %}
     {% set is_iceberg = false %}
+    {% set is_s3tables = false %}
     {% set existing_relation_type = 'table' %}
   {% endif %}
 
-  {% if not is_delta and not is_iceberg %}
+  {% if not is_delta and not is_iceberg and not is_s3tables %}
     {{ drop_relation(target_relation.incorporate(type=existing_relation_type)) }}
   {% endif %}
 
