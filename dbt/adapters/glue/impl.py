@@ -163,6 +163,7 @@ class GlueAdapter(SQLAdapter):
             return []
         except Exception as e:
             logger.error(e)
+            return []
 
     def check_schema_exists(self, database: str, schema: str) -> bool:
         try:
