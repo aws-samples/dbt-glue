@@ -110,9 +110,8 @@
           schema=model.schema,
           identifier=target_table,
           type='table') -%}
-  {%- set table_type = adapter.get_table_type(target_relation) -%}
-
   {%- set file_format = config.get('file_format') or 'parquet' -%}
+  {%- set table_type = adapter.get_table_type(target_relation, file_format) -%}
   {%- if file_format == 'iceberg' -%}
     {%- set target_relation = glue__make_target_relation(target_relation, file_format) -%}
   {%- endif -%}
@@ -126,7 +125,7 @@
   {% endif %}
 
   {%- if target_relation_exists -%}
-    {%- set table_type = adapter.get_table_type(target_relation) -%}
+    {%- set table_type = adapter.get_table_type(target_relation, file_format) -%}
 
     {%- if table_type != 'iceberg_table' and not target_relation.is_iceberg and not target_relation.is_delta and not target_relation.is_hudi -%}
       {% set invalid_format_msg -%}

@@ -262,8 +262,9 @@
 
 {% macro create_or_replace_view() %}
   {%- set identifier = model['alias'] -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
 
-  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, file_format=file_format) -%}
   {%- set exists_as_view = (old_relation is not none and old_relation.is_view) -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}
   {%- set lf_grants = config.get('lf_grants') -%}

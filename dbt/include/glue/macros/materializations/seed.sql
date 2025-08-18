@@ -7,7 +7,8 @@
 {% materialization seed, adapter='glue' %}
 
   {%- set identifier = model['alias'] -%}
-  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- set old_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, file_format=file_format) -%}
   {%- set target_relation = api.Relation.create(database=database, schema=schema, identifier=identifier,
                                                type='table') -%}
   {%- set agate_table = load_agate_table() -%}

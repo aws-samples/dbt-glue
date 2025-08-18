@@ -3,8 +3,9 @@
   {%- set grant_config = config.get('grants') -%}
   {%- set lf_tags_config = config.get('lf_tags_config') -%}
   {%- set lf_grants = config.get('lf_grants') -%}
-  {%- set existing_relation_type = adapter.get_table_type(this) -%}
-  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
+  {%- set existing_relation_type = adapter.get_table_type(this, file_format) -%}
+  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, file_format=file_format) -%}
   {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
 
   {{ run_hooks(pre_hooks) }}

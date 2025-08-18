@@ -1258,7 +1258,7 @@ Amazon S3 Tables support is currently being tested. To run S3 tables-specific te
 
 1. Set additional environment variables:
 ```bash
-$ export DBT_S3_TABLES_BUCKET=my-s3-tables-bucket
+$ export DBT_S3_TABLES_BUCKET=123456789012:s3tablescatalog/my-s3-tables-bucket
 ```
 
 2. Run S3 tables tests:

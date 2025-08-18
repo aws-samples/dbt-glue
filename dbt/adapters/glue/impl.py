@@ -215,16 +215,11 @@ class GlueAdapter(SQLAdapter):
             logger.error(e)
             logger.error("rename_relation exception")
 
-    def get_relation(self, database, schema, identifier):
+    def get_relation(self, database, schema, identifier, file_format=None):
         session, client = self.get_connection()
         if not identifier:
             logger.debug(f"get_relation returns None for schema : {schema} as identifier is not set")
             return None
-        
-        # Check if this is an S3 Tables relation by checking file_format config
-        from dbt.context.providers import RuntimeConfigObject
-        config = getattr(self.config, 'model_config', {}) or {}
-        file_format = config.get('file_format')
         
         if file_format == 's3tables':
             # Use S3 Tables catalog ID for get_table call
@@ -887,13 +882,8 @@ SqlWrapper2.execute("""select 1""")
         return schema
 
     @available
-    def get_table_type(self, relation):
+    def get_table_type(self, relation, file_format=None):
         session, client = self.get_connection()
-        
-        # Check if this is an S3 Tables relation by checking file_format config
-        from dbt.context.providers import RuntimeConfigObject
-        config = getattr(self.config, 'model_config', {}) or {}
-        file_format = config.get('file_format')
         
         if file_format == 's3tables':
             # Use S3 Tables catalog ID for get_table call

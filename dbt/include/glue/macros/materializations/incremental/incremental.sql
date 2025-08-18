@@ -7,8 +7,8 @@
   
   {# /*-- Set vars --*/ #}
   {%- set language = model['language'] -%}
-  {%- set existing_relation_type = adapter.get_table_type(this) -%}
-  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier) -%}
+  {%- set existing_relation_type = adapter.get_table_type(this, file_format) -%}
+  {%- set existing_relation = adapter.get_relation(database=database, schema=schema, identifier=identifier, file_format=file_format) -%}
   {%- set target_relation = existing_relation or glue__make_target_relation(this, config.get('file_format')) -%}
 
   {% if existing_relation_type is not none %}
