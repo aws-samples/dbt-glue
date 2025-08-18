@@ -220,6 +220,37 @@ class GlueAdapter(SQLAdapter):
         if not identifier:
             logger.debug(f"get_relation returns None for schema : {schema} as identifier is not set")
             return None
+        
+        # Check if this is an S3 Tables relation by checking file_format config
+        from dbt.context.providers import RuntimeConfigObject
+        config = getattr(self.config, 'model_config', {}) or {}
+        file_format = config.get('file_format')
+        
+        if file_format == 's3tables':
+            # Use S3 Tables catalog ID for get_table call
+            import os
+            s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
+            if s3_tables_bucket:
+                schema_stripped = self._strip_catalog_from_schema(schema)
+                logger.debug(f"get_relation S3 Tables - schema: {schema_stripped}, identifier: {identifier}, catalog: {s3_tables_bucket}")
+                try:
+                    response = client.get_table(
+                        CatalogId=s3_tables_bucket,
+                        DatabaseName=schema_stripped,
+                        Name=identifier
+                    )
+                    # Create relation for S3 Tables
+                    computed_schema = self.__compute_schema_based_on_type(schema=schema_stripped, identifier=identifier)
+                    return self.Relation.create(
+                        database=computed_schema,
+                        schema=computed_schema,
+                        identifier=identifier,
+                        type='table'
+                    )
+                except Exception as e:
+                    logger.debug(f"S3 Tables get_relation failed: {e}")
+                    return None
+        
         try:
             schema = self._strip_catalog_from_schema(schema)
 
@@ -858,6 +889,29 @@ SqlWrapper2.execute("""select 1""")
     @available
     def get_table_type(self, relation):
         session, client = self.get_connection()
+        
+        # Check if this is an S3 Tables relation by checking file_format config
+        from dbt.context.providers import RuntimeConfigObject
+        config = getattr(self.config, 'model_config', {}) or {}
+        file_format = config.get('file_format')
+        
+        if file_format == 's3tables':
+            # Use S3 Tables catalog ID for get_table call
+            import os
+            s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
+            if s3_tables_bucket:
+                schema = self._strip_catalog_from_schema(relation.schema)
+                logger.debug(f"get_table_type S3 Tables - schema: {schema}, name: {relation.name}, catalog: {s3_tables_bucket}")
+                try:
+                    response = client.get_table(
+                        CatalogId=s3_tables_bucket,
+                        DatabaseName=schema,
+                        Name=relation.name
+                    )
+                    return 's3_table'
+                except Exception as e:
+                    logger.debug(f"S3 Tables get_table failed: {e}")
+                    return 's3_table'  # Assume it's S3 table even if get_table fails
 
         schema = self._strip_catalog_from_schema(relation.schema)
 
