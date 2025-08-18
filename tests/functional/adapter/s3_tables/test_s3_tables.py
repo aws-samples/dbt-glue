@@ -171,7 +171,7 @@ class TestS3TablesBasicMaterializations:
         return {
             "name": "s3_tables_basic",
             "models": {
-                "+file_format": "iceberg"
+                "+file_format": "s3tables"
             }
         }
 
@@ -179,7 +179,7 @@ class TestS3TablesBasicMaterializations:
     def models(self):
         # Simple table model with S3 tables configuration
         s3_table_model_sql = """
-        {{ config(materialized='table', file_format='iceberg') }}
+        {{ config(materialized='table', file_format='s3tables') }}
         select 
             1 as id,
             'test' as name,
@@ -308,7 +308,7 @@ class TestS3TablesWithCTAS:
     def models(self):
         # Test CTAS with S3 tables - this is the critical test
         ctas_model_sql = """
-        {{ config(materialized='table', file_format='iceberg') }}
+        {{ config(materialized='table', file_format='s3tables') }}
         select 
             row_number() over (order by 1) as id,
             'row_' || row_number() over (order by 1) as name,
@@ -416,7 +416,7 @@ class TestS3TablesPartitioning:
         partitioned_s3_sql = """
         {{ config(
             materialized='table',
-            file_format='iceberg',
+            file_format='s3tables',
             partition_by=['year', 'month']
         ) }}
         select 
@@ -471,7 +471,7 @@ class TestS3TablesTableProperties:
         properties_s3_sql = """
         {{ config(
             materialized='table',
-            file_format='iceberg',
+            file_format='s3tables',
             table_properties={
                 'write.target-file-size-bytes': '134217728',
                 'write.delete.mode': 'merge-on-read'
@@ -555,7 +555,7 @@ class TestS3TablesIntegration:
     def models(self):
         # Source table
         source_table_sql = """
-        {{ config(materialized='table', file_format='iceberg') }}
+        {{ config(materialized='table', file_format='s3tables') }}
         select 
             row_number() over (order by 1) as id,
             case 
@@ -575,7 +575,7 @@ class TestS3TablesIntegration:
         dependent_table_sql = """
         {{ config(
             materialized='table', 
-            file_format='iceberg',
+            file_format='s3tables',
             partition_by=['category']
         ) }}
         select 
@@ -643,7 +643,7 @@ class TestS3TablesSpecificFeatures:
         s3_tables_explicit_sql = """
         {{ config(
             materialized='table',
-            file_format='iceberg',
+            file_format='s3tables',
             table_properties={
                 's3.table.bucket-name': env_var('DBT_S3_TABLES_BUCKET', 'default-bucket')
             }
