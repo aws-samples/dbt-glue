@@ -338,7 +338,10 @@ class GlueAdapter(SQLAdapter):
             columns = get_columns_from_result(results)
         else:
             items = response.get("results", [])
-            columns = [column.get("name") for column in response.get("description")]
+            description = response.get("description", [])
+            if description is None:
+                description = []
+            columns = [column.get("name") for column in description]
         logger.debug(f"fetch_all_response results: {columns}")
         for item in items:
             record = []
