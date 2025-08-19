@@ -12,7 +12,7 @@ from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTe
 from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterialization
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 from dbt.tests.util import (check_result_nodes_by_name,check_relation_types, check_relations_equal_with_relations, TestProcessingException,
-                            run_dbt, check_relations_equal, relation_from_name)
+                            run_dbt, check_relations_equal, relation_from_name, write_file)
 from tests.util import get_s3_location
 
 
@@ -583,6 +583,90 @@ class TestIcebergMultipleRuns:
 
         # Assuming no duplicates between base and added
         assert result[0] == 30, "Incremental model should have combined records from both runs (10 + 20 = 30)"
+
+
+class TestIcebergMergeWithSchemaChange:
+    """Test merge strategy with schema changes for Iceberg tables"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "name": "iceberg_merge_schema_test",
+            "models": {
+                "+file_format": "iceberg"
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "incremental_merge_model.sql": """
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='merge',
+        unique_key='id',
+        file_format='iceberg',
+        on_schema_change='append_new_columns'
+    )
+}}
+
+select 1 as id, 'John' as name, 100 as value
+union all
+select 2 as id, 'Jane' as name, 200 as value
+{% if is_incremental() %}
+union all
+select 3 as id, 'Bob' as name, 300 as value
+{% endif %}
+            """
+        }
+
+    def test_merge_with_schema_change(self, project):
+        """Test that merge strategy works correctly with schema changes"""
+        # First run
+        results = run_dbt(["run"])
+        assert len(results) == 1
+
+        # Verify initial data
+        schema_name = project.test_schema
+        result = project.run_sql(f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one")
+        assert result[0] == 2
+
+        # Update model to add new column and trigger schema change
+        updated_model = """
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='merge',
+        unique_key='id',
+        file_format='iceberg',
+        on_schema_change='append_new_columns'
+    )
+}}
+
+select 1 as id, 'John' as name, 100 as value, 'A' as category
+union all
+select 2 as id, 'Jane' as name, 200 as value, 'B' as category
+{% if is_incremental() %}
+union all
+select 3 as id, 'Bob' as name, 300 as value, 'C' as category
+{% endif %}
+        """
+        
+        write_file(updated_model, project.project_root, "models", "incremental_merge_model.sql")
+        
+        # Second run with schema change and new data
+        results = run_dbt(["run"])
+        assert len(results) == 1
+
+        # Verify merge worked correctly - should have 3 rows total
+        result = project.run_sql(f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one")
+        assert result[0] == 3
+
+        # Verify new column exists
+        columns = project.run_sql(f"describe glue_catalog.{schema_name}.incremental_merge_model", fetch="all")
+        column_names = [col[0] for col in columns]
+        assert 'category' in column_names
 
 
 class TestIcebergTableRefresh:

@@ -75,12 +75,7 @@
           {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
 
           {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-          {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
-          {%- set full_tmp_relation = glue__make_target_relation(tmp_relation, file_format) -%}
-          {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
-          {% set build_sql %}
-          insert into {{ full_target_relation }} ({{ dest_cols_csv }}) select {{ dest_cols_csv }} from {{ full_tmp_relation }}
-          {% endset %}
+          {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates, dest_columns) %}
 
         {% else %}
           {%- if language != 'python' -%}
