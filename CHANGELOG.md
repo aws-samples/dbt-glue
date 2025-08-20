@@ -3,6 +3,7 @@
 - Add experimental Python model support with Iceberg file format (requires AWS Glue 4.0+)
 - Add experimental Amazon S3 Tables support with `file_format='s3tables'`
 - Upgrade dependencies: dbt-core 1.10.9, dbt-tests-adapter 1.18.0, moto 5.1.10, freezegun 1.5.5.
+- Fix merge strategy with schema changes for Iceberg tables
 
 ## v1.9.4
 - Reduce debug logging
