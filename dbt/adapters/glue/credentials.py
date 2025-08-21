@@ -70,7 +70,7 @@ class GlueCredentials(Credentials):
                 f"On Spark, database must be omitted or have the same value as"
                 f" schema."
             )
-        self.database = self.schema
+        self.database = None
 
     def _connection_keys(self):
         """ Keys to show when debugging """
