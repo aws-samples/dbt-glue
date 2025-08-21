@@ -4,6 +4,7 @@
 - Add experimental Amazon S3 Tables support with `file_format='s3tables'`
 - Upgrade dependencies: dbt-core 1.10.9, dbt-tests-adapter 1.18.0, moto 5.1.10, freezegun 1.5.5.
 - Fix merge strategy with schema changes for Iceberg tables
+- Fix issue where including unrelated values in `meta` section would create new sessions when `glue_session_id` is set
 
 ## v1.9.4
 - Reduce debug logging
