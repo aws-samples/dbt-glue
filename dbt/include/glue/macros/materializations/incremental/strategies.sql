@@ -40,10 +40,13 @@
 {% macro get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
   {# /* need dest_columns for merge_exclude_columns, default to use "*" */ #}
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
-  {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
+  {%- if dest_columns is none -%}
+    {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
+  {%- endif -%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
   {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
+  {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
   {%- set full_target = target -%}
   {%- set full_source = source -%}
@@ -83,11 +86,11 @@
         {%- endfor %}
         {%- else %} * {% endif %}
 
-      when not matched then insert *
+      when not matched then insert ({{ dest_cols_csv }}) values ({% for col in dest_columns %}DBT_INTERNAL_SOURCE.{{ col.name }}{% if not loop.last %}, {% endif %}{% endfor %})
 {% endmacro %}
 
 
-{% macro dbt_glue_get_incremental_sql(strategy, source, target, unique_key, incremental_predicates) %}
+{% macro dbt_glue_get_incremental_sql(strategy, source, target, unique_key, incremental_predicates, dest_columns=none) %}
   {%- if strategy == 'append' -%}
     {#-- insert new records into existing table, without updating or overwriting #}
     {{ get_insert_into_sql(source, target) }}
@@ -95,7 +98,7 @@
     {#-- insert statements don't like CTEs, so support them via a temp view #}
     {{ get_insert_overwrite_sql(source, target) }}
   {%- elif strategy == 'merge' -%}
-    {{ get_merge_sql(target, source, unique_key, dest_columns=none, incremental_predicates=incremental_predicates) }}
+    {{ get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) }}
   {%- else -%}
     {% set no_sql_for_strategy_msg -%}
       No known SQL for the incremental strategy provided: {{ strategy }}
