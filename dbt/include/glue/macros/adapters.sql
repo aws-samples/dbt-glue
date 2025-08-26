@@ -45,63 +45,82 @@
 
 {% endmacro %}
 
-
 {% macro glue__create_csv_table(model, agate_table) -%}
     {{ adapter.create_csv_table(model, agate_table) }}
 {%- endmacro %}
-
 
 {% macro glue__load_csv_rows(model, agate_table) %}
   {{return('')}}
 {%- endmacro %}
 
-{% macro glue__make_target_relation(relation, file_format) %}
-    {%- set iceberg_catalog = adapter.get_custom_iceberg_catalog_namespace() -%}
-    {%- set first_iceberg_load = (file_format == 'iceberg') -%}
-    {%- set non_null_catalog = (iceberg_catalog is not none) -%}
-    {%- if non_null_catalog and first_iceberg_load %}
-        {# Check if the schema already includes the catalog to avoid duplication #}
-        {%- if relation.schema.startswith(iceberg_catalog ~ '.') %}
-            {%- do return(relation) -%}
-        {%- else %}
-            {%- do return(relation.incorporate(path={"schema": iceberg_catalog ~ '.' ~ relation.schema, "identifier": relation.identifier})) -%}
-        {%- endif %}
+{%- macro glue__get_drop_sql(relation) -%}
+  {%- set file_format = config.get('file_format', default='parquet') -%}
+  {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+  {%- set purge_dropped_iceberg_data = config.get('purge_dropped_iceberg_data', default='False') -%}
+  {%- if relation.is_view -%}
+    {%- if relation|string == relation.identifier -%}
+      {# Is this a temporary view (in Spark context)?  
+         If the identifier/entity is the same as the relation rendered/string -- schema not included
+         and it's a view, then it's a temporary view #}
+      drop view if exists {{ full_relation }} 1
+    {%- elif file_format in ['iceberg', 's3tables'] -%}
+      {# Otherwise, if regular view, and if we are iceberg or s3tables, then drop table.
+         Why?  Because currently s3tables/iceberg and iceberg file formats in Glue Catalog do 
+         not currently support views, so when using iceberg/s3tables, and not temp views, then everything 
+         is a table #}
+      {%- if purge_dropped_iceberg_data == 'True' -%}
+        drop table if exists {{ full_relation }} purge 2
+      {%- else -%}
+        drop table if exists {{ full_relation }} 3
+      {%- endif %}
     {%- else -%}
-        {%- do return(relation) -%}
-    {%- endif %}
-{% endmacro %}
+      {# Otherwise, if we are a regular view, not iceberg or s3table, then drop the view and cascade #}
+      drop view if exists {{ full_relation }} cascade 4
+    {%- endif -%}
+  {%- else -%}
+    {# If iceberg or s3tables, then drop table, with purge option if set #}
+    {%- if file_format in ['iceberg', 's3tables'] and purge_dropped_iceberg_data == 'True' -%}
+      drop table if exists {{ full_relation }} purge 5
+    {%- else -%}
+      drop table if exists {{ full_relation }} 6
+    {%- endif -%}
+  {%- endif %}
+{%- endmacro -%}
 
 {% macro glue__drop_relation(relation) -%}
-  {%- set file_format = config.get('file_format', default='parquet') -%}
-  {%- set full_relation = relation -%}
-
-  {%- if file_format in ['iceberg', 's3tables'] -%}
-    {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
-  {%- endif -%}
-
+  {%- set drop_sql = get_drop_sql(relation) -%}
   {% call statement('drop_relation', auto_begin=False) -%}
-      {%- if relation.type == 'view' and file_format not in ['iceberg', 's3tables'] %}
-          drop view if exists {{ this }}
-      {%- elif file_format == 's3tables' -%}
-          drop table if exists {{ full_relation }} purge
-      {%- else -%}
-          drop table if exists {{ full_relation }}
-      {%- endif %}
+    {{ drop_sql }}
   {%- endcall %}
 {% endmacro %}
 
 {% macro glue__make_temp_relation(base_relation, suffix) %}
-  {% set tmp_identifier = base_relation.identifier ~ suffix %}
-  {#-- If target profile has temp_schema set, allows _tmp relations to be built in separate catalog when physicalized #}
-  {% set tmp_schema = target.temp_schema if target.temp_schema else base_relation.schema %}
-  {% set tmp_relation = base_relation.incorporate(path={"schema": tmp_schema, "identifier": tmp_identifier}) -%}
+  {%- set materialization = config.get('materialized', default='') -%}
+  {%- set incremental_strategy = config.get('incremental_strategy', default='') -%}
+  {%- set file_format = config.get('file_format', default='parquet') -%}
+  {%- set use_iceberg_temp_views = config.get('use_iceberg_temp_views', default='False')  -%} 
+  {%- set temp_type = 'view' -%} 
+  {%- set tmp_identifier = base_relation.identifier ~ suffix -%}
+  {# -- If target profile has temp_schema set, allows _tmp relations to be built in separate catalog when physicalized #}
+  {%- set tmp_schema = target.temp_schema if target.temp_schema else base_relation.schema -%}
+  {# -- By default, temp relations will be temporary views, but can be set to temp tables later if warranted #} 
+  {%- if file_format == 'iceberg' and use_iceberg_temp_views == 'False' -%}
+    {# If iceberg and config use_iceberg_temp_views == 'False', 
+       then make tmp_relation a table, otherwise, by default tmp_relation will be a view #}
+    {%- set temp_type = 'table' -%} 
+  {%- endif -%}
+  {% set tmp_relation = base_relation.incorporate(path={"schema": tmp_schema, "identifier": tmp_identifier}, type=temp_type) -%}
+  {%- if temp_type == 'view' -%}
+    {% set tmp_relation = tmp_relation.include(schema=false) -%}
+  {%- endif -%}
   {% do return(tmp_relation) %}
 {% endmacro %}
 
 {% macro glue__create_temporary_view(relation, sql) -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
 
-  {% if file_format == 'iceberg' %}
+  {% if file_format == 'iceberg' and relation.type == 'table' %}
+    {# -- If the temp relation is a table and iceberg, then create temporary table, otherwise view #}
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     create or replace table {{ full_relation }} using iceberg as {{ sql }}
   {% else %}
@@ -163,16 +182,34 @@
     current_timestamp()
 {%- endmacro %}
 
-{% macro glue__drop_view(relation) -%}
+{%- macro glue__get_drop_view_sql(relation) -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
-  {% call statement('drop_view', auto_begin=False) -%}
-    {%- if file_format not in ['iceberg', 's3tables'] %}
-      drop view if exists {{ relation }}
-    {%- elif file_format == 's3tables' -%}
-      drop table if exists {{ relation }} purge
+  {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+  {%- set purge_dropped_iceberg_data = config.get('purge_dropped_iceberg_data', default='False') -%}
+  {%- if full_relation.is_view and full_relation|string == full_relation.identifier -%}
+    {# Is this a temporary view (in Spark context)?  
+       If the identifier/entity is the same as the relation rendered/string -- schema not included
+       and it's a view, then it's a temporary view #}
+    drop view if exists {{ full_relation }}
+  {%- elif file_format in ['iceberg', 's3tables'] -%}
+    {# Otherwise, if we are iceberg or s3tables, then drop table.
+       Why?  Because currently s3tables/iceberg and iceberg file formats in Glue Catalog do 
+       not currently support views, so when using iceberg/s3tables, and not temp views, then everything 
+       is a table #}
+    {%- if purge_dropped_iceberg_data == 'True' -%}
+      drop table if exists {{ full_relation }} purge
     {%- else -%}
-      drop table if exists {{ relation }}
+      drop table if exists {{ full_relation }}
     {%- endif %}
+  {%- else -%}
+    drop view if exists {{ full_relation }}
+  {%- endif -%}
+{%- endmacro -%}
+
+{% macro glue__drop_view(relation) -%}
+  {%- set drop_view_sql = glue__get_drop_view_sql(relation) -%}
+  {% call statement('drop_view', auto_begin=False) -%}
+    {{ drop_view_sql }}
   {%- endcall %}
 {% endmacro %}
 
@@ -204,6 +241,10 @@
     {%- set file_format = config.get('file_format') or 'parquet' -%}
     {%- set is_iceberg = file_format == 'iceberg' -%}
 
+    {# Currently, with Glue Catalog, and using Iceberg, there is no support for creating views 
+       either using Iceberg View Spec, or by using basic Glue/Athena Iceberg Views.  
+       You can create Glue catalog views on Iceberg tables, but only through Athena.  
+       But Iceberg View Spec is also not available in Athena yet. #}
     {%- if is_iceberg -%}
         {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
         create or replace table {{ full_relation }}
