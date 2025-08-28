@@ -62,27 +62,27 @@
       {# Is this a temporary view (in Spark context)?  
          If the identifier/entity is the same as the relation rendered/string -- schema not included
          and it's a view, then it's a temporary view #}
-      drop view if exists {{ full_relation }} 1
+      drop view if exists {{ full_relation }}
     {%- elif file_format in ['iceberg', 's3tables'] -%}
       {# Otherwise, if regular view, and if we are iceberg or s3tables, then drop table.
          Why?  Because currently s3tables/iceberg and iceberg file formats in Glue Catalog do 
          not currently support views, so when using iceberg/s3tables, and not temp views, then everything 
          is a table #}
       {%- if purge_dropped_iceberg_data == 'True' -%}
-        drop table if exists {{ full_relation }} purge 2
+        drop table if exists {{ full_relation }} purge
       {%- else -%}
-        drop table if exists {{ full_relation }} 3
+        drop table if exists {{ full_relation }}
       {%- endif %}
     {%- else -%}
       {# Otherwise, if we are a regular view, not iceberg or s3table, then drop the view and cascade #}
-      drop view if exists {{ full_relation }} cascade 4
+      drop view if exists {{ full_relation }}
     {%- endif -%}
   {%- else -%}
     {# If iceberg or s3tables, then drop table, with purge option if set #}
     {%- if file_format in ['iceberg', 's3tables'] and purge_dropped_iceberg_data == 'True' -%}
-      drop table if exists {{ full_relation }} purge 5
+      drop table if exists {{ full_relation }} purge
     {%- else -%}
-      drop table if exists {{ full_relation }} 6
+      drop table if exists {{ full_relation }}
     {%- endif -%}
   {%- endif %}
 {%- endmacro -%}

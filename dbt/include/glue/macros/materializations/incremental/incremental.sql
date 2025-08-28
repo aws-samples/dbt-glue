@@ -14,7 +14,8 @@
   {% if existing_relation_type is not none %}
       {%- set target_relation = target_relation.incorporate(type=existing_relation_type if existing_relation_type != "iceberg_table" else "table") -%}
   {% endif %}
-  {%- set tmp_relation = make_temp_relation(this, '_tmp') -%}
+  {%- set custom_temp_suffix = config.get('custom_temp_suffix', default='tmp') -%}
+  {%- set tmp_relation = make_temp_relation(this, '_' ~ custom_temp_suffix) -%}
   {%- set is_tmp_relation_created = 'False' -%} 
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
@@ -70,8 +71,8 @@
         {% if file_format in ['iceberg', 's3tables'] and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
           {%- call statement('create_tmp_table') -%}
             {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
-            {%- set is_tmp_relation_created = 'True' -%} 
           {%- endcall -%}
+          {%- set is_tmp_relation_created = 'True' -%} 
           {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
 
           {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
@@ -81,8 +82,8 @@
           {%- if language != 'python' -%}
             {%- call statement('create_tmp_relation') -%}
               {{ create_temporary_view(tmp_relation, sql) }}
-              {%- set is_tmp_relation_created = 'True' -%} 
             {%- endcall -%}
+            {%- set is_tmp_relation_created = 'True' -%} 
             {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
           {%- endif -%}
         {% endif %}
@@ -132,14 +133,8 @@
 
   {% if is_incremental == 'True' %}
     {% if is_tmp_relation_created == 'True' %}
-        {% if file_format != 'iceberg' %}
-            {% call statement('drop_relation') -%}
-                {%- set tmp_relation_view = tmp_relation.include(schema=false) -%}
-                drop view if exists {{ tmp_relation_view }}
-            {%- endcall %}
-        {% else %}
-          {{ glue__drop_relation(tmp_relation) }}
-        {% endif %}
+      {# glue__drop_relation has been updated to handle temp views versus temp tables, so simplified here #}
+      {{ glue__drop_relation(tmp_relation) }}
     {% endif %}
     {% if file_format == 'delta' %}
       {{ adapter.delta_update_manifest(target_relation, custom_location, partition_by) }}
