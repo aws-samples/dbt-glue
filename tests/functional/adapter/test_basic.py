@@ -1,5 +1,7 @@
 import os
+import boto3
 import pytest
+from botocore.config import Config
 from dbt.tests.adapter.basic.files import (base_ephemeral_sql, base_table_sql,
                                            base_view_sql, ephemeral_table_sql,
                                            ephemeral_view_sql)
@@ -16,7 +18,6 @@ from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnect
 from dbt.tests.util import (check_relations_equal, check_result_nodes_by_name,
                             get_manifest, relation_from_name, run_dbt)
 from tests.util import get_s3_location
-
 
 # override schema_base_yml to set missing database
 schema_base_yml = """
@@ -54,7 +55,6 @@ table_with_custom_meta = config_materialized_with_custom_meta + model_base
 class TestBaseCachingGlue(BaseAdapterMethod):
     pass
 
-
 class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
     @pytest.fixture(scope="class")
     def project_config_update(self):
@@ -85,15 +85,66 @@ class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
             "swappable.sql": base_materialized_var_sql,
             "schema.yml": schema_base_yml,
         }
-    def test_base(self, project):
-        super().test_base(project)
-        catalog = run_dbt(["docs", "generate"])
-        compile_results = catalog._compile_results.results
-        assert len(compile_results) > 0, "No models were found in the compile results."
-        for result in compile_results:
-            node = result.node
-            if node.name == "table_model":
-                assert node.config.meta, f"Meta parameter is not present for table_model."
+
+    @pytest.fixture(scope="class")
+    def custom_session_id(self):
+        return 'dbt-glue__model_base_table_model'
+
+    # remove session between tests to clear cached tables.
+    # this isn't a problem in actual dbt runs since the same table isn't updated multiple times per job.
+    @pytest.fixture(autouse=True)
+    def cleanup_custom_session(self, dbt_profile_target, custom_session_id):
+        yield
+        boto_session = boto3.session.Session()
+        glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
+        glue_client.stop_session(Id=custom_session_id)
+        glue_client.delete_session(Id=custom_session_id)
+
+    def test_create_session(self, dbt_profile_target, custom_session_id):
+        run_dbt(["seed"])
+        run_dbt()
+
+        boto_session = boto3.session.Session()
+        glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
+        glue_session = glue_client.get_session(Id=custom_session_id)
+        assert glue_session['Session']['IdleTimeout'] == 2
+        assert glue_session['Session']['NumberOfWorkers'] == 3
+
+
+class TestSimpleMaterializationsWithUnrelatedMeta(TestSimpleMaterializationsGlue):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "view_model.sql": base_view_sql,
+            "table_model.sql": '\n{{ config(materialized="table", meta={"unrelated_field": "base", "other_unrelated_field": 2}) }}\n' + model_base,
+            "swappable.sql": base_materialized_var_sql,
+            "schema.yml": schema_base_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def custom_session_id(self):
+        return 'dbt-glue__model_base_table_model'
+
+    @pytest.fixture(autouse=True)
+    def cleanup_custom_session(self, dbt_profile_target, custom_session_id):
+        yield
+        boto_session = boto3.session.Session()
+        glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
+        glue_client.stop_session(Id=custom_session_id)
+        glue_client.delete_session(Id=custom_session_id)
+
+    def test_create_session(self, dbt_profile_target, custom_session_id):
+        run_dbt(["seed"])
+        run_dbt()
+
+        boto_session = boto3.session.Session()
+        glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
+        try:
+            glue_session = glue_client.get_session(Id=custom_session_id)
+            assert False, f"Session {custom_session_id} should not exist but does"
+        except glue_client.exceptions.EntityNotFoundException as e:
+            pass
+
 
 class TestSingularTestsGlue(BaseSingularTests):
     pass
