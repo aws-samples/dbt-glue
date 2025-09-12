@@ -6,6 +6,9 @@
 - Improved coverage of unit testing for glue__make_target_relation and glue__create_temporary_view
 - Separated glue__make_target_relation into utils/make_target_relation.sql so that we could mock this often called macro, allowing us to better unit test macros that call this one
 
+## v1.10.10
+- Fix issue where including unrelated values in `meta` section would create new sessions when `glue_session_id` is set
+
 ## v1.10.9
 - Allow temporary tables to be created in different schema/database than target model using profile temp-schema variable
 - Add experimental Python model support with Iceberg file format (requires AWS Glue 4.0+)
