@@ -1,5 +1,5 @@
 ## dbt-glue next
-
+ 
 - Added ability to use Spark temporary views when using iceberg targets instead of physical tables to store intermediate results, by setting model config use_iceberg_temp_views to 'True'
 - Added ability to purge iceberg and s3tables underlying data s3 object during drop table when config purge_dropped_iceberg_data is set to 'True' in model config
 - Improved unit testing of drop_relation by separating out glue__get_drop_sql and unit testing the output for each condition
