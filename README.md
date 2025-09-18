@@ -1220,6 +1220,27 @@ models:
       name_of_my_table_tag: 'value_of_my_table_tag'
 ```
 
+## Building the Package
+
+Use the build script for creating distributions:
+
+```bash
+# Default: run validation tests + build both sdist and wheel
+$ ./scripts/build.py
+
+# Fast build without tests (for CI/production)
+$ ./scripts/build.py --skip-tests
+
+# Build specific formats
+$ ./scripts/build.py --build-type wheel
+$ ./scripts/build.py --build-type sdist
+```
+
+The build script automatically:
+- Cleans previous build artifacts
+- Runs duplicate macro validation tests (unless `--skip-tests`)
+- Creates source and/or wheel distributions
+
 ## Tests
 
 To perform a functional test:

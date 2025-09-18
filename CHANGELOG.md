@@ -1,13 +1,17 @@
 ## dbt-glue next
- 
 - Added ability to use Spark temporary views when using iceberg targets instead of physical tables to store intermediate results, by setting model config use_iceberg_temp_views to 'True'
 - Added ability to purge iceberg and s3tables underlying data s3 object during drop table when config purge_dropped_iceberg_data is set to 'True' in model config
 - Improved unit testing of drop_relation by separating out glue__get_drop_sql and unit testing the output for each condition
 - Improved coverage of unit testing for glue__make_target_relation and glue__create_temporary_view
 - Separated glue__make_target_relation into utils/make_target_relation.sql so that we could mock this often called macro, allowing us to better unit test macros that call this one
 
-## v1.10.10
+## v1.10.11
+- Fix duplicate table macro issue in published package (GitHub #608)
+- Add test to prevent duplicate macro definitions in future releases
+- Improve build process to ensure clean package builds
 - Fix issue where including unrelated values in `meta` section would create new sessions when `glue_session_id` is set
+- Fix NoneType error in meta configuration handling
+- Upgrade dependencies: dbt-core 1.10.11, dbt-spark 1.9.3, moto 5.1.12, mypy 1.18.1.
 
 ## v1.10.9
 - Allow temporary tables to be created in different schema/database than target model using profile temp-schema variable
