@@ -1,20 +1,13 @@
 #!/bin/bash
 
+# Legacy wrapper script for backward compatibility
+# Calls the new unified build.py script
+
 set -eo pipefail
 
 DBT_PATH="$( cd "$(dirname "$0")/.." ; pwd -P )"
 
-PYTHON_BIN=${PYTHON_BIN:-python}
-
-echo "$PYTHON_BIN"
-
-set -x
-
-rm -rf "$DBT_PATH"/dist
-rm -rf "$DBT_PATH"/build
-mkdir -p "$DBT_PATH"/dist
+echo "Using legacy build-dist.sh wrapper - consider using scripts/build.py directly"
 
 cd "$DBT_PATH"
-$PYTHON_BIN setup.py sdist bdist_wheel
-
-set +x
+python scripts/build.py --skip-tests --build-type both

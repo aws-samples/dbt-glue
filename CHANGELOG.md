@@ -1,5 +1,10 @@
-## v1.10.10
+## v1.10.11
+- Fix duplicate table macro issue in published package (GitHub #608)
+- Add test to prevent duplicate macro definitions in future releases
+- Improve build process to ensure clean package builds
 - Fix issue where including unrelated values in `meta` section would create new sessions when `glue_session_id` is set
+- Fix NoneType error in meta configuration handling
+- Upgrade dependencies: dbt-core 1.10.11, dbt-spark 1.9.3, moto 5.1.12, mypy 1.18.1.
 
 ## v1.10.9
 - Allow temporary tables to be created in different schema/database than target model using profile temp-schema variable
