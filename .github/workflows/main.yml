@@ -146,7 +146,7 @@ jobs:
           python -m pip --version
 
       - name: Build distributions
-        run: ./scripts/build.py --skip-tests
+        run: ./scripts/build-dist.sh
 
       - name: Show distributions
         run: ls -lh dist/
@@ -157,13 +157,6 @@ jobs:
       - name: Check wheel contents
         run: |
           check-wheel-contents dist/*.whl --ignore W007,W008
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dbt-glue-distributions
-          path: dist/
-          retention-days: 30
 
       - name: Check if this is an alpha version
         id: check-is-alpha
