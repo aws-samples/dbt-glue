@@ -1,4 +1,7 @@
-## v1.10.10
+## v1.10.11
+- Fix duplicate table macro issue in published package (GitHub #608)
+- Add test to prevent duplicate macro definitions in future releases
+- Improve build process to ensure clean package builds
 - Fix issue where including unrelated values in `meta` section would create new sessions when `glue_session_id` is set
 
 ## v1.10.9
