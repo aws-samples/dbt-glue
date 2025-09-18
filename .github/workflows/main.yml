@@ -146,7 +146,7 @@ jobs:
           python -m pip --version
 
       - name: Build distributions
-        run: ./scripts/build-dist.sh
+        run: ./scripts/build.py --skip-tests
 
       - name: Show distributions
         run: ls -lh dist/
