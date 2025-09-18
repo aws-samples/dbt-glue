@@ -1,4 +1,7 @@
-"""Test to ensure no duplicate macro definitions exist in the adapter."""
+"""Test to ensure no duplicate macro definitions exist in the adapter.
+
+This test is automatically run by scripts/build.py to prevent duplicate macro issues.
+"""
 
 import os
 import re
