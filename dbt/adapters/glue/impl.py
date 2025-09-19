@@ -11,7 +11,7 @@ import agate
 from concurrent.futures import Future
 
 from dbt.adapters.base import available, PythonJobHelper
-from dbt.adapters.base.relation import BaseRelation, InformationSchema
+from dbt.adapters.base.relation import BaseRelation, InformationSchema, RelationType
 from dbt.adapters.sql import SQLAdapter
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.column import GlueColumn
@@ -895,9 +895,9 @@ SqlWrapper2.execute("""select 1""")
                         DatabaseName=schema,
                         Name=relation.name
                     )
-                    return 's3_table'
+                    return RelationType.Table
                 except Exception as e:
-                    return 's3_table'  # Assume it's S3 table even if get_table fails
+                    return RelationType.Table
 
         schema = self._strip_catalog_from_schema(relation.schema)
 
