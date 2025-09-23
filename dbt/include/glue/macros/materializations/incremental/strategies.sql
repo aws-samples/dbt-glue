@@ -4,9 +4,14 @@
     {%- set file_format = config.get('file_format', default='parquet') -%}
     {%- set full_target_relation = target_relation -%}
     {%- set full_source_relation = source_relation -%}
-    {%- if file_format == 'iceberg' -%}
+    {%- if file_format in ['iceberg', 's3tables'] -%}
         {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
-        {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+        {# For S3 Tables, temporary relations don't use catalog prefixes. For Iceberg, they do. #}
+        {%- if '_tmp' in source_relation.identifier and file_format == 's3tables' -%}
+            {%- set full_source_relation = source_relation -%}
+        {%- else -%}
+            {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+        {%- endif -%}
     {%- else -%}
         {%- set full_source_relation =  source_relation.include(schema=false) -%}
     {%- endif -%}
@@ -25,11 +30,16 @@
     {%- set file_format = config.get('file_format', default='parquet') -%}
     {%- set full_target_relation = target_relation -%}
     {%- set full_source_relation = source_relation -%}
-    {%- if file_format == 'iceberg' -%}
+    {%- if file_format in ['iceberg', 's3tables'] -%}
         {%- set full_target_relation = glue__make_target_relation(target_relation, file_format) -%}
-        {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+        {# For S3 Tables, temporary relations don't use catalog prefixes. For Iceberg, they do. #}
+        {%- if '_tmp' in source_relation.identifier and file_format == 's3tables' -%}
+            {%- set full_source_relation = source_relation -%}
+        {%- else -%}
+            {%- set full_source_relation = glue__make_target_relation(source_relation, file_format) -%}
+        {%- endif -%}
     {%- endif -%}
-    {%- if file_format == 'iceberg' or schema_change_mode != 'ignore' -%}
+    {%- if file_format in ['iceberg', 's3tables'] or schema_change_mode != 'ignore' -%}
         insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ full_source_relation }}
     {%- else -%}
         insert into table {{ full_target_relation }} select {{dest_cols_csv}} from {{ source_relation.include(schema=false) }}
@@ -50,9 +60,14 @@
   {%- set file_format = config.get('file_format', default='parquet') -%}
   {%- set full_target = target -%}
   {%- set full_source = source -%}
-  {%- if file_format == 'iceberg' -%}
+  {%- if file_format in ['iceberg', 's3tables'] -%}
       {%- set full_target = glue__make_target_relation(target, file_format) -%}
-      {%- set full_source = glue__make_target_relation(source, file_format) -%}
+      {# For S3 Tables, temporary relations don't use catalog prefixes. For Iceberg, they do. #}
+      {%- if '_tmp' in source.identifier and file_format == 's3tables' -%}
+          {%- set full_source = source -%}
+      {%- else -%}
+          {%- set full_source = glue__make_target_relation(source, file_format) -%}
+      {%- endif -%}
   {%- endif -%}
 
   {% if unique_key %}

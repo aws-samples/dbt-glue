@@ -17,9 +17,13 @@ The tests in this directory are designed to:
 1. **Verify Basic Functionality**: Test that S3 tables can be created and queried
 2. **Test CTAS Operations**: Verify if CREATE TABLE AS SELECT works with S3 tables
 3. **Test Incremental Models**: Check incremental materialization support
-4. **Test Partitioning**: Verify partitioned S3 tables work correctly
-5. **Test Table Properties**: Check custom table properties support
-6. **Test Integration**: Verify S3 tables work with other dbt features
+4. **Test Merge Strategy**: Verify merge incremental strategy works with S3 tables
+5. **Test Partitioning**: Verify partitioned S3 tables work correctly
+6. **Test Table Properties**: Check custom table properties support
+7. **Test Integration**: Verify S3 tables work with other dbt features
+8. **Test Error Handling**: Verify proper error handling and edge cases
+9. **Test Backward Compatibility**: Ensure existing functionality remains intact
+10. **Test Edge Cases**: Verify boundary conditions and special scenarios
 
 ## Environment Variables
 
@@ -61,9 +65,15 @@ The tests run automatically via GitHub Actions when:
 
 - `conftest.py`: Test configuration and fixtures
 - `dbt_project.yml`: dbt project configuration for tests
-- `test_s3_tables.py`: Main test suite
-- `models/`: Sample models for testing
+- `test_s3_tables.py`: Main test suite with comprehensive coverage
+- `models/`: Sample models for testing including:
+  - Basic S3 tables models
+  - Merge strategy test models
+  - Edge case validation models
+  - Backward compatibility models
+  - Comprehensive test scenarios
 - `README.md`: This documentation
+- `README_MERGE_STRATEGY.md`: Specific documentation for merge strategy tests
 
 ## Expected Outcomes
 
@@ -73,6 +83,10 @@ These tests will help us understand:
 2. **What needs modification**: Which features require adapter changes
 3. **Configuration requirements**: What specific configurations are needed for S3 tables
 4. **Limitations**: What constraints exist when using S3 tables
+5. **Merge strategy compatibility**: How S3 tables work with merge incremental strategy
+6. **Error handling**: How the system handles edge cases and invalid configurations
+7. **Backward compatibility**: That existing functionality continues to work
+8. **Performance characteristics**: How S3 tables perform with various data scenarios
 
 ## Next Steps
 

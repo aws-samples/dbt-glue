@@ -123,6 +123,9 @@
     {# -- If the temp relation is a table and iceberg, then create temporary table, otherwise view #}
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     create or replace table {{ full_relation }} using iceberg as {{ sql }}
+  {% elif file_format == 's3tables' %}
+    {# For S3 Tables temporary tables, don't apply catalog prefixes - use the relation as-is #}
+    create or replace table {{ relation }} using iceberg as {{ sql }}
   {% else %}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% endif %}

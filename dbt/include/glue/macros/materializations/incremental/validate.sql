@@ -26,7 +26,7 @@
 
   {% set invalid_merge_msg -%}
     Invalid incremental strategy provided: {{ raw_strategy }}
-    You can only choose this strategy when file_format is set to 'delta' or 'iceberg' or 'hudi'
+    You can only choose this strategy when file_format is set to 'delta' or 'iceberg' or 'hudi' or 's3tables'
   {%- endset %}
 
   {% set invalid_insert_overwrite_endpoint_msg -%}
@@ -38,7 +38,7 @@
   {% if raw_strategy not in ['append', 'merge', 'insert_overwrite'] %}
     {% do exceptions.raise_compiler_error(invalid_strategy_msg) %}
   {%-else %}
-    {% if raw_strategy == 'merge' and file_format not in ['delta', 'iceberg', 'hudi'] %}
+    {% if raw_strategy == 'merge' and file_format not in ['delta', 'iceberg', 'hudi', 's3tables'] %}
       {% do exceptions.raise_compiler_error(invalid_merge_msg) %}
     {% endif %}
     {% if raw_strategy == 'insert_overwrite' and target.endpoint %}
