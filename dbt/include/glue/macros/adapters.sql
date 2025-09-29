@@ -124,8 +124,9 @@
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     create or replace table {{ full_relation }} using iceberg as {{ sql }}
   {% elif file_format == 's3tables' %}
-    {# For S3 Tables temporary tables, don't apply catalog prefixes - use the relation as-is #}
-    create or replace table {{ relation }} using iceberg as {{ sql }}
+    {# For S3 Tables temporary tables, we need to create them in the S3 Tables catalog #}
+    {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+    create or replace table {{ full_relation }} as {{ sql }}
   {% else %}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% endif %}
