@@ -142,6 +142,14 @@ def s3_tables_namespace(unique_schema):
     
     # Cleanup
     try:
+        # Check if cleanup should be skipped for troubleshooting
+        skip_cleanup = os.getenv('DBT_SKIP_RESOURCE_CLEANUP', 'false').lower() == 'true'
+        if skip_cleanup:
+            print(f"⚠️ Skipping S3 Tables cleanup for troubleshooting - namespace: {namespace}")
+            print(f"   Bucket ARN: {bucket_arn}")
+            print(f"   Tables and namespace will be retained for investigation")
+            return
+        
         # Delete tables
         tables_response = s3tables_client.list_tables(
             tableBucketARN=bucket_arn,
@@ -185,7 +193,7 @@ def dbt_profile_target(unique_schema, s3_tables_namespace):
         'schema': unique_schema,
         'session_provisioning_timeout_in_seconds': 300,
         'location': get_s3_location(),
-        'conf': f'spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.defaultCatalog=glue_catalog --conf spark.sql.catalog.glue_catalog.warehouse={get_s3_location()} --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.glue.id={os.getenv("DBT_S3_TABLES_BUCKET")}',
+        'conf': f'spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.defaultCatalog=glue_catalog --conf spark.sql.catalog.glue_catalog.warehouse={get_s3_location()} --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.glue.id={os.getenv("DBT_S3_TABLES_BUCKET")} --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog --conf spark.sql.catalog.spark_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog',
         'datalake_formats': 'iceberg',
         'glue_session_id': f'dbt-s3-tables-test-{session_suffix}',
         'glue_session_reuse': False
@@ -199,4 +207,12 @@ def cleanup_s3_data(unique_schema):
     region = get_region()
     cleanup_s3_location(s3bucket + unique_schema, region)
     yield
+
+    # Check if cleanup should be skipped for troubleshooting
+    skip_cleanup = os.getenv('DBT_SKIP_RESOURCE_CLEANUP', 'false').lower() == 'true'
+    if skip_cleanup:
+        print(f"⚠️ Skipping S3 cleanup for troubleshooting - schema: {unique_schema}")
+        print(f"   S3 location: {s3bucket + unique_schema}")
+        return
+
     cleanup_s3_location(s3bucket + unique_schema, region)
