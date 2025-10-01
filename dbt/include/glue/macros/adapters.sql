@@ -125,7 +125,7 @@
     create or replace table {{ full_relation }} using iceberg as {{ sql }}
   {% elif file_format == 's3tables' %}
     {# For S3 Tables, temporary relations should be Spark temporary views, not S3 Tables #}
-    {# S3 Tables don't support temporary table names with _tmp suffixes #}
+    {# S3 Tables do not support temporary table names with _tmp suffixes #}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% else %}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
