@@ -299,6 +299,7 @@ class GlueAdapter(SQLAdapter):
         existing_columns = []
 
         code = f"""describe {computed_schema}.{relation.identifier}"""
+        
         logger.debug(f"code: {code}")
 
         try:
@@ -316,10 +317,14 @@ class GlueAdapter(SQLAdapter):
                     response = session.cursor().execute(code)
                     records = self.fetch_all_response(response)
                 except DbtDatabaseError as e:
-                    raise DbtDatabaseError(msg="GlueGetColumnsInRelationFailed") from e
+                    # For incremental models, it's normal for the table not to exist on first run
+                    logger.debug(f"Table {relation.identifier} not found - this is normal for incremental models on first run")
+                    return []  # Return empty columns list for non-existent tables
                 except Exception as e:
                     logger.error(f"Second attempt failed with error: {str(e)}")
-                    raise
+                    # For incremental models, it's normal for the table not to exist on first run
+                    logger.debug(f"Table {relation.identifier} not found - returning empty columns list")
+                    return []  # Return empty columns list for non-existent tables
             else:
                 # If it's not a table not found error, raise the original exception
                 raise
@@ -884,7 +889,7 @@ SqlWrapper2.execute("""select 1""")
         session, client = self.get_connection()
         
         if file_format == 's3tables':
-            # Use S3 Tables catalog ID for get_table call
+            # S3 Tables are stored in a separate catalog, so we need to check that catalog specifically
             import os
             s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
             if s3_tables_bucket:
@@ -895,9 +900,11 @@ SqlWrapper2.execute("""select 1""")
                         DatabaseName=schema,
                         Name=relation.name
                     )
-                    return 's3_table'
+                    # S3 Tables are built on Iceberg format, so return iceberg_table type
+                    return 'iceberg_table'
                 except Exception as e:
-                    return 's3_table'  # Assume it's S3 table even if get_table fails
+                    logger.debug(f"S3 Table {relation.name} not found in catalog {s3_tables_bucket}: {str(e)}")
+                    return None  # Table doesn't exist yet
 
         schema = self._strip_catalog_from_schema(relation.schema)
 

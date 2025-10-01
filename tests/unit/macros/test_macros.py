@@ -51,6 +51,9 @@ class TestGlueMacros(unittest.TestCase):
             mock.Mock(name="id"),
             mock.Mock(name="name")
         ]
+        
+        # Ensure target doesn't have endpoint to avoid insert_overwrite validation issues
+        self.default_context["target"].endpoint = None
         self.default_context["make_temp_relation"] = lambda base, suffix: mock.Mock(
             include=lambda schema: f"temp_relation_{suffix}" if not schema else f"schema.temp_relation_{suffix}"
         )
@@ -61,8 +64,10 @@ class TestGlueMacros(unittest.TestCase):
         # For incremental testing
         self.default_context["this"].include = lambda schema: "test_table" if not schema else "test_schema.test_table"
 
-        # Mock exceptions.raise_compiler_error
-        self.default_context["exceptions"].raise_compiler_error = lambda msg: f"mock.raise_compiler_error({msg})"
+        # Mock exceptions.raise_compiler_error to raise an actual exception
+        def mock_raise_compiler_error(msg):
+            raise Exception(f"CompilerError: {msg}")
+        self.default_context["exceptions"].raise_compiler_error = mock_raise_compiler_error
 
     def __get_template(self, template_filename):
         return self.jinja_env.get_template(template_filename, globals=self.default_context)
@@ -489,3 +494,68 @@ class TestGlueMacros(unittest.TestCase):
         ).strip()
         self.assertIn("insert overwrite table", sql)
         self.assertIn("set hive.exec.dynamic.partition.mode=nonstrict", sql)
+
+    def test_glue_validate_file_format(self):
+        """Test file format validation"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+        
+        # Test valid file formats
+        valid_formats = ['text', 'csv', 'json', 'jdbc', 'parquet', 'orc', 'hive', 'delta', 'iceberg', 'libsvm', 'hudi', 's3tables']
+        for file_format in valid_formats:
+            result = self.__run_macro(template, "dbt_glue_validate_get_file_format", file_format)
+            self.assertEqual(result.strip(), file_format)
+
+        # Test invalid file format
+        with self.assertRaises(Exception) as context:
+            self.__run_macro(template, "dbt_glue_validate_get_file_format", "invalid_format")
+        self.assertIn("CompilerError:", str(context.exception))
+        self.assertIn("Invalid file format provided: invalid_format", str(context.exception))
+
+    def test_glue_validate_s3tables_merge_strategy(self):
+        """Test that S3 tables format allows merge strategy"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+        
+        # Test that s3tables allows merge strategy
+        result = self.__run_macro(template, "dbt_glue_validate_get_incremental_strategy", "merge", "s3tables")
+        self.assertEqual(result.strip(), "merge")
+
+    def test_glue_validate_merge_allowed_formats(self):
+        """Test that merge strategy is allowed for all supported formats"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+        
+        # Test all formats that should allow merge strategy
+        merge_compatible_formats = ['delta', 'iceberg', 'hudi', 's3tables']
+        for file_format in merge_compatible_formats:
+            result = self.__run_macro(template, "dbt_glue_validate_get_incremental_strategy", "merge", file_format)
+            self.assertEqual(result.strip(), "merge", f"Merge strategy should be allowed for {file_format}")
+
+    def test_glue_validate_merge_error_includes_s3tables(self):
+        """Test that error message includes s3tables in allowed formats"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+        
+        # Test that merge strategy is rejected for parquet format
+        with self.assertRaises(Exception) as context:
+            self.__run_macro(template, "dbt_glue_validate_get_incremental_strategy", "merge", "parquet")
+        self.assertIn("CompilerError:", str(context.exception))
+        self.assertIn("You can only choose this strategy when file_format is set to 'delta' or 'iceberg' or 'hudi' or 's3tables'", str(context.exception))
+
+    def test_glue_validate_valid_strategies(self):
+        """Test all valid incremental strategies"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+        
+        # Test valid strategies with compatible formats
+        valid_strategies = ['append', 'insert_overwrite']
+        for strategy in valid_strategies:
+            result = self.__run_macro(template, "dbt_glue_validate_get_incremental_strategy", strategy, "parquet")
+            self.assertEqual(result.strip(), strategy)
+
+    def test_glue_validate_invalid_strategy(self):
+        """Test invalid incremental strategy"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+        
+        # Test invalid strategy
+        with self.assertRaises(Exception) as context:
+            self.__run_macro(template, "dbt_glue_validate_get_incremental_strategy", "invalid_strategy", "parquet")
+        self.assertIn("CompilerError:", str(context.exception))
+        self.assertIn("Invalid incremental strategy provided: invalid_strategy", str(context.exception))
+        self.assertIn("Expected one of: 'append', 'merge', 'insert_overwrite'", str(context.exception))
