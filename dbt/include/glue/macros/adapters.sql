@@ -124,9 +124,9 @@
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     create or replace table {{ full_relation }} using iceberg as {{ sql }}
   {% elif file_format == 's3tables' %}
-    {# For S3 Tables temporary tables, we need to create them in the S3 Tables catalog #}
-    {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
-    create or replace table {{ full_relation }} as {{ sql }}
+    {# For S3 Tables, temporary relations should be Spark temporary views, not S3 Tables #}
+    {# S3 Tables don't support temporary table names with _tmp suffixes #}
+    create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% else %}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% endif %}
