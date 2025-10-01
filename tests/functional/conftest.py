@@ -18,8 +18,9 @@ def unique_schema(request, prefix) -> str:
     if provided_test_schema:
         return provided_test_schema
     else:
+        custom_suffix = '_' + os.getenv('DBT_GLUE_CUSTOM_SCHEMA_SUFFIX') if os.getenv('DBT_GLUE_CUSTOM_SCHEMA_SUFFIX') else ''
         database_suffix = ''.join(random.choices(string.digits, k=4))
-        return f"dbt_functional_test_{database_suffix}"
+        return f"dbt_functional_test_{database_suffix}{custom_suffix}"
 
 @pytest.fixture(scope="class")
 def use_arrow():
