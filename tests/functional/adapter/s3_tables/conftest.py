@@ -142,14 +142,6 @@ def s3_tables_namespace(unique_schema):
     
     # Cleanup
     try:
-        # Check if cleanup should be skipped for troubleshooting
-        skip_cleanup = os.getenv('DBT_SKIP_RESOURCE_CLEANUP', 'false').lower() == 'true'
-        if skip_cleanup:
-            print(f"⚠️ Skipping S3 Tables cleanup for troubleshooting - namespace: {namespace}")
-            print(f"   Bucket ARN: {bucket_arn}")
-            print(f"   Tables and namespace will be retained for investigation")
-            return
-        
         # Delete tables
         tables_response = s3tables_client.list_tables(
             tableBucketARN=bucket_arn,
@@ -207,12 +199,4 @@ def cleanup_s3_data(unique_schema):
     region = get_region()
     cleanup_s3_location(s3bucket + unique_schema, region)
     yield
-
-    # Check if cleanup should be skipped for troubleshooting
-    skip_cleanup = os.getenv('DBT_SKIP_RESOURCE_CLEANUP', 'false').lower() == 'true'
-    if skip_cleanup:
-        print(f"⚠️ Skipping S3 cleanup for troubleshooting - schema: {unique_schema}")
-        print(f"   S3 location: {s3bucket + unique_schema}")
-        return
-
     cleanup_s3_location(s3bucket + unique_schema, region)

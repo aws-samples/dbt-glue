@@ -425,14 +425,6 @@ class GlueAdapter(SQLAdapter):
         return f"LOCATION '{location}/{relation.schema}/{relation.name}'"
 
     def drop_schema(self, relation: BaseRelation) -> None:
-        import os
-        # Check if cleanup should be skipped for troubleshooting
-        skip_cleanup = os.getenv('DBT_SKIP_RESOURCE_CLEANUP', 'false').lower() == 'true'
-        if skip_cleanup:
-            logger.debug(f"⚠️ Skipping Glue database deletion for troubleshooting - schema: {relation.schema}")
-            print(f"⚠️ Skipping Glue database deletion for troubleshooting - schema: {relation.schema}")
-            return
-
         session, client = self.get_connection()
         if self.check_schema_exists(relation.database, relation.schema):
             try:

@@ -1329,32 +1329,8 @@ class TestS3TablesManifestListLocation:
                         
                 except Exception as s3_e:
                     print(f"🔍 S3 table error: {str(s3_e)}")
-                
                 # Print schema for debugging
                 print(f"🔍 Test schema: {project.adapter.config.credentials.schema}")
-                
-                # Check if this is an S3 permissions issue
-                if "access denied" in error_msg.lower() or "403" in error_msg:
-                    print("\n🚨 S3 ACCESS DENIED ISSUE DETECTED:")
-                    print("   - The CREATE TABLE succeeded (empty S3 Table was created)")
-                    print("   - The INSERT INTO failed due to S3 permissions")
-                    print("   - This suggests Iceberg can't write/delete files in S3 Tables managed bucket")
-                    print("   - Even with admin permissions, S3 Tables may have specific access patterns")
-                    print("\n🔧 TROUBLESHOOTING RESOURCES RETAINED:")
-                    print(f"   - Schema: {project.adapter.config.credentials.schema}")
-                    print(f"   - Source table: source_data_parquet")
-                    print(f"   - S3 table: s3_table_from_source (may be empty)")
-                    print("   - Resources will NOT be cleaned up for investigation")
-                    
-                    # Set environment variable to skip resource cleanup
-                    os.environ['DBT_SKIP_RESOURCE_CLEANUP'] = 'true'
-                    
-                    # Skip cleanup by not raising the exception
-                    print("\n⚠️ Skipping cleanup to retain resources for troubleshooting")
-                    print("💡 To manually clean up later, run:")
-                    print(f"   aws s3 rm s3://sekiyama-bucket-us-east-1/glue/data/dbt_demo_glue/{project.adapter.config.credentials.schema}/ --recursive")
-                    return
-                    
             except Exception as debug_e:
                 print(f"🔍 Debug information failed: {str(debug_e)}")
             
