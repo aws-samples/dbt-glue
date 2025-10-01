@@ -68,7 +68,8 @@
          Why?  Because currently s3tables/iceberg and iceberg file formats in Glue Catalog do 
          not currently support views, so when using iceberg/s3tables, and not temp views, then everything 
          is a table #}
-      {%- if purge_dropped_iceberg_data == 'True' -%}
+      {# S3 Tables always require PURGE, while Iceberg only requires it if config is set #}
+      {%- if file_format == 's3tables' or purge_dropped_iceberg_data == 'True' -%}
         drop table if exists {{ full_relation }} purge
       {%- else -%}
         drop table if exists {{ full_relation }}
@@ -79,7 +80,8 @@
     {%- endif -%}
   {%- else -%}
     {# If iceberg or s3tables, then drop table, with purge option if set #}
-    {%- if file_format in ['iceberg', 's3tables'] and purge_dropped_iceberg_data == 'True' -%}
+    {# S3 Tables always require PURGE, while Iceberg only requires it if config is set #}
+    {%- if file_format == 's3tables' or (file_format == 'iceberg' and purge_dropped_iceberg_data == 'True') -%}
       drop table if exists {{ full_relation }} purge
     {%- else -%}
       drop table if exists {{ full_relation }}
@@ -209,7 +211,8 @@
        Why?  Because currently s3tables/iceberg and iceberg file formats in Glue Catalog do 
        not currently support views, so when using iceberg/s3tables, and not temp views, then everything 
        is a table #}
-    {%- if purge_dropped_iceberg_data == 'True' -%}
+    {# S3 Tables always require PURGE, while Iceberg only requires it if config is set #}
+    {%- if file_format == 's3tables' or purge_dropped_iceberg_data == 'True' -%}
       drop table if exists {{ full_relation }} purge
     {%- else -%}
       drop table if exists {{ full_relation }}
