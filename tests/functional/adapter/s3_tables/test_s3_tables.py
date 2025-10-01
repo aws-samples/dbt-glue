@@ -446,7 +446,7 @@ class TestS3TablesMergeStrategy:
             
             # First run - create initial S3 table (this should work)
             print("First run: Creating initial S3 table with merge strategy...")
-            results = run_dbt(["run", "--select", "double_run_merge_s3_table", "--vars", "run_number: 1"])
+            results = run_dbt(["run", "--select", "double_run_merge_s3_table", "--vars", "run_number: 1", "--full-refresh"])
             assert len(results) == 1
             assert results[0].status == "success"
             
