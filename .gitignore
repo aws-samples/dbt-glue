@@ -107,14 +107,3 @@ Pipfile*
 
 # Kiro IDE files
 .kiro/
-
-# Additional documentation files (keep only README files)
-COMPREHENSIVE_CHANGES_SUMMARY.md
-tests/functional/adapter/s3_tables/FINAL_FIX_SUMMARY.md
-tests/functional/adapter/s3_tables/ENHANCED_TEST_SUMMARY.md
-tests/functional/adapter/s3_tables/README_MERGE_STRATEGY.md
-
-# Test files created during development
-test_s3_merge_strategy.py
-test_validation_check.py
-validate_s3_tests.py
