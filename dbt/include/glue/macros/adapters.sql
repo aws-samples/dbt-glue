@@ -104,8 +104,8 @@
   {# -- If target profile has temp_schema set, allows _tmp relations to be built in separate catalog when physicalized #}
   {%- set tmp_schema = target.temp_schema if target.temp_schema else base_relation.schema -%}
   {# -- By default, temp relations will be temporary views, but can be set to temp tables later if warranted #} 
-  {%- if file_format == 'iceberg' and use_iceberg_temp_views == 'False' -%}
-    {# If iceberg and config use_iceberg_temp_views == 'False', 
+  {%- if file_format in ['iceberg', 's3tables'] and use_iceberg_temp_views == 'False' -%}
+    {# If iceberg/s3tables and config use_iceberg_temp_views == 'False', 
        then make tmp_relation a table, otherwise, by default tmp_relation will be a view #}
     {%- set temp_type = 'table' -%} 
   {%- endif -%}
@@ -124,9 +124,9 @@
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     create or replace table {{ full_relation }} using iceberg as {{ sql }}
   {% elif file_format == 's3tables' %}
-    {# For S3 Tables, temporary relations should be Spark temporary views, not S3 Tables #}
-    {# S3 Tables do not support temporary table names with _tmp suffixes #}
-    create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
+    {# For S3 Tables temporary tables, we need to create them in the S3 Tables catalog #}
+    {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+    create or replace table {{ full_relation }} as {{ sql }}
   {% else %}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% endif %}
