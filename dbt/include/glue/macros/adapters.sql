@@ -151,13 +151,11 @@
   {%- else -%}
     {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
     
-    {% do log("DEBUG: file_format = '" ~ file_format ~ "'", info=True) %}
-    
     {%- if file_format == 's3tables' -%}
-      -- Using CREATE TABLE + INSERT INTO instead of CTAS for S3 Tables
+      {# Using CREATE TABLE + INSERT INTO instead of CTAS for S3 Tables #}
       {{ glue__create_s3_table_with_insert(relation, sql) }}
     {%- else -%}
-      -- Using CTAS for the other formats
+      {# Using CTAS for the other formats #}
       {%- set table_properties = config.get('table_properties', default={}) -%}
 
       {%- set create_statement_string -%}
@@ -177,9 +175,9 @@
           {% set contract_config = config.get('contract') %}
           {% if contract_config.enforced %}
             {{ get_assert_columns_equivalent(sql) }}
-            {#-- This does not enforce contstraints and needs to be a TODO #}
-            {#-- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
-            {#-- you do not specify the columns #}
+            {# -- This does not enforce contstraints and needs to be a TODO #}
+            {# -- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
+            {# -- you do not specify the columns #}
           {% endif %}
       {{ glue__file_format_clause() }}
       {{ partition_cols(label="partitioned by") }}
@@ -387,7 +385,7 @@
   {%- set table_properties = config.get('table_properties', default={}) -%}
   {%- set full_relation = glue__make_target_relation(relation, 's3tables') -%}
   {%- set temp_view = 'temp_schema_view_' ~ range(100000) | random -%}
-  -- Create temporary view for schema inference
+  {# -- Create temporary view for schema inference #}
   {% call statement('create_temp_view', auto_begin=False) -%}
     create or replace temporary view {{ temp_view }} as {{ add_iceberg_timestamp_column(sql) }}
   {%- endcall %}
@@ -396,7 +394,7 @@
   {%- set describe_result = run_query('describe ' ~ temp_view) -%}
   {%- set column_definitions = glue__format_columns_from_describe(describe_result) -%}
 
-  -- Create empty S3 Table with explicit columns
+  {# -- Create empty S3 Table with explicit columns #}
   {% call statement('create_s3_table', auto_begin=False) -%}
     create or replace table {{ full_relation }} ({{ column_definitions }})
     {{ partition_cols(label="partitioned by") }}
@@ -405,10 +403,10 @@
     {{ comment_clause() }}
   {%- endcall %}
 
-  -- Insert data from original query
+  {# -- Insert data from original query #}
   insert into {{ full_relation }} {{ add_iceberg_timestamp_column(sql) }}
 
-  -- Cleanup temporary view
+  {# -- Cleanup temporary view #}
   {% call statement('cleanup_temp_view', auto_begin=False) -%}
     drop view if exists {{ temp_view }}
   {%- endcall %}
