@@ -154,10 +154,10 @@
     {% do log("DEBUG: file_format = '" ~ file_format ~ "'", info=True) %}
     
     {%- if file_format == 's3tables' -%}
-      {% do log("DEBUG: Using CREATE TABLE + INSERT INTO instead of CTAS for S3 Tables: " ~ relation, info=True) %}
+      -- Using CREATE TABLE + INSERT INTO instead of CTAS for S3 Tables
       {{ glue__create_s3_table_with_insert(relation, sql) }}
     {%- else -%}
-      {% do log("DEBUG: Using CTAS for format: " ~ file_format, info=True) %}
+      -- Using CTAS for the other formats
       {%- set table_properties = config.get('table_properties', default={}) -%}
 
       {%- set create_statement_string -%}
@@ -387,11 +387,7 @@
   {%- set table_properties = config.get('table_properties', default={}) -%}
   {%- set full_relation = glue__make_target_relation(relation, 's3tables') -%}
   {%- set temp_view = 'temp_schema_view_' ~ range(100000) | random -%}
-
-  {% do log("DEBUG: S3 Tables CREATE+INSERT - full_relation: " ~ full_relation, info=True) %}
-
-  {# Create temporary view for schema inference #}
-  {% do log("DEBUG: Creating temp view: " ~ temp_view, info=True) %}
+  -- Create temporary view for schema inference
   {% call statement('create_temp_view', auto_begin=False) -%}
     create or replace temporary view {{ temp_view }} as {{ add_iceberg_timestamp_column(sql) }}
   {%- endcall %}
@@ -400,8 +396,7 @@
   {%- set describe_result = run_query('describe ' ~ temp_view) -%}
   {%- set column_definitions = glue__format_columns_from_describe(describe_result) -%}
 
-  {# Create empty S3 Table with explicit columns #}
-  {% do log("DEBUG: Creating empty S3 table with columns: " ~ column_definitions, info=True) %}
+  -- Create empty S3 Table with explicit columns
   {% call statement('create_s3_table', auto_begin=False) -%}
     create or replace table {{ full_relation }} ({{ column_definitions }})
     {{ partition_cols(label="partitioned by") }}
@@ -410,12 +405,10 @@
     {{ comment_clause() }}
   {%- endcall %}
 
-  {# Insert data from original query #}
-  {% do log("DEBUG: Inserting data into S3 table: " ~ full_relation, info=True) %}
+  -- Insert data from original query
   insert into {{ full_relation }} {{ add_iceberg_timestamp_column(sql) }}
 
-  {# Cleanup temporary view #}
-  {% do log("DEBUG: Cleaning up temp view: " ~ temp_view, info=True) %}
+  -- Cleanup temporary view
   {% call statement('cleanup_temp_view', auto_begin=False) -%}
     drop view if exists {{ temp_view }}
   {%- endcall %}

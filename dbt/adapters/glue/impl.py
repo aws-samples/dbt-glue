@@ -299,7 +299,6 @@ class GlueAdapter(SQLAdapter):
         existing_columns = []
 
         code = f"""describe {computed_schema}.{relation.identifier}"""
-        
         logger.debug(f"code: {code}")
 
         try:
@@ -318,12 +317,10 @@ class GlueAdapter(SQLAdapter):
                     records = self.fetch_all_response(response)
                 except DbtDatabaseError as e:
                     # For incremental models, it's normal for the table not to exist on first run
-                    logger.debug(f"Table {relation.identifier} not found - this is normal for incremental models on first run")
                     return []  # Return empty columns list for non-existent tables
                 except Exception as e:
                     logger.error(f"Second attempt failed with error: {str(e)}")
                     # For incremental models, it's normal for the table not to exist on first run
-                    logger.debug(f"Table {relation.identifier} not found - returning empty columns list")
                     return []  # Return empty columns list for non-existent tables
             else:
                 # If it's not a table not found error, raise the original exception
