@@ -900,7 +900,7 @@ SqlWrapper2.execute("""select 1""")
                     # S3 Tables are built on Iceberg format, so return iceberg_table type
                     return 'iceberg_table'
                 except Exception as e:
-                    logger.debug(f"S3 Table {relation.name} not found in catalog {s3_tables_bucket}: {str(e)}")
+                    # S3 Table not found in catalog
                     return None  # Table doesn't exist yet
 
         schema = self._strip_catalog_from_schema(relation.schema)
