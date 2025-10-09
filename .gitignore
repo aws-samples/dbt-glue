@@ -104,3 +104,6 @@ dbt_venv/
 
 .pytest_cache/
 Pipfile*
+
+# Kiro IDE files
+.kiro/

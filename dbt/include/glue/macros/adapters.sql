@@ -68,7 +68,8 @@
          Why?  Because currently s3tables/iceberg and iceberg file formats in Glue Catalog do 
          not currently support views, so when using iceberg/s3tables, and not temp views, then everything 
          is a table #}
-      {%- if purge_dropped_iceberg_data == 'True' -%}
+      {# S3 Tables always require PURGE, while Iceberg only requires it if config is set #}
+      {%- if file_format == 's3tables' or purge_dropped_iceberg_data == 'True' -%}
         drop table if exists {{ full_relation }} purge
       {%- else -%}
         drop table if exists {{ full_relation }}
@@ -79,7 +80,8 @@
     {%- endif -%}
   {%- else -%}
     {# If iceberg or s3tables, then drop table, with purge option if set #}
-    {%- if file_format in ['iceberg', 's3tables'] and purge_dropped_iceberg_data == 'True' -%}
+    {# S3 Tables always require PURGE, while Iceberg only requires it if config is set #}
+    {%- if file_format == 's3tables' or (file_format == 'iceberg' and purge_dropped_iceberg_data == 'True') -%}
       drop table if exists {{ full_relation }} purge
     {%- else -%}
       drop table if exists {{ full_relation }}
@@ -104,8 +106,8 @@
   {# -- If target profile has temp_schema set, allows _tmp relations to be built in separate catalog when physicalized #}
   {%- set tmp_schema = target.temp_schema if target.temp_schema else base_relation.schema -%}
   {# -- By default, temp relations will be temporary views, but can be set to temp tables later if warranted #} 
-  {%- if file_format == 'iceberg' and use_iceberg_temp_views == 'False' -%}
-    {# If iceberg and config use_iceberg_temp_views == 'False', 
+  {%- if file_format in ['iceberg', 's3tables'] and use_iceberg_temp_views == 'False' -%}
+    {# If iceberg/s3tables and config use_iceberg_temp_views == 'False', 
        then make tmp_relation a table, otherwise, by default tmp_relation will be a view #}
     {%- set temp_type = 'table' -%} 
   {%- endif -%}
@@ -123,6 +125,10 @@
     {# -- If the temp relation is a table and iceberg, then create temporary table, otherwise view #}
     {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
     create or replace table {{ full_relation }} using iceberg as {{ sql }}
+  {% elif file_format == 's3tables' %}
+    {# For S3 Tables temporary tables, we need to create them in the S3 Tables catalog #}
+    {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+    create or replace table {{ full_relation }} as {{ sql }}
   {% else %}
     create or replace temporary view {{ relation.include(schema=false) }} as {{ sql }}
   {% endif %}
@@ -144,37 +150,44 @@
     {{ create_temporary_view(relation, sql) }}
   {%- else -%}
     {%- set file_format = config.get('file_format', validator=validation.any[basestring]) -%}
-    {%- set table_properties = config.get('table_properties', default={}) -%}
+    
+    {%- if file_format == 's3tables' -%}
+      {# Using CREATE TABLE + INSERT INTO instead of CTAS for S3 Tables #}
+      {{ glue__create_s3_table_with_insert(relation, sql) }}
+    {%- else -%}
+      {# Using CTAS for the other formats #}
+      {%- set table_properties = config.get('table_properties', default={}) -%}
 
-    {%- set create_statement_string -%}
-      {% if file_format in ['delta', 'iceberg', 's3tables'] -%}
-        create or replace table
-      {%- else -%}
-        create table
-      {% endif %}
-    {%- endset %}
-
-    {%- set full_relation = relation -%}
-    {%- if file_format in ['iceberg', 's3tables'] -%}
-      {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
-    {%- endif -%}
-
-        {{ create_statement_string }} {{ full_relation }}
-        {% set contract_config = config.get('contract') %}
-        {% if contract_config.enforced %}
-          {{ get_assert_columns_equivalent(sql) }}
-          {#-- This does not enforce contstraints and needs to be a TODO #}
-          {#-- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
-          {#-- you do not specify the columns #}
+      {%- set create_statement_string -%}
+        {% if file_format in ['delta', 'iceberg'] -%}
+          create or replace table
+        {%- else -%}
+          create table
         {% endif %}
-    {{ glue__file_format_clause() }}
-    {{ partition_cols(label="partitioned by") }}
-    {{ clustered_cols(label="clustered by") }}
-    {{ set_table_properties(table_properties) }}
-    {{ glue__location_clause() }}
-    {{ comment_clause() }}
-    as
-    {{ add_iceberg_timestamp_column(sql) }}
+      {%- endset %}
+
+      {%- set full_relation = relation -%}
+      {%- if file_format == 'iceberg' -%}
+        {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+      {%- endif -%}
+
+          {{ create_statement_string }} {{ full_relation }}
+          {% set contract_config = config.get('contract') %}
+          {% if contract_config.enforced %}
+            {{ get_assert_columns_equivalent(sql) }}
+            {# -- This does not enforce contstraints and needs to be a TODO #}
+            {# -- We'll need to change up the query because with CREATE TABLE AS SELECT, #}
+            {# -- you do not specify the columns #}
+          {% endif %}
+      {{ glue__file_format_clause() }}
+      {{ partition_cols(label="partitioned by") }}
+      {{ clustered_cols(label="clustered by") }}
+      {{ set_table_properties(table_properties) }}
+      {{ glue__location_clause() }}
+      {{ comment_clause() }}
+      as
+      {{ add_iceberg_timestamp_column(sql) }}
+    {%- endif -%}
   {%- endif %}
 {%- endmacro -%}
 
@@ -196,7 +209,8 @@
        Why?  Because currently s3tables/iceberg and iceberg file formats in Glue Catalog do 
        not currently support views, so when using iceberg/s3tables, and not temp views, then everything 
        is a table #}
-    {%- if purge_dropped_iceberg_data == 'True' -%}
+    {# S3 Tables always require PURGE, while Iceberg only requires it if config is set #}
+    {%- if file_format == 's3tables' or purge_dropped_iceberg_data == 'True' -%}
       drop table if exists {{ full_relation }} purge
     {%- else -%}
       drop table if exists {{ full_relation }}
@@ -240,6 +254,7 @@
     {%- set contract_config = config.get('contract') -%}
     {%- set file_format = config.get('file_format') or 'parquet' -%}
     {%- set is_iceberg = file_format == 'iceberg' -%}
+    {%- set is_s3tables = file_format == 's3tables' -%}
 
     {# Currently, with Glue Catalog, and using Iceberg, there is no support for creating views 
        either using Iceberg View Spec, or by using basic Glue/Athena Iceberg Views.  
@@ -250,6 +265,14 @@
         create or replace table {{ full_relation }}
         using iceberg
         as
+        {{ add_iceberg_timestamp_column(sql) }}
+    {%- elif is_s3tables -%}
+        {%- set full_relation = glue__make_target_relation(relation, file_format) -%}
+        {%- if contract_config.enforced -%}
+          {{ get_assert_columns_equivalent(sql) }}
+        {%- endif -%}
+        create view {{ full_relation }}
+            as
         {{ add_iceberg_timestamp_column(sql) }}
     {%- else -%}
         {%- if contract_config.enforced -%}
@@ -357,3 +380,46 @@
 
     {{ return(options) }}
 {% endmacro %}
+
+{% macro glue__create_s3_table_with_insert(relation, sql) -%}
+  {%- set table_properties = config.get('table_properties', default={}) -%}
+  {%- set full_relation = glue__make_target_relation(relation, 's3tables') -%}
+  {%- set temp_view = 'temp_schema_view_' ~ range(100000) | random -%}
+  {# -- Create temporary view for schema inference #}
+  {% call statement('create_temp_view', auto_begin=False) -%}
+    create or replace temporary view {{ temp_view }} as {{ add_iceberg_timestamp_column(sql) }}
+  {%- endcall %}
+
+  {# Get column definitions from DESCRIBE #}
+  {%- set describe_result = run_query('describe ' ~ temp_view) -%}
+  {%- set column_definitions = glue__format_columns_from_describe(describe_result) -%}
+
+  {# -- Create empty S3 Table with explicit columns #}
+  {% call statement('create_s3_table', auto_begin=False) -%}
+    create or replace table {{ full_relation }} ({{ column_definitions }})
+    {{ partition_cols(label="partitioned by") }}
+    {{ clustered_cols(label="clustered by") }}
+    {{ set_table_properties(table_properties) }}
+    {{ comment_clause() }}
+  {%- endcall %}
+
+  {# -- Insert data from original query #}
+  insert into {{ full_relation }} {{ add_iceberg_timestamp_column(sql) }}
+
+  {# -- Cleanup temporary view #}
+  {% call statement('cleanup_temp_view', auto_begin=False) -%}
+    drop view if exists {{ temp_view }}
+  {%- endcall %}
+{%- endmacro -%}
+
+{% macro glue__format_columns_from_describe(describe_result) -%}
+  {%- set columns = [] -%}
+  {%- for row in describe_result -%}
+    {%- set col_name = row[0] -%}
+    {%- set col_type = row[1] -%}
+    {%- if col_name and col_type and not col_name.startswith('#') -%}
+      {%- set _ = columns.append(col_name ~ ' ' ~ col_type) -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{ columns | join(',\n    ') }}
+{%- endmacro -%}
