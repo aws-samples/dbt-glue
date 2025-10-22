@@ -41,12 +41,17 @@ config_incremental_strategy = """
 config_materialized_with_custom_meta = """
   {{ config(materialized="table", meta={"workers": 3, "idle_timeout": 2}) }}
 """
+config_materialized_with_custom_meta_shared = """
+  {{ config(materialized="table", meta={ "group_session_id": "test_group_id"}) }}
+"""
 model_base = """
   select * from {{ source('raw', 'seed') }}
 """
 base_materialized_var_sql = config_materialized_var + config_incremental_strategy + model_base
 
 table_with_custom_meta = config_materialized_with_custom_meta + model_base
+
+table_with_custom_meta_shared = config_materialized_with_custom_meta_shared + model_base
 
 @pytest.mark.skip(
     reason="Fails because the test tries to fetch the table metadata during the compile step, "
@@ -75,6 +80,39 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
         }
 
     pass
+
+class TestSimpleMaterializationsWithCustomMetaShared(TestSimpleMaterializationsGlue):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "view_model.sql": base_view_sql,
+            "table_model.sql": table_with_custom_meta_shared,
+            "swappable.sql": base_materialized_var_sql,
+            "schema.yml": schema_base_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def custom_session_id(self):
+        return 'dbt-glue__test_group_id'
+
+    # remove session between tests to clear cached tables.
+    # this isn't a problem in actual dbt runs since the same table isn't updated multiple times per job.
+    @pytest.fixture(autouse=True)
+    def cleanup_custom_session(self, dbt_profile_target, custom_session_id):
+        yield
+        boto_session = boto3.session.Session()
+        glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
+        glue_client.stop_session(Id=custom_session_id)
+        glue_client.delete_session(Id=custom_session_id)
+
+    def test_create_session(self, dbt_profile_target, custom_session_id):
+        run_dbt(["seed"])
+        run_dbt()
+        run_dbt()
+
+        boto_session = boto3.session.Session()
+        glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
+        glue_session = glue_client.get_session(Id=custom_session_id)
 
 class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
     @pytest.fixture(scope="class")

@@ -74,6 +74,12 @@ class GlueConnection:
         elif not self.credentials.glue_session_reuse:
             # Multiple sessions could be created in parallel, ensure no duplicates
             id = f'{id}__{iam_role_name}__{uuid.uuid4()}'
+        else:
+            if self._session_id_suffix:
+                # Glue Session Names must not have periods, so replace with underscores
+                sanitized_suffix = self._session_id_suffix.replace('.', '_')
+                # Suffix would be the model name, already unique
+                id = f'{id}__{sanitized_suffix}'
 
         return id
 

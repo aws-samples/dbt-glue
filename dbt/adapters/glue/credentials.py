@@ -37,6 +37,7 @@ class GlueCredentials(Credentials):
     glue_session_reuse: Optional[bool] = False
     datalake_formats: Optional[str] = None
     enable_session_per_model: Optional[bool] = False
+    group_session_id: Optional[str] = None
     use_arrow: Optional[bool] = False
     custom_iceberg_catalog_namespace: Optional[str] = "glue_catalog"
     enable_spark_seed_casting: Optional[bool] = False
@@ -103,6 +104,7 @@ class GlueCredentials(Credentials):
             'glue_session_reuse',
             'datalake_formats',
             'enable_session_per_model',
+            'group_session_id',
             'use_arrow',
             'enable_spark_seed_casting',
             'packages',
