@@ -38,6 +38,12 @@ config_materialized_var = """
 config_incremental_strategy = """
   {{ config(incremental_strategy='insert_overwrite') }}
 """
+config_custom_group_id = """
+  {{ config(meta={ "group_session_id": "test_group_id"}) }}
+"""
+config_custom_group_id2 = """
+  {{ config(meta={ "group_session_id": "test_group_id2"}) }}
+"""
 config_materialized_with_custom_meta = """
   {{ config(materialized="table", meta={"workers": 3, "idle_timeout": 2}) }}
 """
@@ -51,7 +57,9 @@ base_materialized_var_sql = config_materialized_var + config_incremental_strateg
 
 table_with_custom_meta = config_materialized_with_custom_meta + model_base
 
-table_with_custom_meta_shared = config_materialized_with_custom_meta_shared + model_base
+table_with_custom_meta_shared = config_custom_group_id + table_with_custom_meta
+
+view_with_custom_meta_shared = config_custom_group_id + base_view_sql
 
 @pytest.mark.skip(
     reason="Fails because the test tries to fetch the table metadata during the compile step, "
@@ -85,34 +93,52 @@ class TestSimpleMaterializationsWithCustomMetaShared(TestSimpleMaterializationsG
     @pytest.fixture(scope="class")
     def models(self):
         return {
-            "view_model.sql": base_view_sql,
+            "view_model.sql": view_with_custom_meta_shared,
             "table_model.sql": table_with_custom_meta_shared,
-            "swappable.sql": base_materialized_var_sql,
+            "swappable.sql": config_custom_group_id2 + base_materialized_var_sql,
             "schema.yml": schema_base_yml,
         }
 
     @pytest.fixture(scope="class")
     def custom_session_id(self):
         return 'dbt-glue__test_group_id'
+    
+    @pytest.fixture(scope="class")
+    def custom_session_id2(self):
+        return 'dbt-glue__test_group_id2'
 
     # remove session between tests to clear cached tables.
     # this isn't a problem in actual dbt runs since the same table isn't updated multiple times per job.
     @pytest.fixture(autouse=True)
-    def cleanup_custom_session(self, dbt_profile_target, custom_session_id):
+    def cleanup_custom_session(self, dbt_profile_target, custom_session_id, custom_session_id2):
         yield
         boto_session = boto3.session.Session()
         glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
-        glue_client.stop_session(Id=custom_session_id)
-        glue_client.delete_session(Id=custom_session_id)
+        for id in (custom_session_id, custom_session_id2):
+            glue_client.stop_session(Id=id)
+            glue_client.delete_session(Id=id)
 
-    def test_create_session(self, dbt_profile_target, custom_session_id):
-        run_dbt(["seed"])
-        run_dbt()
-        run_dbt()
-
+    def test_create_session(self, dbt_profile_target, custom_session_id, custom_session_id2):
         boto_session = boto3.session.Session()
         glue_client = boto_session.client("glue", region_name=dbt_profile_target['region'])
-        glue_session = glue_client.get_session(Id=custom_session_id)
+        run_dbt(["seed"])
+        glue_session = glue_client.get_session(Id='dbt-glue')
+        assert glue_session['Session']['Status'] == 'READY'
+
+        # Make sure group session id doesn't exist.
+        for id in (custom_session_id, custom_session_id2):
+            try:
+                glue_session = glue_client.get_session(Id=id)
+                assert False, f"Session {id} should not exist but does"
+            except glue_client.exceptions.EntityNotFoundException as e:
+                pass
+        run_dbt()
+
+        # Ensure group session is created and still in ready state
+        for id in (custom_session_id, custom_session_id2):
+            glue_session = glue_client.get_session(Id=id)
+            assert glue_session['Session']['Status'] == 'READY'
+            assert glue_session['Session']['NumberOfWorkers'] == (3 if id == custom_session_id else 2)
 
 class TestSimpleMaterializationsWithCustomMeta(TestSimpleMaterializationsGlue):
     @pytest.fixture(scope="class")
