@@ -52,17 +52,20 @@ class GlueConnectionManager(SQLConnectionManager):
             }
 
             node_info = get_node_info()
-            if node_info and "meta" in node_info:
-                node_meta = node_info.get("meta", {})
+            node_meta = node_info.get("meta", {}) if node_info else {}
+            if node_meta:
                 for session_config in credentials._connection_keys():
                     if node_meta.get(session_config):
                         credentials.enable_session_per_model = True
                         setattr(credentials, session_config, node_meta.get(session_config))
 
-            if credentials.enable_session_per_model:
+            if node_meta.get("group_session_id"):
+                key = node_meta.get("group_session_id")
+                connection_args['session_id_suffix'] = key
+                credentials.enable_session_per_model = False
+            elif credentials.enable_session_per_model:
                 key = node_info.get("unique_id", "no-node") if node_info else "no-node"
                 connection_args['session_id_suffix'] = key
-
             else:
                 key = cls.get_thread_identifier()
 

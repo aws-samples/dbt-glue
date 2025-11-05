@@ -1,3 +1,8 @@
+## dbt-glue next
+- Added ability to have specific models use the same glue session separate from the project level session by specifying a "group_session_id" in the model's meta.
+- Ensured that when "group_session_id" is set, "enable_session_per_model" is not enabled for that model so that session usage behavior acts appropriately
+- Added testing to capture proper behavior of "group_session_id"
+
 ## v1.10.13
 - Added ability to use Spark temporary views when using iceberg targets instead of physical tables to store intermediate results, by setting model config use_iceberg_temp_views to 'True'
 - Added ability to purge iceberg and s3tables underlying data s3 object during drop table when config purge_dropped_iceberg_data is set to 'True' in model config
