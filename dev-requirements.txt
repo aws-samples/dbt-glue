@@ -19,17 +19,17 @@ pytest-dotenv
 pytest-csv
 flaky
 mypy==1.18.2
-black==25.9.0
+black==25.11.0
 
 # Adapter specific dependencies
 waiter
 boto3
 pandas
-moto~=5.1.14
+moto~=5.1.17
 pyparsing
 pyarrow
 
-dbt-core~=1.10.13
+dbt-core~=1.10.15
 dbt-spark~=1.9.3
 dbt-common>=1.0.4,<3.0
 dbt-adapters>=1.1.1,<2.0
