@@ -1,7 +1,8 @@
-## dbt-glue next
+## v1.10.15
 - Added ability to have specific models use the same glue session separate from the project level session by specifying a "group_session_id" in the model's meta.
-- Ensured that when "group_session_id" is set, "enable_session_per_model" is not enabled for that model so that session usage behavior acts appropriately
-- Added testing to capture proper behavior of "group_session_id"
+- Ensured that when "group_session_id" is set, "enable_session_per_model" is not enabled for that model so that session usage behavior acts appropriately.
+- Added testing to capture proper behavior of "group_session_id".
+- Upgrade dependencies: dbt-core 1.10.15, moto 5.1.17, black 25.11.0.
 
 ## v1.10.13
 - Added ability to use Spark temporary views when using iceberg targets instead of physical tables to store intermediate results, by setting model config use_iceberg_temp_views to 'True'
