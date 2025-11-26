@@ -13,11 +13,12 @@ class GlueStatement:
     TIMEOUT = "TIMEOUT"
     ERROR = "ERROR"
 
-    def __init__(self, client, session_id, code):
+    def __init__(self, client, session_id, code, poll_interval=1.0):
         self.client = client
         self.code = code
         self.session_id = session_id
         self._statement_id = None
+        self._poll_interval = poll_interval
 
     def _run_statement(self):
         if not self._statement_id:
@@ -36,7 +37,7 @@ class GlueStatement:
     def execute(self):
         logger.debug(f"RunStatement (session_id={self.session_id}, statement_id={self._statement_id})")
         self._run_statement()
-        for elasped in wait(1):
+        for elapsed in wait(self._poll_interval):
             response = self._get_statement()
             logger.debug(f"GetStatement (session_id={self.session_id}, statement_id={self._statement_id}) response: {response}")
             state = response.get("Statement", {}).get("State", GlueStatement.WAITING)

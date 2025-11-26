@@ -218,7 +218,12 @@ class GlueConnection:
 
     def _init_session(self):
         logger.debug("GlueConnection _init_session called for session_id : " + self.session_id)
-        statement = GlueStatement(client=self.client, session_id=self.session_id, code=SQLPROXY)
+        statement = GlueStatement(
+            client=self.client,
+            session_id=self.session_id,
+            code=SQLPROXY,
+            poll_interval=self.credentials.statement_poll_interval,
+        )
         try:
             logger.debug(f"Executing statement (SQLPROXY): {statement}")
             statement.execute()
@@ -226,8 +231,12 @@ class GlueConnection:
             logger.error(f"Error in GlueCursor (session_id={self.session_id}, SQLPROXY) execute: {e}")
             raise ExecutableError(str(e))
 
-        statement = GlueStatement(client=self.client, session_id=self.session_id,
-                                  code=f"spark.sql('use {self.credentials.database}')")
+        statement = GlueStatement(
+            client=self.client,
+            session_id=self.session_id,
+            code=f"spark.sql('use {self.credentials.database}')",
+            poll_interval=self.credentials.statement_poll_interval,
+        )
         try:
             logger.debug(f"Executing statement (use database) : {statement}")
             statement.execute()
@@ -251,12 +260,13 @@ class GlueConnection:
 
     @property
     def client(self):
-        config = Config(
-            retries={
-                'max_attempts': 10,
-                'mode': 'adaptive'
-            }
-        )
+        retry_options = {
+            "max_attempts": self.credentials.boto_retry_max_attempts,
+        }
+        if self.credentials.boto_retry_mode:
+            retry_options["mode"] = self.credentials.boto_retry_mode
+
+        config = Config(retries=retry_options)
         if not self._client:
             # reference on why lock is required - https://stackoverflow.com/a/61943955/6034432
             with self._boto3_client_lock:

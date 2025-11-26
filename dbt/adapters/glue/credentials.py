@@ -41,6 +41,9 @@ class GlueCredentials(Credentials):
     use_arrow: Optional[bool] = False
     custom_iceberg_catalog_namespace: Optional[str] = "glue_catalog"
     enable_spark_seed_casting: Optional[bool] = False
+    statement_poll_interval: float = 1.0
+    boto_retry_mode: Optional[str] = "adaptive"
+    boto_retry_max_attempts: int = 10
     # Python model specific fields
     packages: Optional[List[str]] = None
 
@@ -72,6 +75,10 @@ class GlueCredentials(Credentials):
                 f" schema."
             )
         self.database = None
+        if self.statement_poll_interval < 1:
+            raise DbtRuntimeError("statement_poll_interval must be greater than or equal to 1")
+        if self.boto_retry_max_attempts <= 0:
+            raise DbtRuntimeError("boto_retry_max_attempts must be greater than 0")
 
     def _connection_keys(self):
         """ Keys to show when debugging """
@@ -107,5 +114,8 @@ class GlueCredentials(Credentials):
             'group_session_id',
             'use_arrow',
             'enable_spark_seed_casting',
+            'statement_poll_interval',
+            'boto_retry_mode',
+            'boto_retry_max_attempts',
             'packages',
         ]

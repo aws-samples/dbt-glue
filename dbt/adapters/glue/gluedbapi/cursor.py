@@ -92,7 +92,8 @@ class GlueCursor:
         self.statement = GlueStatement(
             client=self.connection.client,
             session_id=self.connection.session_id,
-            code=self.code
+            code=self.code,
+            poll_interval=self.connection.credentials.statement_poll_interval,
         )
 
         logger.debug("client : " + self.code)
