@@ -1,3 +1,6 @@
+## dbt-glue
+- Made GetStatement polling rate and boto3 retry settings configurable in the dbt profile using `statement_poll_interval`, `boto_retry_mode` and `boto_retry_max_attempts`.
+
 ## v1.10.15
 - Added ability to have specific models use the same glue session separate from the project level session by specifying a "group_session_id" in the model's meta.
 - Ensured that when "group_session_id" is set, "enable_session_per_model" is not enabled for that model so that session usage behavior acts appropriately.
