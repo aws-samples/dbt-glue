@@ -29,7 +29,7 @@ moto~=5.1.17
 pyparsing
 pyarrow
 
-dbt-core~=1.10.15
+dbt-core~=1.10.17
 dbt-spark~=1.9.3
 dbt-common>=1.0.4,<3.0
 dbt-adapters>=1.1.1,<2.0
