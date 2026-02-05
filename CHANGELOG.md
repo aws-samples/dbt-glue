@@ -1,5 +1,7 @@
-## dbt-glue
+## 1.10.19
+
 - Made GetStatement polling rate and boto3 retry settings configurable in the dbt profile using `statement_poll_interval`, `boto_retry_mode` and `boto_retry_max_attempts`.
+- Upgrade dependencies: dbt-core 1.10.19, mypy 1.19.1, moto 5.1.19.
 
 ## v1.10.15
 - Added ability to have specific models use the same glue session separate from the project level session by specifying a "group_session_id" in the model's meta.
