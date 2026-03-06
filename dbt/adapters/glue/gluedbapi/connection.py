@@ -231,10 +231,15 @@ class GlueConnection:
             logger.error(f"Error in GlueCursor (session_id={self.session_id}, SQLPROXY) execute: {e}")
             raise ExecutableError(str(e))
 
+        if not self.credentials.schema:
+            raise ValueError(
+                "self.credentials.schema nor self.credentials.database are not present"
+            )
+
         statement = GlueStatement(
             client=self.client,
             session_id=self.session_id,
-            code=f"spark.sql('use {self.credentials.database}')",
+            code=f"spark.sql('use {self.credentials.schema}')",
             poll_interval=self.credentials.statement_poll_interval,
         )
         try:
