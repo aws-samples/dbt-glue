@@ -1,3 +1,6 @@
+## 1.10.20
+- Fix case-sensitive comparison of error status in Glue statement output. The Status field from Statement.Output may return values with varying casing (e.g., 'error', 'Error', 'ERROR'). The previous check output.get('Status') == 'ERROR'` would miss non-uppercase, causing errors to silently pass as successful executions.
+
 ## 1.10.19
 
 - Made GetStatement polling rate and boto3 retry settings configurable in the dbt profile using `statement_poll_interval`, `boto_retry_mode` and `boto_retry_max_attempts`.
