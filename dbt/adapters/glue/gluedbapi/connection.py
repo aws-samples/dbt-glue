@@ -192,8 +192,6 @@ class GlueConnection:
 
         if (self.credentials.datalake_formats is not None):
             args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
-        if (self.credentials.datalake_formats is not None):
-            args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
 
         self._session = self.client.create_session(
             Id=session_id,
