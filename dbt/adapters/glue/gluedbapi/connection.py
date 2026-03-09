@@ -233,7 +233,7 @@ class GlueConnection:
 
         if not self.credentials.schema:
             raise ValueError(
-                "self.credentials.schema nor self.credentials.database are not present"
+                "'schema' is required in profiles.yml but was not provided"
             )
 
         statement = GlueStatement(
