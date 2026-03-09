@@ -1,3 +1,7 @@
+## 1.10.20
+
+- Fixed `ref()` and `source()` in Python models to use dbt-core's resolved functions
+
 ## 1.10.19
 
 - Made GetStatement polling rate and boto3 retry settings configurable in the dbt profile using `statement_poll_interval`, `boto_retry_mode` and `boto_retry_max_attempts`.
