@@ -69,21 +69,22 @@
       {% else %}
         {# /*-- Relation must be merged --*/ #}
         {% if file_format in ['iceberg', 's3tables'] and schema_change_mode in ('append_new_columns', 'sync_all_columns') %}
-          {%- call statement('create_tmp_table') -%}
-            {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
-          {%- endcall -%}
-          {%- set is_tmp_relation_created = 'True' -%} 
-          {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
+          {%- if language != 'python' -%}
+            {%- call statement('create_tmp_table') -%}
+              {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
+            {%- endcall -%}
+            {%- set is_tmp_relation_created = 'True' -%}
+            {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
 
-          {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-          {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates, dest_columns) %}
-
+            {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
+            {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates, dest_columns) %}
+          {%- endif -%}
         {% else %}
           {%- if language != 'python' -%}
             {%- call statement('create_tmp_relation') -%}
               {{ create_temporary_view(tmp_relation, sql) }}
             {%- endcall -%}
-            {%- set is_tmp_relation_created = 'True' -%} 
+            {%- set is_tmp_relation_created = 'True' -%}
             {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
           {%- endif -%}
         {% endif %}
