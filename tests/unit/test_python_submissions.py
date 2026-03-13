@@ -60,7 +60,7 @@ def test_glue_python_job_helper_submit(mock_glue_connection_class, mock_credenti
         'Statement': {
             'State': 'AVAILABLE',
             'Output': {
-                'Status': 'OK'
+                'Status': 'ok'
             }
         }
     }
@@ -107,7 +107,7 @@ def test_glue_python_job_helper_with_packages(mock_glue_connection_class, mock_c
         'Statement': {
             'State': 'AVAILABLE',
             'Output': {
-                'Status': 'OK'
+                'Status': 'ok'
             }
         }
     }
