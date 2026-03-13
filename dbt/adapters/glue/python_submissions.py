@@ -70,7 +70,7 @@ class GluePythonJobHelper(PythonJobHelper):
                 # Check for errors
                 output = response['Statement'].get('Output', {})
                 status = output.get('Status', '')
-                if status.lower() == 'error':
+                if status == 'error':
                     error_message = output.get('ErrorName', '')
                     error_value = output.get('ErrorValue', '')
                     traceback = output.get('Traceback', '')
@@ -82,7 +82,7 @@ class GluePythonJobHelper(PythonJobHelper):
                         f"Python model failed with error: {error_message}\n{error_value}\n{traceback}"
                     )
 
-                elif status.lower() == 'ok':
+                elif status == 'ok':
                     # Print the output for debugging
                     print(f"DEBUG: Statement completed successfully. Output: {output}")
                     return
