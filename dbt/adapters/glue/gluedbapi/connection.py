@@ -168,6 +168,9 @@ class GlueConnection:
         if (self._create_session_config["extra_py_files"] is not None):
             args["--extra-py-files"] = f"{self._create_session_config['extra_py_files']}"
 
+        if (self._create_session_config["packages"] is not None):
+              args["--additional-python-modules"] = ",".join(self._create_session_config["packages"])
+
         additional_args = {}
         additional_args["NumberOfWorkers"] = self._create_session_config["workers"]
         additional_args["WorkerType"] = self._create_session_config["worker_type"]
