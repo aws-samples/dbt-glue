@@ -69,7 +69,8 @@ class GluePythonJobHelper(PythonJobHelper):
             if state == 'AVAILABLE':
                 # Check for errors
                 output = response['Statement'].get('Output', {})
-                if output.get('Status') == 'ERROR':
+                status = output.get('Status', '')
+                if status == 'error':
                     error_message = output.get('ErrorName', '')
                     error_value = output.get('ErrorValue', '')
                     traceback = output.get('Traceback', '')
@@ -80,10 +81,17 @@ class GluePythonJobHelper(PythonJobHelper):
                     raise DbtRuntimeError(
                         f"Python model failed with error: {error_message}\n{error_value}\n{traceback}"
                     )
+
+                elif status == 'ok':
+                    # Print the output for debugging
+                    print(f"DEBUG: Statement completed successfully. Output: {output}")
+                    return
+
+                raise DbtRuntimeError(
+                    f"This error code should not appear. Status: {status}\n"
+                    "Please open an issue at https://github.com/aws-samples/dbt-glue/issues\n"
+                )
                 
-                # Print the output for debugging
-                print(f"DEBUG: Statement completed successfully. Output: {output}")
-                return
             elif state in ('CANCELLED', 'ERROR'):
                 raise DbtRuntimeError(f"Statement execution failed with state: {state}")
                 

@@ -2,6 +2,7 @@
 
 - Fixed `ref()` and `source()` in Python models to use dbt-core's resolved functions
 - This fix addresses a bug where spark.sql('use ...') would fail with a None database error when the database field wasn't set in profiles.yml, by falling back to the schema value.
+- Fixed incorrect error response assumption in Glue statement output. The `Status` field from `Statement.Output` should only return lowercase `ok` or `error`. The previous check `output.get('Status') == 'ERROR'` would miss non-uppercase, causing errors to silently pass as successful executions.
 
 ## 1.10.19
 
