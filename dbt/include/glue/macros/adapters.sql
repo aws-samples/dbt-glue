@@ -12,6 +12,82 @@
   {%- endif %}
 {%- endmacro -%}
 
+{% macro glue__process_schema_changes_with_column_order(on_schema_change, source_relation, target_relation, file_format) %}
+  {%- set is_iceberg = file_format in ['iceberg', 's3tables'] -%}
+
+  {%- if not is_iceberg -%}
+    {%- do process_schema_changes(on_schema_change, source_relation, target_relation) -%}
+    {{ return(none) }}
+  {%- endif -%}
+
+  {%- if on_schema_change == 'ignore' -%}
+    {{ return(none) }}
+  {%- endif -%}
+
+  {%- set source_columns = adapter.get_columns_in_relation(source_relation) -%}
+  {%- set target_columns = adapter.get_columns_in_relation(target_relation) -%}
+  {%- set target_names = target_columns | map(attribute='name') | list -%}
+  {%- set add_columns = [] -%}
+  {%- for sc in source_columns -%}
+    {%- if sc.name not in target_names -%}
+      {%- do add_columns.append(sc) -%}
+    {%- endif -%}
+  {%- endfor -%}
+
+  {%- set new_target_types = diff_column_data_types(source_columns, target_columns) -%}
+
+  {%- if add_columns | length == 0 and new_target_types | length == 0 -%}
+    {{ return(none) }}
+  {%- endif -%}
+
+  {%- if on_schema_change == 'fail' -%}
+    {% set target_not_in_source = [] %}
+    {%- set source_names = source_columns | map(attribute='name') | list -%}
+    {%- for tc in target_columns -%}
+      {%- if tc.name not in source_names -%}
+        {%- do target_not_in_source.append(tc) -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {%- if add_columns | length > 0 or target_not_in_source | length > 0 or new_target_types | length > 0 -%}
+      {{ exceptions.raise_compiler_error("The source and target schemas on this incremental model are out of sync!") }}
+    {%- endif -%}
+  {%- endif -%}
+
+  {# Add columns with position for Iceberg #}
+  {%- if add_columns | length > 0 -%}
+    {%- set full_relation = glue__make_target_relation(target_relation, file_format) -%}
+
+    {%- for col in add_columns -%}
+      {%- set ns = namespace(after_col=none, found=false) -%}
+      {%- for sc in source_columns -%}
+        {%- if not ns.found -%}
+          {%- if sc.name == col.name -%}
+            {%- set ns.found = true -%}
+          {%- else -%}
+            {%- set ns.after_col = sc.name -%}
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+
+      {%- call statement('add_column_' ~ loop.index) -%}
+        alter table {{ full_relation }} add column {{ col.name }} {{ col.data_type }}
+        {%- if ns.after_col %} after {{ ns.after_col }}
+        {%- else %} first
+        {%- endif -%}
+      {%- endcall -%}
+    {%- endfor -%}
+  {%- endif -%}
+
+  {# Type changes #}
+  {%- if on_schema_change == 'sync_all_columns' and new_target_types | length > 0 -%}
+    {%- for ntt in new_target_types -%}
+      {%- do alter_column_type(target_relation, ntt['column_name'], ntt['new_type']) -%}
+    {%- endfor -%}
+  {%- endif -%}
+
+{% endmacro %}
+
+
 {% macro spark__alter_relation_add_remove_columns(relation, add_columns, remove_columns) %}
 
   {% if remove_columns %}
