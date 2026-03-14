@@ -2,6 +2,7 @@
 
 - Fixed `ref()` and `source()` in Python models to use dbt-core's resolved functions
 - This fix addresses a bug where spark.sql('use ...') would fail with a None database error when the database field wasn't set in profiles.yml, by falling back to the schema value.
+- Preserve column order when adding columns to Iceberg tables via `on_schema_change`
 
 ## 1.10.19
 
