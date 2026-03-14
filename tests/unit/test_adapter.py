@@ -99,7 +99,7 @@ class TestGlueAdapter(unittest.TestCase):
     def test_create_csv_table_slices_big_datasets(self):
         config = self._get_config()
         adapter = GlueAdapter(config, get_context("spawn"))
-        model = {"name": "mock_model", "schema": "mock_schema"}
+        model = {"name": "mock_model", "alias": "mock_model", "schema": "mock_schema"}
         session_mock = Mock()
         adapter.get_connection = lambda: (session_mock, "mock_client")
         test_table = agate.Table(
@@ -137,6 +137,7 @@ class TestGlueAdapter(unittest.TestCase):
         csv_chunks = [{"test_column_double": "1.2345", "test_column_str": "test"}]
         model = {
             "name": "mock_model",
+            "alias": "mock_model",
             "schema": "mock_schema",
             "config": {"column_types": {"test_column_double": "double", "test_column_str": "string"}},
         }
@@ -157,10 +158,21 @@ class TestGlueAdapter(unittest.TestCase):
         config.credentials.enable_spark_seed_casting = False
         adapter = GlueAdapter(config, get_context("spawn"))
         csv_chunks = [{"test_column": "1.2345"}]
-        model = {"name": "mock_model", "schema": "mock_schema"}
+        model = {"name": "mock_model", "alias": "mock_model", "schema": "mock_schema"}
         column_mappings = [ColumnCsvMappingStrategy("test_column", agate.data_types.Text, "double")]
         code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
         self.assertIn("spark.createDataFrame(csv)", code[0])
+
+    def test_create_csv_table_uses_alias_for_table_name(self):
+        config = self._get_config()
+        config.credentials.enable_spark_seed_casting = False
+        adapter = GlueAdapter(config, get_context("spawn"))
+        csv_chunks = [{"test_column": "1.2345"}]
+        model = {"name": "seed_location", "alias": "location", "schema": "mock_schema"}
+        column_mappings = [ColumnCsvMappingStrategy("test_column", agate.data_types.Text, "double")]
+        code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
+        self.assertIn("mock_schema.location", code[0])
+        self.assertNotIn("seed_location", code[0])
 
     @mock_aws
     def test_when_database_not_exists_list_relations_without_caching_returns_empty_array(self):
