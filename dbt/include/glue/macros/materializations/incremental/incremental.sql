@@ -73,7 +73,7 @@
             {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
           {%- endcall -%}
           {%- set is_tmp_relation_created = 'True' -%} 
-          {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
+          {%- set schema_changes = glue__process_schema_changes_with_column_order(on_schema_change, tmp_relation, target_relation, file_format) -%}
 
           {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
           {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates, dest_columns) %}

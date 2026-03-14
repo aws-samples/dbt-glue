@@ -365,6 +365,93 @@ select * from glue_catalog.{{ ref('base_model') }}
         assert "phone" in updated_columns, "Schema change should add the phone column"
 
 
+class TestIcebergColumnOrderOnSchemaChange:
+    """Test that column order is preserved when adding columns to Iceberg tables"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "name": "iceberg_column_order_test",
+            "models": {
+                "+file_format": "iceberg",
+            }
+        }
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "col_order_model.sql": """
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='append',
+        file_format='iceberg',
+        on_schema_change='sync_all_columns'
+    )
+}}
+
+select 1 as id, 100 as amount, 'alice' as name
+            """
+        }
+
+    def test_column_order_preserved(self, project):
+        # 1st run: create table with (id, amount, name)
+        results = run_dbt(["run", "--select", "col_order_model"])
+        assert len(results) == 1
+
+        relation = relation_from_name(project.adapter, "col_order_model")
+        initial_columns = [c.name for c in project.adapter.get_columns_in_relation(relation)]
+        assert initial_columns == ["id", "amount", "name"]
+
+        # 2nd run: add category between id and amount
+        write_file("""
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='append',
+        file_format='iceberg',
+        on_schema_change='sync_all_columns'
+    )
+}}
+
+select 2 as id, 'electronics' as category, 200 as amount, 'bob' as name
+            """,
+            project.project_root, "models", "col_order_model.sql"
+        )
+
+        results = run_dbt(["run", "--select", "col_order_model"])
+        assert len(results) == 1
+
+        relation = relation_from_name(project.adapter, "col_order_model")
+        updated_columns = [c.name for c in project.adapter.get_columns_in_relation(relation)]
+        assert updated_columns == ["id", "category", "amount", "name"], \
+            f"Expected column order [id, category, amount, name] but got {updated_columns}"
+
+        # 3rd run: add two more columns at different positions
+        write_file("""
+{{
+    config(
+        materialized='incremental',
+        incremental_strategy='append',
+        file_format='iceberg',
+        on_schema_change='sync_all_columns'
+    )
+}}
+
+select 3 as id, 'electronics' as category, 'premium' as tier, 300 as amount, 'charlie' as name, 'us' as region
+            """,
+            project.project_root, "models", "col_order_model.sql"
+        )
+
+        results = run_dbt(["run", "--select", "col_order_model"])
+        assert len(results) == 1
+
+        relation = relation_from_name(project.adapter, "col_order_model")
+        final_columns = [c.name for c in project.adapter.get_columns_in_relation(relation)]
+        assert final_columns == ["id", "category", "tier", "amount", "name", "region"], \
+            f"Expected column order [id, category, tier, amount, name, region] but got {final_columns}"
+
+
 class TestIcebergTimestampColumnEnabled:
     """Test adding update_iceberg_ts column to Iceberg tables when enabled"""
 
