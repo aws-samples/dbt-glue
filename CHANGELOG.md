@@ -2,6 +2,7 @@
 
 - Fixed `ref()` and `source()` in Python models to use dbt-core's resolved functions
 - This fix addresses a bug where spark.sql('use ...') would fail with a None database error when the database field wasn't set in profiles.yml, by falling back to the schema value.
+- Fixed seed `alias` config not being respected, causing tables to be created with the original seed name instead of the alias
 
 ## 1.10.19
 

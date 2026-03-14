@@ -668,18 +668,18 @@ df = df.selectExpr({cast_columns})
 df = spark.createDataFrame(csv)
 """
                 code += f'''
-table_name = '{model["schema"]}.{model["name"]}'
-if (spark.sql("show tables in {model["schema"]}").where("tableName == lower('{model["name"]}')").count() > 0):
+table_name = '{model["schema"]}.{model["alias"]}'
+if (spark.sql("show tables in {model["schema"]}").where("tableName == lower('{model["alias"]}')").count() > 0):
     df.write\
         .mode("{session.credentials.seed_mode}")\
         .format("{session.credentials.seed_format}")\
         .insertInto(table_name, overwrite={mode})
 else:
     df.write\
-        .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")\
+        .option("path", "{session.credentials.location}/{model["schema"]}/{model["alias"]}")\
         .format("{session.credentials.seed_format}")\
         .saveAsTable(table_name)
-SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""")
+SqlWrapper2.execute("""select * from {model["schema"]}.{model["alias"]} limit 1""")
 '''
             statements.append(code)
         return statements
