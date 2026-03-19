@@ -552,10 +552,47 @@ class TestGlueMacros(unittest.TestCase):
     def test_glue_validate_invalid_strategy(self):
         """Test invalid incremental strategy"""
         template = self.__get_template("materializations/incremental/validate.sql")
-        
+
         # Test invalid strategy
         with self.assertRaises(Exception) as context:
             self.__run_macro(template, "dbt_glue_validate_get_incremental_strategy", "invalid_strategy", "parquet")
         self.assertIn("CompilerError:", str(context.exception))
         self.assertIn("Invalid incremental strategy provided: invalid_strategy", str(context.exception))
         self.assertIn("Expected one of: 'append', 'merge', 'insert_overwrite'", str(context.exception))
+
+    def test_glue_validate_contract_with_schema_change_ignore_fails(self):
+        """Test that contract enforcement with on_schema_change=ignore fails"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+
+        # Set up contract config
+        self.config['contract'] = {'enforced': True}
+
+        # Test that on_schema_change=ignore with enforced contract raises error
+        with self.assertRaises(Exception) as context:
+            self.__run_macro(template, "dbt_glue_validate_contract_with_schema_change", "ignore")
+        self.assertIn("CompilerError:", str(context.exception))
+        self.assertIn("Invalid value for on_schema_change: ignore", str(context.exception))
+        self.assertIn("must set on_schema_change to 'append_new_columns' or 'fail'", str(context.exception))
+
+    def test_glue_validate_contract_with_schema_change_valid(self):
+        """Test that contract enforcement with valid on_schema_change settings passes"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+
+        # Set up contract config
+        self.config['contract'] = {'enforced': True}
+
+        # Test that valid on_schema_change values don't raise errors
+        valid_values = ['append_new_columns', 'fail', 'sync_all_columns']
+        for value in valid_values:
+            # Should not raise an exception
+            self.__run_macro(template, "dbt_glue_validate_contract_with_schema_change", value)
+
+    def test_glue_validate_contract_not_enforced_allows_ignore(self):
+        """Test that without contract enforcement, on_schema_change=ignore is allowed"""
+        template = self.__get_template("materializations/incremental/validate.sql")
+
+        # Set up config without enforced contract
+        self.config['contract'] = {'enforced': False}
+
+        # Should not raise an exception
+        self.__run_macro(template, "dbt_glue_validate_contract_with_schema_change", "ignore")

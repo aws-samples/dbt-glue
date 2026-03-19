@@ -31,6 +31,9 @@
   {%- set is_incremental = 'False' -%}
   {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
 
+  {# /*-- Validate contract enforcement with schema change setting --*/ #}
+  {{ dbt_glue_validate_contract_with_schema_change(schema_change_mode) }}
+
   {% if existing_relation_type is not none %}
       {%- set target_relation = target_relation.incorporate(type=existing_relation_type if existing_relation_type != "iceberg_table" else "table") -%}
   {% endif %}
