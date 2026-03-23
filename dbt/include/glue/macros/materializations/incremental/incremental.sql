@@ -75,7 +75,8 @@
           {%- call statement('create_tmp_table') -%}
             {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
           {%- endcall -%}
-          {%- set is_tmp_relation_created = 'True' -%} 
+          {%- set is_tmp_relation_created = 'True' -%}
+          {%- do validate_incremental_contract(tmp_relation, target_relation) -%}
           {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
 
           {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
@@ -86,7 +87,8 @@
             {%- call statement('create_tmp_relation') -%}
               {{ create_temporary_view(tmp_relation, sql) }}
             {%- endcall -%}
-            {%- set is_tmp_relation_created = 'True' -%} 
+            {%- set is_tmp_relation_created = 'True' -%}
+            {%- do validate_incremental_contract(tmp_relation, target_relation) -%}
             {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
           {%- endif -%}
         {% endif %}
