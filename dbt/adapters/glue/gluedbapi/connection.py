@@ -275,8 +275,25 @@ class GlueConnection:
         if not self._client:
             # reference on why lock is required - https://stackoverflow.com/a/61943955/6034432
             with self._boto3_client_lock:
-                session = boto3.session.Session()
-                self._client = session.client("glue", region_name=self.credentials.region, config=config)
+                if self.credentials.role_arn and self.credentials.use_interactive_session_role_for_api_calls:
+                    logger.debug(f"Assuming role {self.credentials.role_arn} for Glue API calls")
+                    sts_client = boto3.client('sts', region_name=self.credentials.region)
+                    assumed_role = sts_client.assume_role(
+                        RoleArn=self.credentials.role_arn,
+                        RoleSessionName="dbt-glue-session"
+                    )
+                    assumed_credentials = assumed_role['Credentials']
+                    self._client = boto3.client(
+                        "glue",
+                        region_name=self.credentials.region,
+                        config=config,
+                        aws_access_key_id=assumed_credentials['AccessKeyId'],
+                        aws_secret_access_key=assumed_credentials['SecretAccessKey'],
+                        aws_session_token=assumed_credentials['SessionToken'],
+                    )
+                else:
+                    session = boto3.session.Session()
+                    self._client = session.client("glue", region_name=self.credentials.region, config=config)
                 self._session_waiter = get_session_waiter(client=self._client, timeout=self.credentials.session_provisioning_timeout_in_seconds)
         return self._client
 
