@@ -53,8 +53,8 @@
 {% macro dbt_glue_validate_contract_with_schema_change(on_schema_change) %}
   {#-- Validate that contract enforcement is compatible with on_schema_change setting #}
 
-  {% set contract_config = config.get('contract', {}) %}
-  {% set contract_enforced = contract_config.get('enforced', false) %}
+  {% set contract_config = config.get('contract') %}
+  {% set contract_enforced = contract_config.enforced if contract_config else false %}
 
   {% if contract_enforced and on_schema_change == 'ignore' %}
     {% set invalid_contract_schema_change_msg -%}
