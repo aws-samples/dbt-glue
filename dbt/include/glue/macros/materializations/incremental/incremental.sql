@@ -31,6 +31,9 @@
   {%- set is_incremental = 'False' -%}
   {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
 
+  {# /*-- Validate contract enforcement with schema change setting --*/ #}
+  {{ dbt_glue_validate_contract_with_schema_change(schema_change_mode) }}
+
   {% if existing_relation_type is not none %}
       {%- set target_relation = target_relation.incorporate(type=existing_relation_type if existing_relation_type != "iceberg_table" else "table") -%}
   {% endif %}
@@ -72,7 +75,8 @@
           {%- call statement('create_tmp_table') -%}
             {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
           {%- endcall -%}
-          {%- set is_tmp_relation_created = 'True' -%} 
+          {%- set is_tmp_relation_created = 'True' -%}
+          {%- do validate_incremental_contract(tmp_relation, target_relation) -%}
           {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
 
           {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
@@ -83,7 +87,8 @@
             {%- call statement('create_tmp_relation') -%}
               {{ create_temporary_view(tmp_relation, sql) }}
             {%- endcall -%}
-            {%- set is_tmp_relation_created = 'True' -%} 
+            {%- set is_tmp_relation_created = 'True' -%}
+            {%- do validate_incremental_contract(tmp_relation, target_relation) -%}
             {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
           {%- endif -%}
         {% endif %}
