@@ -62,7 +62,6 @@ class ColumnCsvMappingStrategy:
             )
             for i, column in enumerate(agate_table.columns)
         ]
-    
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
@@ -157,6 +156,7 @@ class GlueAdapter(SQLAdapter):
                         schema=schema_relation.schema,
                         identifier=table.get("Name"),
                         type=self.relation_type_map.get(table.get("TableType")),
+                        quote_policy=schema_relation.quote_policy,
                     ))
             return relations
         except client.exceptions.EntityNotFoundException as e:
@@ -239,7 +239,8 @@ class GlueAdapter(SQLAdapter):
                         database=computed_schema,
                         schema=computed_schema,
                         identifier=identifier,
-                        type='table'
+                        type='table',
+                        quote_policy=self.config.quoting,
                     )
                 except Exception as e:
                     return None
@@ -261,7 +262,8 @@ class GlueAdapter(SQLAdapter):
                 schema=computed_schema,
                 identifier=identifier,
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
-                is_delta=is_delta
+                is_delta=is_delta,
+                quote_policy=self.config.quoting,
             )
             logger.debug(f"""schema : {schema}
                              identifier : {identifier}
@@ -275,7 +277,7 @@ class GlueAdapter(SQLAdapter):
 
     def __compute_schema_based_on_type(self, schema, identifier):
         iceberg_catalog = self.get_custom_iceberg_catalog_namespace()
-        current_relation = self.Relation.create(database=schema, schema=schema, identifier=identifier)
+        current_relation = self.Relation.create(database=schema, schema=schema, identifier=identifier, quote_policy=self.config.quoting)
         existing_relation_type = self.get_table_type(current_relation)
         already_exist_iceberg = (existing_relation_type == 'iceberg_table')
         non_null_catalog = (iceberg_catalog is not None)
