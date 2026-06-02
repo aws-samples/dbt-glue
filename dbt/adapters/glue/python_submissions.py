@@ -5,8 +5,6 @@ from typing import Any, Dict
 
 from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
-from dbt.adapters.events.logging import AdapterLogger
-
 from dbt.adapters.glue import GlueCredentials
 
 
