@@ -38,8 +38,6 @@ class GluePythonJobHelper(PythonJobHelper):
         glue_client = connection.client
         session_id = connection.session_id
         
-        print(f"DEBUG: Using Glue session: {session_id}")
-        
         try:
             # Run the actual Python code
             statement_id = self._run_statement(glue_client, session_id, compiled_code)
