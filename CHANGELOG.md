@@ -4,6 +4,8 @@
 - This fix addresses a bug where spark.sql('use ...') would fail with a None database error when the database field wasn't set in profiles.yml, by falling back to the schema value.
 - Fixed incorrect error response assumption in Glue statement output. The `Status` field from `Statement.Output` should only return lowercase `ok` or `error`. The previous check `output.get('Status') == 'ERROR'` would miss non-uppercase, causing errors to silently pass as successful executions.
 - Fixed incremental append and partition_by support for Iceberg Python
+- Added `root_location` profile option to store table data at `location`/`table` (omitting the schema segment) instead of the default `location`/`schema`/`table`.
+- Centralized S3 location path construction into a single `_build_location` helper, fixing Windows path joins that previously used backslashes.
 
 ## 1.10.19
 
