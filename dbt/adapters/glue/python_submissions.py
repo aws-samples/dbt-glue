@@ -5,8 +5,10 @@ from typing import Any, Dict
 
 from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
+from dbt.adapters.events.logging import AdapterLogger
 
 from dbt.adapters.glue import GlueCredentials
+
 
 class GluePythonJobHelper(PythonJobHelper):
     def __init__(self, parsed_model: Dict, credentials: GlueCredentials) -> None:
@@ -41,12 +43,17 @@ class GluePythonJobHelper(PythonJobHelper):
         try:
             # Run the actual Python code
             statement_id = self._run_statement(glue_client, session_id, compiled_code)
-            
+
             # Wait for completion
             self._wait_for_statement_completion(glue_client, session_id, statement_id)
-            
+
         except Exception as e:
             raise DbtRuntimeError(f"Python model execution failed: {str(e)}")
+        finally:
+            # Close the session unless glue_session_reuse is enabled.
+            # close_session() already honors glue_session_reuse and returns
+            # early without stopping the session when reuse is requested.
+            connection.close_session()
     
     def _run_statement(self, glue_client, session_id, code):
         """Run a Python statement in the existing Glue session"""
@@ -55,7 +62,7 @@ class GluePythonJobHelper(PythonJobHelper):
             Code=code
         )
         return response['Id']
-    
+
     def _wait_for_statement_completion(self, glue_client, session_id, statement_id):
         """Wait for a statement to complete execution"""
         start_time = time.time()
