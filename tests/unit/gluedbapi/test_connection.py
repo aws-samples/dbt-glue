@@ -36,3 +36,45 @@ class TestGlueConnection(unittest.TestCase):
         retries = kwargs["config"].retries
         assert retries["max_attempts"] == 4
         assert retries["mode"] == "standard"
+
+    def test_create_session_tolerates_concurrent_already_exists(self) -> None:
+        """A concurrent dbt process may create the reusable session first.
+
+        `create_session` then raises AlreadyExistsException, which must be
+        swallowed so the caller attaches to the existing session instead of
+        failing the run.
+        """
+        connection = GlueConnection(GlueCredentials())
+
+        mock_client = mock.Mock()
+
+        class AlreadyExistsException(Exception):
+            pass
+
+        mock_client.exceptions.AlreadyExistsException = AlreadyExistsException
+        mock_client.create_session.side_effect = AlreadyExistsException("session exists")
+        connection._client = mock_client
+
+        # Should not raise, and should attach to the existing session id.
+        connection._create_session(session_id="dbt-glue")
+
+        assert connection.session_id == "dbt-glue"
+
+    def test_create_session_reraises_other_errors(self) -> None:
+        """Errors other than AlreadyExistsException must still propagate."""
+        connection = GlueConnection(GlueCredentials())
+
+        mock_client = mock.Mock()
+
+        class AlreadyExistsException(Exception):
+            pass
+
+        class InvalidInputException(Exception):
+            pass
+
+        mock_client.exceptions.AlreadyExistsException = AlreadyExistsException
+        mock_client.create_session.side_effect = InvalidInputException("bad input")
+        connection._client = mock_client
+
+        with self.assertRaises(InvalidInputException):
+            connection._create_session(session_id="dbt-glue")
