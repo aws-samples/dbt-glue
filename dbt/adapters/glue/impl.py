@@ -25,7 +25,7 @@ from dbt.adapters.glue.lakeformation import (
     LfTagsManager,
 )
 from dbt.adapters.contracts.relation import RelationConfig
-from dbt_common.exceptions import DbtDatabaseError, CompilationError
+from dbt_common.exceptions import DbtDatabaseError, CompilationError, DbtRuntimeError
 from dbt.adapters.base.impl import catch_as_completed
 from dbt_common.utils import executor
 from dbt_common.clients import agate_helper
@@ -423,6 +423,8 @@ class GlueAdapter(SQLAdapter):
             path = custom_location
         else:
             location = session.credentials.location
+            if location is None:
+                raise DbtRuntimeError("'location' must be set in profiles.yml to build a table location")
             if location is not None:
                 location = location.rstrip("/")
             if session.credentials.root_location:
