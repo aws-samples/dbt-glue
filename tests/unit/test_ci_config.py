@@ -93,6 +93,11 @@ class TestTriggerPolicy:
         assert "/test glue " in cond, f"{GATE_JOB} must guard on the command prefix"
         assert "pull_request" in cond, f"{GATE_JOB} must run only on PR comments"
 
+        # The gate writes a commit status, so it needs statuses: write.
+        assert gate.get("permissions", {}).get("statuses") == "write", (
+            f"{GATE_JOB} must have statuses: write permission"
+        )
+
         script = yaml.dump(gate)
         assert "getCollaboratorPermissionLevel" in script, (
             f"{GATE_JOB} must check commenter permission"
@@ -191,8 +196,65 @@ class TestWorkflowConfig:
 
 
 class TestPythonModelsJobList:
-    """python-models.yml is PR-only: gate + test job, no push-to-main job."""
+    """python-models.yml is PR-only: gate + test + report job, no push-to-main."""
 
     def test_expected_jobs_only(self):
         wf = _load_workflow("python-models.yml")
-        assert set(wf["jobs"].keys()) == {GATE_JOB, "python-model-tests-pr"}
+        assert set(wf["jobs"].keys()) == {
+            GATE_JOB,
+            "python-model-tests-pr",
+            "report-status",
+        }
+
+
+# ── Commit-status reporting ────────────────────────────────────────────
+
+# Each workflow reports its outcome as a commit status so the result becomes a
+# PR check (and can be made a required check via branch protection). Without
+# this, comment-triggered tests never gate merges -- the regression #678 left.
+STATUS_CONTEXTS = [
+    ("integration.yml", "functional-tests-pr", "integration-tests"),
+    ("python-models.yml", "python-model-tests-pr", "python-model-tests"),
+    ("s3-tables.yml", "test-s3-tables", "s3-tables-tests"),
+]
+
+
+class TestCommitStatusReporting:
+    """Test results must be reported back to the validated commit as a check."""
+
+    @pytest.mark.parametrize("workflow_file,test_job,status_context", STATUS_CONTEXTS)
+    def test_gate_marks_pending(self, workflow_file, test_job, status_context):
+        gate = yaml.dump(_load_workflow(workflow_file)["jobs"][GATE_JOB])
+        assert "createCommitStatus" in gate, (
+            f"{workflow_file} {GATE_JOB} must set a pending commit status"
+        )
+        assert status_context in gate, (
+            f"{workflow_file} {GATE_JOB} must use context '{status_context}'"
+        )
+
+    @pytest.mark.parametrize("workflow_file,test_job,status_context", STATUS_CONTEXTS)
+    def test_report_job_reports_outcome(self, workflow_file, test_job, status_context):
+        wf = _load_workflow(workflow_file)
+        assert "report-status" in wf["jobs"], f"{workflow_file} missing report-status"
+        report = wf["jobs"]["report-status"]
+
+        # Must run even when the test job failed, but only if the gate passed,
+        # so a real failure is surfaced as a failing check (not a skipped one).
+        cond = report.get("if", "")
+        assert "always()" in cond, "report-status must use always()"
+        assert "check-trigger" in cond, "report-status must require gate success"
+
+        needs = report.get("needs", [])
+        needs = [needs] if isinstance(needs, str) else needs
+        assert GATE_JOB in needs and test_job in needs, (
+            f"report-status must depend on {GATE_JOB} and {test_job}"
+        )
+
+        body = yaml.dump(report)
+        assert "createCommitStatus" in body, "report-status must set a commit status"
+        assert status_context in body, (
+            f"report-status must report context '{status_context}'"
+        )
+        assert "needs.check-trigger.outputs.pr-sha" in body, (
+            "report-status must report against the validated SHA"
+        )
