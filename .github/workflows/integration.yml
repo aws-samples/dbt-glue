@@ -1,9 +1,12 @@
 name: Integration Tests
 
 on:
-  # we use pull_request_target to run the CI also for forks
-  pull_request_target:
-    types: [labeled]
+  # Fork PRs run untrusted code against real AWS Glue, which requires secrets.
+  # To prevent pwn requests (TOCTOU), the test job is triggered by a maintainer
+  # comment that pins the reviewed commit SHA, and runs only if that SHA still
+  # matches the PR head. See the `check-trigger` job below.
+  issue_comment:
+    types: [created]
   push:
     branches: [main]
 
@@ -12,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ contains(github.event_name, 'pull_request') && github.event.pull_request.head.ref || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'issue_comment' && github.event.issue.number || github.sha }}
   cancel-in-progress: true
 
 defaults:
@@ -20,10 +23,81 @@ defaults:
     shell: bash
 
 jobs:
-  # workflow that is invoked when for PRs with labels 'enable-functional-tests'
+  # Gate: only a maintainer comment "/test glue <40-char-sha>" can start the
+  # secret-bearing PR tests, and only if the pinned SHA still equals the PR head.
+  check-trigger:
+    name: Check trigger
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/test glue ')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    outputs:
+      pr-sha: ${{ steps.validate-sha.outputs.sha }}
+    steps:
+      - name: Validate SHA from comment
+        id: validate-sha
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 1. Commenter must have write+ permission on the repo.
+            const { data: permData } = await github.rest.repos.getCollaboratorPermissionLevel({
+              ...context.repo,
+              username: context.actor
+            });
+            if (!['admin', 'write'].includes(permData.permission)) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body: `❌ @${context.actor} does not have write permission on this repository.`
+              });
+              core.setFailed('Insufficient permissions');
+              return;
+            }
+
+            // 2. Comment must pin a full 40-char commit SHA.
+            const comment = context.payload.comment.body.trim();
+            const shaMatch = comment.match(/^\/test glue ([a-f0-9]{40})$/);
+            if (!shaMatch) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body: '❌ Invalid format. Use: `/test glue <full-40-char-sha>`'
+              });
+              core.setFailed('Invalid SHA format');
+              return;
+            }
+            const requestedSHA = shaMatch[1];
+
+            // 3. Pinned SHA must still equal the PR head (blocks post-review push / TOCTOU).
+            const pr = (await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: context.issue.number
+            })).data;
+            if (pr.head.sha !== requestedSHA) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body: `❌ SHA mismatch!\n- Provided: \`${requestedSHA}\`\n- Current PR head: \`${pr.head.sha}\`\n\nPlease re-review the latest commit and comment \`/test glue <new-sha>\`.`
+              });
+              core.setFailed('SHA mismatch - possible TOCTOU');
+              return;
+            }
+
+            core.setOutput('sha', requestedSHA);
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `✅ Integration tests triggered by @${context.actor} for \`${requestedSHA}\`. [View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+            });
+
+  # PR tests: run only after check-trigger has verified the commenter and SHA.
   functional-tests-pr:
     name: Functional Tests - PR / python ${{ matrix.python-version }}
-    if: contains(github.event.pull_request.labels.*.name, 'enable-functional-tests')
+    needs: check-trigger
 
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -43,6 +117,10 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v3
+        with:
+          # Only the SHA validated by check-trigger; never the live PR head.
+          ref: ${{ needs.check-trigger.outputs.pr-sha }}
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
