@@ -19,9 +19,15 @@ import os
 import pytest
 import yaml
 
-WORKFLOWS_DIR = os.path.join(
-    os.path.dirname(__file__), os.pardir, os.pardir, ".github", "workflows"
+GITHUB_DIR = os.path.join(
+    os.path.dirname(__file__), os.pardir, os.pardir, ".github"
 )
+WORKFLOWS_DIR = os.path.join(GITHUB_DIR, "workflows")
+
+# The gate logic lives in a single composite action shared by all workflows,
+# so the security checks are asserted against it once (not per workflow file).
+GATE_ACTION = os.path.join(GITHUB_DIR, "actions", "check-trigger", "action.yml")
+GATE_ACTION_USES = "./.github/actions/check-trigger"
 
 # (workflow file, secret-bearing PR job, gate job, validated-SHA expression)
 PR_JOBS = [
@@ -46,6 +52,11 @@ FORK_HEAD_REF = "${{ github.event.pull_request.head.sha }}"
 def _load_workflow(filename):
     path = os.path.join(WORKFLOWS_DIR, filename)
     with open(path) as f:
+        return yaml.safe_load(f)
+
+
+def _load_gate_action():
+    with open(GATE_ACTION) as f:
         return yaml.safe_load(f)
 
 
@@ -97,14 +108,36 @@ class TestTriggerPolicy:
         assert gate.get("permissions", {}).get("statuses") == "write", (
             f"{GATE_JOB} must have statuses: write permission"
         )
-
-        script = yaml.dump(gate)
-        assert "getCollaboratorPermissionLevel" in script, (
-            f"{GATE_JOB} must check commenter permission"
+        # Least privilege: the gate handles untrusted comment input and must not
+        # carry write scopes it does not use (e.g. pull-requests: write).
+        assert gate.get("permissions", {}).get("pull-requests") is None, (
+            f"{GATE_JOB} must not request unused pull-requests permission"
         )
-        # The SHA-match check is what binds approval to the reviewed commit.
-        assert "head.sha" in script and "SHA mismatch" in script, (
-            f"{GATE_JOB} must reject when the pinned SHA != PR head (TOCTOU guard)"
+
+        # The gate logic lives in the shared composite action; the job must use
+        # it (rather than inlining a copy that could drift).
+        assert _find_step_index(gate, GATE_ACTION_USES) != -1, (
+            f"{GATE_JOB} must run the shared {GATE_ACTION_USES} action"
+        )
+
+    @pytest.mark.parametrize("workflow_file,job_name", PR_JOBS)
+    def test_gate_checks_out_trusted_action_before_use(self, workflow_file, job_name):
+        """The local action must be fetched from the default branch (trusted),
+        and that checkout must not persist credentials."""
+        gate = _load_workflow(workflow_file)["jobs"][GATE_JOB]
+        checkout_idx = _find_step_index(gate, "actions/checkout")
+        action_idx = _find_step_index(gate, GATE_ACTION_USES)
+        assert checkout_idx != -1, f"{GATE_JOB} must check out the repo for the action"
+        assert checkout_idx < action_idx, (
+            f"{GATE_JOB} must check out before using the local action"
+        )
+        # No explicit ref => default branch (trusted gate code), never PR head.
+        checkout = gate["steps"][checkout_idx]
+        assert checkout.get("with", {}).get("ref") is None, (
+            f"{GATE_JOB} checkout must use the default branch, not a PR ref"
+        )
+        assert checkout.get("with", {}).get("persist-credentials") is False, (
+            f"{GATE_JOB} checkout must set persist-credentials: false"
         )
 
 
@@ -223,13 +256,17 @@ class TestCommitStatusReporting:
     """Test results must be reported back to the validated commit as a check."""
 
     @pytest.mark.parametrize("workflow_file,test_job,status_context", STATUS_CONTEXTS)
-    def test_gate_marks_pending(self, workflow_file, test_job, status_context):
-        gate = yaml.dump(_load_workflow(workflow_file)["jobs"][GATE_JOB])
-        assert "createCommitStatus" in gate, (
-            f"{workflow_file} {GATE_JOB} must set a pending commit status"
-        )
-        assert status_context in gate, (
-            f"{workflow_file} {GATE_JOB} must use context '{status_context}'"
+    def test_gate_passes_status_context_to_action(
+        self, workflow_file, test_job, status_context
+    ):
+        """The workflow must pass its status context to the shared gate action,
+        which is what sets the pending commit status."""
+        gate = _load_workflow(workflow_file)["jobs"][GATE_JOB]
+        idx = _find_step_index(gate, GATE_ACTION_USES)
+        assert idx != -1, f"{workflow_file} {GATE_JOB} must use the gate action"
+        with_ = gate["steps"][idx].get("with", {})
+        assert with_.get("status-context") == status_context, (
+            f"{workflow_file} {GATE_JOB} must pass status-context '{status_context}'"
         )
 
     @pytest.mark.parametrize("workflow_file,test_job,status_context", STATUS_CONTEXTS)
@@ -257,4 +294,45 @@ class TestCommitStatusReporting:
         )
         assert "needs.check-trigger.outputs.pr-sha" in body, (
             "report-status must report against the validated SHA"
+        )
+
+
+# ── Shared gate action ─────────────────────────────────────────────────
+
+
+class TestGateAction:
+    """The security logic shared by all workflows lives in one composite action.
+
+    These are the core pwn-request defenses; assert them on the action itself so
+    they cannot silently weaken (the workflow files no longer inline this code).
+    """
+
+    def test_is_composite_action_with_sha_output(self):
+        action = _load_gate_action()
+        assert action.get("runs", {}).get("using") == "composite", (
+            "check-trigger must be a composite action"
+        )
+        assert "sha" in action.get("outputs", {}), (
+            "gate action must expose the validated 'sha' output"
+        )
+        assert {"status-context", "test-name"} <= set(action.get("inputs", {})), (
+            "gate action must accept status-context and test-name inputs"
+        )
+
+    def test_enforces_permission_sha_and_toctou(self):
+        script = yaml.dump(_load_gate_action())
+        assert "getCollaboratorPermissionLevel" in script, (
+            "gate must check commenter permission"
+        )
+        assert "['admin', 'write']" in script, (
+            "gate must require admin/write permission"
+        )
+        # Full 40-char SHA must be pinned in the comment.
+        assert "[a-f0-9]{40}" in script, "gate must require a full 40-char SHA"
+        # The SHA-match check is what binds approval to the reviewed commit.
+        assert "head.sha" in script and "SHA mismatch" in script, (
+            "gate must reject when the pinned SHA != PR head (TOCTOU guard)"
+        )
+        assert "createCommitStatus" in script, (
+            "gate must set a pending commit status on the validated SHA"
         )
