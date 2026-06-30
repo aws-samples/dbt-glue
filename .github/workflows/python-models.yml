@@ -31,8 +31,8 @@ jobs:
       startsWith(github.event.comment.body, '/test glue ')
     runs-on: ubuntu-latest
     permissions:
-      issues: write
-      statuses: write
+      pull-requests: write  # required to comment on the PR (issues.createComment on a PR)
+      statuses: write        # required to set the commit status
     outputs:
       pr-sha: ${{ steps.validate-sha.outputs.sha }}
     steps:

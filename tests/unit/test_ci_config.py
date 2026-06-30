@@ -104,14 +104,20 @@ class TestTriggerPolicy:
         assert "/test glue " in cond, f"{GATE_JOB} must guard on the command prefix"
         assert "pull_request" in cond, f"{GATE_JOB} must run only on PR comments"
 
-        # The gate writes a commit status, so it needs statuses: write.
-        assert gate.get("permissions", {}).get("statuses") == "write", (
+        # The gate needs exactly two write scopes and no more (least privilege):
+        #   - statuses: write     -> set the pending commit status
+        #   - pull-requests: write -> comment on the PR (issues.createComment on a PR
+        #     requires the pull-requests scope; issues: write is not sufficient)
+        perms = gate.get("permissions", {})
+        assert perms.get("statuses") == "write", (
             f"{GATE_JOB} must have statuses: write permission"
         )
-        # Least privilege: the gate handles untrusted comment input and must not
-        # carry write scopes it does not use (e.g. pull-requests: write).
-        assert gate.get("permissions", {}).get("pull-requests") is None, (
-            f"{GATE_JOB} must not request unused pull-requests permission"
+        assert perms.get("pull-requests") == "write", (
+            f"{GATE_JOB} must have pull-requests: write to comment on the PR"
+        )
+        # contents stays read-only: the gate must never get write access to code.
+        assert perms.get("contents") in (None, "read"), (
+            f"{GATE_JOB} must not request contents: write"
         )
 
         # The gate logic lives in the shared composite action; the job must use
