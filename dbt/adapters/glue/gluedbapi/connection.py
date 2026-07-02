@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from dbt import exceptions as dbterrors
 import boto3
 from botocore.config import Config
 from botocore.exceptions import WaiterError
@@ -167,6 +166,9 @@ class GlueConnection:
 
         if (self._create_session_config["extra_py_files"] is not None):
             args["--extra-py-files"] = f"{self._create_session_config['extra_py_files']}"
+
+        if (self._create_session_config["packages"] is not None):
+              args["--additional-python-modules"] = ",".join(self._create_session_config["packages"])
 
         additional_args = {}
         additional_args["NumberOfWorkers"] = self._create_session_config["workers"]
@@ -388,8 +390,15 @@ class GlueConnection:
 
     def _string_to_dict(self, value_to_convert):
         value_in_dictionary = {}
-        for i in value_to_convert.split(","):
-            value_in_dictionary[i.split("=")[0].strip('\'').replace("\"", "")] = i.split("=")[1].strip('"\'')
+        for i in value_to_convert.split("--"):
+            i = i.strip()
+            if i == "":
+                continue
+            i = f"--{i}"
+            if i[-1] == ',':
+                i=i.rstrip(",")
+            value_in_dictionary[i.split(":")[0].strip('\'').replace("\"", "")] = i.split(":")[1].strip('"\'')
+         
         return value_in_dictionary
 
 
