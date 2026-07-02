@@ -221,7 +221,7 @@ class TestMainJobs:
 
 
 class TestWorkflowConfig:
-    """id-token must not be writable in the comment-triggered workflows."""
+    """Workflow-level config: permissions and concurrency must be declared."""
 
     @pytest.mark.parametrize("workflow_file", ALL_WORKFLOW_FILES)
     def test_permissions_present(self, workflow_file):

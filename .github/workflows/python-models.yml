@@ -37,7 +37,7 @@ jobs:
       pr-sha: ${{ steps.validate-sha.outputs.sha }}
     steps:
       - name: Check out the gate action from the default branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Validate SHA from comment
@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           # Only the SHA validated by check-trigger; never the live PR head.
           ref: ${{ needs.check-trigger.outputs.pr-sha }}
