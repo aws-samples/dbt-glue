@@ -6,6 +6,7 @@
 - Fixed incremental append and partition_by support for Iceberg Python
 - Added `root_location` profile option to store table data at `location`/`table` (omitting the schema segment) instead of the default `location`/`schema`/`table`.
 - Centralized S3 location path construction into a single `_build_location` helper, fixing Windows path joins that previously used backslashes.
+- Secured fork-PR integration test workflows against pwn requests (TOCTOU) by replacing the `pull_request_target` label gate with a `/test glue <sha>` maintainer command that pins the reviewed commit
 
 ## 1.10.19
 
