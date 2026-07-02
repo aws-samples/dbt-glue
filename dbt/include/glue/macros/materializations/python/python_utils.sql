@@ -238,12 +238,12 @@ try:
       print("DEBUG: Using CREATE OR REPLACE TABLE for full refresh / first run")
       {%- if partition_by is not none %}
         {%- if partition_by is string %}
-          partition_clause = " PARTITIONED BY ({{ partition_by }})"
+      partition_clause = " PARTITIONED BY ({{ partition_by }})"
         {%- else %}
-          partition_clause = " PARTITIONED BY ({{ partition_by | join(', ') }})"
+      partition_clause = " PARTITIONED BY ({{ partition_by | join(', ') }})"
         {%- endif %}
       {%- else %}
-        partition_clause = ""
+      partition_clause = " "
       {%- endif %}
       create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG" + partition_clause + " AS SELECT * FROM temp_python_df"
       print("DEBUG: Executing SQL:", create_sql)
