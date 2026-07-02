@@ -1,15 +1,19 @@
 name: Python Model Tests
 
 on:
-  pull_request_target:
-    types: [labeled]
+  # Fork PRs run untrusted code against real AWS Glue, which requires secrets.
+  # To prevent pwn requests (TOCTOU), the test job is triggered by a maintainer
+  # comment that pins the reviewed commit SHA, and runs only if that SHA still
+  # matches the PR head. See the `check-trigger` job below.
+  issue_comment:
+    types: [created]
 
 permissions:
   id-token: write
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ contains(github.event_name, 'pull_request') && github.event.pull_request.head.ref || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 defaults:
@@ -17,9 +21,36 @@ defaults:
     shell: bash
 
 jobs:
+  # Gate: only a maintainer comment "/test glue <40-char-sha>" can start the
+  # secret-bearing PR tests, and only if the pinned SHA still equals the PR head.
+  check-trigger:
+    name: Check trigger
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      startsWith(github.event.comment.body, '/test glue ')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # required to comment on the PR (issues.createComment on a PR)
+      statuses: write        # required to set the commit status
+    outputs:
+      pr-sha: ${{ steps.validate-sha.outputs.sha }}
+    steps:
+      - name: Check out the gate action from the default branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate SHA from comment
+        id: validate-sha
+        uses: ./.github/actions/check-trigger
+        with:
+          status-context: python-model-tests
+          test-name: Python model tests
+
+  # PR tests: run only after check-trigger has verified the commenter and SHA.
   python-model-tests-pr:
     name: Python Model Tests - PR / python ${{ matrix.python-version }}
-    if: contains(github.event.pull_request.labels.*.name, 'enable-functional-tests')
+    needs: check-trigger
 
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -38,7 +69,11 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # Only the SHA validated by check-trigger; never the live PR head.
+          ref: ${{ needs.check-trigger.outputs.pr-sha }}
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -84,3 +119,27 @@ jobs:
           name: python_model_results_pr_${{ matrix.python-version }}-${{ steps.date.outputs.date }}.csv
           path: python_model_results.csv
           overwrite: true
+
+  # Report the test outcome back to the validated commit so it appears as a PR
+  # check and can be made a required check via branch protection.
+  report-status:
+    name: Report python-model-tests status
+    needs: [check-trigger, python-model-tests-pr]
+    if: always() && needs.check-trigger.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const result = '${{ needs.python-model-tests-pr.result }}';
+            const state = result === 'success' ? 'success' : 'failure';
+            await github.rest.repos.createCommitStatus({
+              ...context.repo,
+              sha: '${{ needs.check-trigger.outputs.pr-sha }}',
+              context: 'python-model-tests',
+              state,
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: `Python model tests ${result}`
+            });
