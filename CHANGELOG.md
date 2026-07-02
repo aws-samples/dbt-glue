@@ -3,6 +3,10 @@
 - Fixed `ref()` and `source()` in Python models to use dbt-core's resolved functions
 - This fix addresses a bug where spark.sql('use ...') would fail with a None database error when the database field wasn't set in profiles.yml, by falling back to the schema value.
 - Fixed incorrect error response assumption in Glue statement output. The `Status` field from `Statement.Output` should only return lowercase `ok` or `error`. The previous check `output.get('Status') == 'ERROR'` would miss non-uppercase, causing errors to silently pass as successful executions.
+- Fixed incremental append and partition_by support for Iceberg Python
+- Added `root_location` profile option to store table data at `location`/`table` (omitting the schema segment) instead of the default `location`/`schema`/`table`.
+- Centralized S3 location path construction into a single `_build_location` helper, fixing Windows path joins that previously used backslashes.
+- Secured fork-PR integration test workflows against pwn requests (TOCTOU) by replacing the `pull_request_target` label gate with a `/test glue <sha>` maintainer command that pins the reviewed commit
 
 ## 1.10.19
 
