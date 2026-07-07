@@ -7,6 +7,7 @@
 - Added `root_location` profile option to store table data at `location`/`table` (omitting the schema segment) instead of the default `location`/`schema`/`table`.
 - Centralized S3 location path construction into a single `_build_location` helper, fixing Windows path joins that previously used backslashes.
 - Secured fork-PR integration test workflows against pwn requests (TOCTOU) by replacing the `pull_request_target` label gate with a `/test glue <sha>` maintainer command that pins the reviewed commit
+- Fixed error for dbt build --empty fails when refs already have aliases
 
 ## 1.10.19
 
@@ -262,4 +263,3 @@
   - Added Conf param for Glue to add custom spark configuration options.
   - Updated glue.sql.sources.partitionOverwriteMode to spark.sql.sources.partitionOverwriteMode to work partition overwrite properly.
 - Override default types for STRING from TEXT to STRING
-

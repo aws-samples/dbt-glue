@@ -7,11 +7,7 @@ from dbt.exceptions import DbtRuntimeError
 class TestGlueRelation(unittest.TestCase):
     def test_pre_deserialize(self):
         data = {
-            "quote_policy": {
-                "database": False,
-                "schema": False,
-                "identifier": False
-            },
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
                 "database": "some_database",
                 "schema": "some_schema",
@@ -26,11 +22,7 @@ class TestGlueRelation(unittest.TestCase):
         self.assertEqual(relation.identifier, "some_table")
 
         data = {
-            "quote_policy": {
-                "database": False,
-                "schema": False,
-                "identifier": False
-            },
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
                 "database": None,
                 "schema": "some_schema",
@@ -45,11 +37,7 @@ class TestGlueRelation(unittest.TestCase):
         self.assertEqual(relation.identifier, "some_table")
 
         data = {
-            "quote_policy": {
-                "database": False,
-                "schema": False,
-                "identifier": False
-            },
+            "quote_policy": {"database": False, "schema": False, "identifier": False},
             "path": {
                 "schema": "some_schema",
                 "identifier": "some_table",
@@ -92,7 +80,7 @@ class TestGlueRelation(unittest.TestCase):
                 "schema": "some_database",
                 "identifier": "some_table",
             },
-            "include_policy":  {
+            "include_policy": {
                 "database": True,
                 "schema": True,
             },
@@ -102,3 +90,12 @@ class TestGlueRelation(unittest.TestCase):
         relation = SparkRelation.from_dict(data)
         with self.assertRaises(DbtRuntimeError):
             relation.render()
+
+    def test_render_no_alias(self):
+        relation = SparkRelation.create(
+            schema="my_test_schema", identifier="my_test_identifier", limit=10
+        )
+
+        result = relation.render_limited()
+        assert result == "(select * from my_test_schema.my_test_identifier limit 10)"
+        assert "_dbt_limit_subq" not in result
