@@ -7,6 +7,7 @@
 - Added `root_location` profile option to store table data at `location`/`table` (omitting the schema segment) instead of the default `location`/`schema`/`table`.
 - Centralized S3 location path construction into a single `_build_location` helper, fixing Windows path joins that previously used backslashes.
 - Secured fork-PR integration test workflows against pwn requests (TOCTOU) by replacing the `pull_request_target` label gate with a `/test glue <sha>` maintainer command that pins the reviewed commit
+- Fixed a cross-process race when reusable sessions are enabled: starting two dbt runs at nearly the same time with the same `glue_session_id` could fail with a session creation error, because both processes created the same session id concurrently.
 
 ## 1.10.19
 

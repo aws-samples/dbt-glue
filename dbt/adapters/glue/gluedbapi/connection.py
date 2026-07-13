@@ -190,16 +190,22 @@ class GlueConnection:
         if (self.credentials.datalake_formats is not None):
             args["--datalake-formats"] = f"{self.credentials.datalake_formats}"
 
-        self._session = self.client.create_session(
-            Id=session_id,
-            Role=self._create_session_config["role_arn"],
-            DefaultArguments=args,
-            Command={
-                "Name": "glueetl",
-                "PythonVersion": "3"
-            },
-            **additional_args
-        )
+        try:
+            self._session = self.client.create_session(
+                Id=session_id,
+                Role=self._create_session_config["role_arn"],
+                DefaultArguments=args,
+                Command={
+                    "Name": "glueetl",
+                    "PythonVersion": "3"
+                },
+                **additional_args
+            )
+        except self.client.exceptions.AlreadyExistsException:
+            logger.debug(
+                f"Session {session_id} already exists, created by a concurrent process. Reusing it."
+            )
+            self._session = {"Session": {"Id": session_id}}
 
         return
 
