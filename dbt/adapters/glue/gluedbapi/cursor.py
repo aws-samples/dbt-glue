@@ -3,7 +3,7 @@ import textwrap
 import json
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt import exceptions as dbterrors
-from dbt_common.exceptions import DbtDatabaseError
+from dbt_common.exceptions import DbtDatabaseError, ExecutableError
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 from dbt.adapters.glue.util import get_pandas_dataframe_from_result_file
 from dbt.adapters.events.logging import AdapterLogger
@@ -101,7 +101,7 @@ class GlueCursor:
             response = self.statement.execute()
         except Exception as e:
             logger.exception(f"Error in GlueCursor (session_id={self.connection.session_id}) execute: {e}")
-            raise dbterrors.ExecutableError
+            raise ExecutableError(str(e)) from e
 
         logger.debug(f"response: {response}")
         self.state = response.get("Statement", {}).get("State", GlueCursorState.WAITING)
