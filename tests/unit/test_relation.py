@@ -120,16 +120,16 @@ class TestSparkRelationCreateFrom(unittest.TestCase):
         relation_config.catalog_name = None
         return relation_config
 
-    def test_none_quoting_in_project_defaults_to_true(self):
-        """When dbt core deep_merges None values into the quote policy, they should default to True."""
+    def test_none_quoting_in_project_falls_back_to_adapter_default(self):
+        """When quoting is unset (None) in the project, it should fall back to the adapter default (False)."""
         quoting = self._make_quoting({"database": None, "schema": None, "identifier": None})
         relation_config = self._make_relation_config()
 
         rel = SparkRelation.create_from(quoting, relation_config)
 
-        self.assertTrue(rel.quote_policy.database)
-        self.assertTrue(rel.quote_policy.schema)
-        self.assertTrue(rel.quote_policy.identifier)
+        self.assertFalse(rel.quote_policy.database)
+        self.assertFalse(rel.quote_policy.schema)
+        self.assertFalse(rel.quote_policy.identifier)
 
     def test_explicit_false_quoting_is_preserved(self):
         """When quoting is explicitly set to False in the project, it should not be overridden."""
@@ -154,18 +154,18 @@ class TestSparkRelationCreateFrom(unittest.TestCase):
         self.assertTrue(rel.quote_policy.identifier)
 
     def test_mixed_none_and_explicit_quoting(self):
-        """None fields default to True while explicitly set fields are preserved."""
+        """Unset (None) fields fall back to the adapter default while explicitly set fields are preserved."""
         quoting = self._make_quoting({"database": None, "schema": False, "identifier": True})
         relation_config = self._make_relation_config()
 
         rel = SparkRelation.create_from(quoting, relation_config)
 
-        self.assertTrue(rel.quote_policy.database)   # None → defaulted to True
+        self.assertFalse(rel.quote_policy.database)  # None → falls back to adapter default (False)
         self.assertFalse(rel.quote_policy.schema)    # explicitly False → preserved
         self.assertTrue(rel.quote_policy.identifier) # explicitly True → preserved
 
-    def test_none_quoting_in_config_defaults_to_true(self):
-        """When relation_config.quoting_dict contains None values, they should default to True."""
+    def test_none_quoting_in_config_falls_back_to_adapter_default(self):
+        """When relation_config.quoting_dict contains None values, they should fall back to the adapter default (False)."""
         quoting = self._make_quoting({})
         relation_config = self._make_relation_config(
             quoting_dict={"database": None, "schema": None, "identifier": None}
@@ -173,9 +173,9 @@ class TestSparkRelationCreateFrom(unittest.TestCase):
 
         rel = SparkRelation.create_from(quoting, relation_config)
 
-        self.assertTrue(rel.quote_policy.database)
-        self.assertTrue(rel.quote_policy.schema)
-        self.assertTrue(rel.quote_policy.identifier)
+        self.assertFalse(rel.quote_policy.database)
+        self.assertFalse(rel.quote_policy.schema)
+        self.assertFalse(rel.quote_policy.identifier)
 
     def test_explicit_false_in_config_is_preserved(self):
         """When relation_config.quoting_dict explicitly sets False, it should not be overridden."""

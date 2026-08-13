@@ -2,6 +2,7 @@ from typing import Optional, Type, Any
 from dataclasses import dataclass, field
 from dbt.adapters.base.relation import BaseRelation, Policy
 from dbt_common.exceptions import DbtRuntimeError
+from dbt_common.utils import deep_merge
 
 
 @dataclass
@@ -34,19 +35,36 @@ class SparkRelation(BaseRelation):
         relation_config,
         **kwargs: Any,
     ) -> 'SparkRelation':
-        # Override quoting defaults because dbt core will deep_merge `None` values over True
-        rel = super().create_from(quoting, relation_config, **kwargs)
-        
-        # Force default true for quote_policy if not explicitly disabled in project
-        quote_policy = rel.quote_policy
-        if getattr(quote_policy, 'database', None) is None:
-            quote_policy.database = True
-        if getattr(quote_policy, 'schema', None) is None:
-            quote_policy.schema = True
-        if getattr(quote_policy, 'identifier', None) is None:
-            quote_policy.identifier = True
-            
-        return rel
+        # If unset (None), it defaults to False. If explicitly set, that value is inherited.
+        def _drop_none(policy_dict):
+            return {k: v for k, v in (policy_dict or {}).items() if v is not None}
+
+        quote_policy = _drop_none(kwargs.pop('quote_policy', {}))
+
+        config_quoting = dict(relation_config.quoting_dict)
+        config_quoting.pop('column', None)
+
+        catalog_name = (
+            relation_config.catalog_name
+            if hasattr(relation_config, 'catalog_name')
+            else relation_config.config.get('catalog', None)
+        )
+
+        merged_quote_policy = deep_merge(
+            cls.get_default_quote_policy().to_dict(omit_none=True),
+            _drop_none(quoting.quoting),
+            _drop_none(config_quoting),
+            quote_policy,
+        )
+
+        return cls.create(
+            database=relation_config.database,
+            schema=relation_config.schema,
+            identifier=relation_config.identifier,
+            quote_policy=merged_quote_policy,
+            catalog_name=catalog_name,
+            **kwargs,
+        )
 
     def __post_init__(self):
         return

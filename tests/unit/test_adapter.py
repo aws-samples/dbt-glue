@@ -190,6 +190,7 @@ class TestGlueAdapter(unittest.TestCase):
         adapter.get_connection = lambda : (None, glue_client)
         relation = Mock(SparkRelation)
         relation.schema = database_name
+        relation.quote_policy = SparkRelation.get_default_quote_policy()
 
         relations = adapter.list_relations_without_caching(relation)
 
