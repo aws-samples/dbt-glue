@@ -145,10 +145,15 @@ print("DEBUG: is_incremental_merge =", is_incremental_merge)
 
 # Check if target table already exists (for incremental logic)
 table_exists = False
+is_incremental_append = False
 try:
     spark.sql(f"DESCRIBE TABLE {table_name}")
     table_exists = True
     print("DEBUG: Target table exists - this is an incremental run")
+    is_incremental_append = (materialized == "incremental" and
+                            incremental_strategy == "append" and
+                            table_exists)
+    print("DEBUG: is_incremental_append =", is_incremental_append)
 except Exception as e:
     print("DEBUG: Target table does not exist - this is a full refresh run")
 
@@ -186,13 +191,64 @@ try:
         spark.sql(merge_sql)
         print("DEBUG: MERGE completed successfully")
 
+    elif is_incremental_append:
+        # For incremental append, INSERT INTO existing table
+        print("DEBUG: Using INSERT INTO for incremental append")
+        {%- if partition_by is not none %}
+        # Check current partition spec and evolve if needed (Iceberg partition evolution)
+          {%- if partition_by is string %}
+            {%- set desired_fields = [partition_by] %}
+          {%- else %}
+            {%- set desired_fields = partition_by %}
+          {%- endif %}
+        desired_partitions = set({{ desired_fields | tojson }})
+
+        import re
+        show_ddl = spark.sql(f"SHOW CREATE TABLE {table_name}").collect()[0][0]
+        match = re.search(r'PARTITIONED\s+BY\s+\((.+)\)', show_ddl)
+        if match:
+          inner = match.group(1)
+          current_partitions = set(col.lower() for col in re.findall(r'[a-zA-Z_]\w*(?:\([^)]*\))?', inner))
+        else:
+          current_partitions = set()
+
+        print("DEBUG: Current partitions:", current_partitions)
+        print("DEBUG: Desired partitions:", desired_partitions)
+
+        if current_partitions != desired_partitions:
+            for field in current_partitions - desired_partitions:
+                drop_sql = f"ALTER TABLE {table_name} DROP PARTITION FIELD {field}"
+                print("DEBUG: Dropping partition field:", drop_sql)
+                spark.sql(drop_sql)
+            for field in desired_partitions - current_partitions:
+                add_sql = f"ALTER TABLE {table_name} ADD PARTITION FIELD {field}"
+                print("DEBUG: Adding partition field:", add_sql)
+                spark.sql(add_sql)
+            print("DEBUG: Partition spec evolved successfully")
+        else:
+            print("DEBUG: Partition spec already matches, no evolution needed")
+        {%- endif %}
+        insert_sql = "INSERT INTO " + table_name + " SELECT * FROM temp_python_df"
+        print("DEBUG: Executing SQL:", insert_sql)
+        spark.sql(insert_sql)
+        print("DEBUG: INSERT INTO completed successfully")
+
     else:
-        # For first run or non-merge strategies, use CREATE OR REPLACE
-        print("DEBUG: Using CREATE OR REPLACE TABLE for full refresh")
-        create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
-        print("DEBUG: Executing SQL:", create_sql)
-        spark.sql(create_sql)
-        print("DEBUG: Iceberg table created successfully")
+      # First run or full refresh - CREATE OR REPLACE with partitioning
+      print("DEBUG: Using CREATE OR REPLACE TABLE for full refresh / first run")
+      {%- if partition_by is not none %}
+        {%- if partition_by is string %}
+      partition_clause = " PARTITIONED BY ({{ partition_by }})"
+        {%- else %}
+      partition_clause = " PARTITIONED BY ({{ partition_by | join(', ') }})"
+        {%- endif %}
+      {%- else %}
+      partition_clause = " "
+      {%- endif %}
+      create_sql = "CREATE OR REPLACE TABLE " + table_name + " USING ICEBERG" + partition_clause + " AS SELECT * FROM temp_python_df"
+      print("DEBUG: Executing SQL:", create_sql)
+      spark.sql(create_sql)
+      print("DEBUG: Iceberg table created successfully")
 
     # Clean up temp view to avoid conflicts with subsequent models
     spark.sql("DROP VIEW IF EXISTS temp_python_df")
@@ -200,20 +256,10 @@ try:
 
 except Exception as e:
     print("DEBUG: Error creating Iceberg table:", str(e))
-    print("DEBUG: Trying with CREATE TABLE IF NOT EXISTS...")
-    try:
-        create_sql_fallback = "CREATE TABLE IF NOT EXISTS " + table_name + " USING ICEBERG AS SELECT * FROM temp_python_df"
-        spark.sql(create_sql_fallback)
-        print("DEBUG: Iceberg table created with IF NOT EXISTS")
+    import traceback
+    traceback.print_exc()
+    raise e
 
-        # Clean up temp view
-        spark.sql("DROP VIEW IF EXISTS temp_python_df")
-        print("DEBUG: Cleaned up temp view")
-
-    except Exception as e2:
-        print("DEBUG: Both Iceberg approaches failed:", str(e2))
-        # For Iceberg, we must use SQL - no fallback to saveAsTable
-        raise Exception("Failed to create Iceberg table: " + str(e2))
 {%- else -%}
 # For non-Iceberg tables, use the standard saveAsTable approach
 writer.saveAsTable("{{ target_relation.schema }}.{{ target_relation.identifier }}")

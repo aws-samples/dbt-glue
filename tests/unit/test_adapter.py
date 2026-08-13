@@ -122,6 +122,77 @@ class TestGlueAdapter(unittest.TestCase):
             connection.handle  # trigger lazy-load
             self.assertEqual(adapter.get_location(relation), "LOCATION 'path_to_location/some_database/some_table'")
 
+    def _adapter_with_mock_session(self, location="path_to_location/", root_location=False):
+        # Stub get_connection so get_location/_build_location read credentials
+        # straight off a Mock, avoiding per-thread connection caching that would
+        # otherwise leak config (e.g. root_location) between tests.
+        config = self._get_config()
+        adapter = GlueAdapter(config, get_context("spawn"))
+        session_mock = Mock()
+        session_mock.credentials.location = location
+        session_mock.credentials.root_location = root_location
+        adapter.get_connection = lambda: (session_mock, "mock_client")
+        return adapter, session_mock
+
+    def test_get_location_root_location(self):
+        # root_location drops the schema segment from the path. Also
+        # regression-guards reading root_location off credentials (not session).
+        adapter, _ = self._adapter_with_mock_session(root_location=True)
+        relation = SparkRelation.create(schema="some_database", identifier="some_table")
+        self.assertEqual(adapter.get_location(relation), "LOCATION 'path_to_location/some_table'")
+
+    def test_get_location_as_clause_false_returns_raw_path(self):
+        adapter, _ = self._adapter_with_mock_session()
+        relation = SparkRelation.create(schema="some_database", identifier="some_table")
+        self.assertEqual(
+            adapter.get_location(relation, as_clause=False),
+            "path_to_location/some_database/some_table",
+        )
+
+    def test_get_location_trailing_slash(self):
+        adapter, _ = self._adapter_with_mock_session()
+        relation = SparkRelation.create(schema="some_database", identifier="some_table")
+        self.assertEqual(
+            adapter.get_location(relation, as_clause=False, trailing_slash=True),
+            "path_to_location/some_database/some_table/",
+        )
+
+    def test_get_location_custom_location_override(self):
+        adapter, _ = self._adapter_with_mock_session()
+        relation = SparkRelation.create(schema="some_database", identifier="some_table")
+        # A real custom_location replaces the configured location entirely;
+        # the "empty" sentinel falls back to the configured location.
+        self.assertEqual(
+            adapter.get_location(relation, custom_location="s3://bucket/custom", as_clause=False),
+            "s3://bucket/custom",
+        )
+        self.assertEqual(
+            adapter.get_location(relation, custom_location="s3://bucket/custom", as_clause=False, trailing_slash=True),
+            "s3://bucket/custom/",
+        )
+        self.assertEqual(
+            adapter.get_location(relation, custom_location="empty", as_clause=False),
+            "path_to_location/some_database/some_table",
+        )
+
+    def test_build_location_strips_trailing_slashes_from_configured_location(self):
+        # The configured location may carry trailing slashes; they must not
+        # produce a double slash in the built path.
+        adapter, session_mock = self._adapter_with_mock_session(location="s3://bucket/root///")
+        self.assertEqual(
+            adapter._build_location(session_mock, "some_database", "some_table"),
+            "s3://bucket/root/some_database/some_table",
+        )
+
+    def test_build_location_custom_location_is_not_stripped(self):
+        # custom_location is used verbatim (only an explicit trailing_slash is added),
+        # mirroring the Hudi/Delta write paths.
+        adapter, session_mock = self._adapter_with_mock_session()
+        self.assertEqual(
+            adapter._build_location(session_mock, "db", "tbl", custom_location="s3://b/c", trailing_slash=True),
+            "s3://b/c/",
+        )
+
     def test_get_custom_iceberg_catalog_namespace(self):
         config = self._get_config()
         adapter = GlueAdapter(config, get_context("spawn"))
