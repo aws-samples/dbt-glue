@@ -1,4 +1,4 @@
-## dbt-glue next
+## v1.12.3
 
 - Fixed `ref()` and `source()` in Python models to use dbt-core's resolved functions
 - This fix addresses a bug where spark.sql('use ...') would fail with a None database error when the database field wasn't set in profiles.yml, by falling back to the schema value.
@@ -8,6 +8,9 @@
 - Added `root_location` profile option to store table data at `location`/`table` (omitting the schema segment) instead of the default `location`/`schema`/`table`.
 - Centralized S3 location path construction into a single `_build_location` helper, fixing Windows path joins that previously used backslashes.
 - Secured fork-PR integration test workflows against pwn requests (TOCTOU) by replacing the `pull_request_target` label gate with a `/test glue <sha>` maintainer command that pins the reviewed commit
+- Fixed a vulnerable transitive `sqlparse` dependency by upgrading dbt-core past 1.12.0, which raises the minimum required `sqlparse` version (#690). dbt-core 1.11 is skipped because its `sqlparse` constraint still permitted the vulnerable version.
+- Dropped Python 3.9 support, since dbt-core 1.12 and dbt-spark 1.11 both require Python 3.10+ (#657).
+- Upgrade dependencies: dbt-core 1.12.3, dbt-spark 1.11.0, dbt-tests-adapter 1.20.0.
 
 ## 1.10.19
 
