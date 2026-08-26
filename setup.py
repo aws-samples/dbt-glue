@@ -2,10 +2,10 @@
 import os
 import sys
 
-# require python 3.9 or newer
-if sys.version_info < (3, 9):
+# require python 3.10 or newer
+if sys.version_info < (3, 10):
     print('Error: dbt does not support this version of Python.')
-    print('Please upgrade to Python 3.9 or higher.')
+    print('Please upgrade to Python 3.10 or higher.')
     sys.exit(1)
 
 # require version of setuptools that supports find_namespace_packages
@@ -38,8 +38,8 @@ def get_version(rel_path):
 
 package_name = "dbt-glue"
 package_version = get_version("dbt/adapters/glue/__version__.py")
-dbt_version = "1.10.19"
-dbt_spark_version = "1.9.3"
+dbt_version = "1.12.3"
+dbt_spark_version = "1.11.0"
 description = """dbt adapter for AWS Glue"""
 long_description = read('README.md')
 setup(
@@ -83,9 +83,9 @@ setup(
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: POSIX :: Linux',
 
-        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.10",
 )
