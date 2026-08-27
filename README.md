@@ -247,6 +247,7 @@ The table below describes all the options.
 | group_session_id                      | [**Model Level Meta Setting**] Set a specific glue session suffix id to group sets of models together to a specific session id.  Good for models that have chained dependencies in a larger dag and you want to save on session startup times.                                      | no        | 
 | datalake_formats	                       | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `iceberg` or `delta`                                                                                                                                                                                         |no|
 | use_arrow	                           | (experimental) use an arrow file instead of stdout to have better scalability.                                                                                                                                                                                                                    |no|
+| use_interactive_session_role_for_api_calls | When `true`, the client principal assumes `role_arn` via STS before making any Glue API calls (session management and DDL operations). Required for cross-account scenarios where the caller resides in a different AWS account than the Glue resources. Default `False`. | no |
 | enable_spark_seed_casting	              | Allows spark to cast the columns depending on the specified model column types. Default `False`.        |no|
 
 ## Configs
