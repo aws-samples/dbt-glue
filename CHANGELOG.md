@@ -1,3 +1,7 @@
+## dbt-glue next
+
+- Fixed `ThrottlingException` on the Glue `GetSession` API when `use_arrow` is enabled. The session's `SecurityConfiguration` is now resolved once per session instead of on every query, the boto3 clients created inside the session are reused, and they honour the profile's `boto_retry_mode` and `boto_retry_max_attempts` instead of botocore's legacy retry policy.
+
 ## v1.12.3
 
 - Fixed `ref()` and `source()` in Python models to use dbt-core's resolved functions
