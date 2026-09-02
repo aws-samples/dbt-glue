@@ -216,12 +216,30 @@ class GlueConnection:
 
         return
 
+    def _boto_retry_options(self) -> dict:
+        retry_options = {
+            "max_attempts": self.credentials.boto_retry_max_attempts,
+        }
+        if self.credentials.boto_retry_mode:
+            retry_options["mode"] = self.credentials.boto_retry_mode
+        return retry_options
+
+    def _render_boto_preamble(self) -> str:
+        """Renders the preamble. `repr` keeps profile values from injecting code."""
+        return SQLPROXY_BOTO_PREAMBLE_TEMPLATE.replace(
+            "${BOTO_RETRIES}", repr(self._boto_retry_options())
+        )
+
+    def _render_sqlproxy(self) -> str:
+        """Renders the SQLPROXY_TEMPLATE code that runs inside the Glue session."""
+        return SQLPROXY_TEMPLATE.replace("${BOTO_PREAMBLE}", self._render_boto_preamble())
+
     def _init_session(self):
         logger.debug("GlueConnection _init_session called for session_id : " + self.session_id)
         statement = GlueStatement(
             client=self.client,
             session_id=self.session_id,
-            code=SQLPROXY,
+            code=self._render_sqlproxy(),
             poll_interval=self.credentials.statement_poll_interval,
         )
         try:
@@ -265,13 +283,7 @@ class GlueConnection:
 
     @property
     def client(self):
-        retry_options = {
-            "max_attempts": self.credentials.boto_retry_max_attempts,
-        }
-        if self.credentials.boto_retry_mode:
-            retry_options["mode"] = self.credentials.boto_retry_mode
-
-        config = Config(retries=retry_options)
+        config = Config(retries=self._boto_retry_options())
         if not self._client:
             # reference on why lock is required - https://stackoverflow.com/a/61943955/6034432
             with self._boto3_client_lock:
@@ -393,7 +405,57 @@ class GlueConnection:
         return value_in_dictionary
 
 
-SQLPROXY = """
+# Injected into SQLPROXY_TEMPLATE. Separate so it can be rendered and tested on its own.
+SQLPROXY_BOTO_PREAMBLE_TEMPLATE = """
+# Retry configuration for the in-session boto3 clients, injected from the
+# `boto_retry_mode` / `boto_retry_max_attempts` profile options. Without it these
+# clients use the legacy botocore policy (4 attempts, no backoff) and surface
+# throttling as ThrottlingException.
+BOTO_CONFIG = Config(retries=${BOTO_RETRIES})
+
+try:
+    _UPLOAD_EXTRA_ARGS
+except NameError:
+    _S3_CLIENT = None
+    _GLUE_CLIENT = None
+    _UPLOAD_EXTRA_ARGS = None
+
+def _get_s3_client():
+    global _S3_CLIENT
+    if _S3_CLIENT is None:
+        _S3_CLIENT = boto3.client('s3', config=BOTO_CONFIG)
+    return _S3_CLIENT
+
+def _get_glue_client():
+    global _GLUE_CLIENT
+    if _GLUE_CLIENT is None:
+        _GLUE_CLIENT = boto3.client('glue', config=BOTO_CONFIG)
+    return _GLUE_CLIENT
+
+def _get_upload_extra_args():
+    # SecurityConfiguration is fixed for the session's lifetime, so it is resolved once instead of per query
+    global _UPLOAD_EXTRA_ARGS
+    if _UPLOAD_EXTRA_ARGS is None:
+        glue_client = _get_glue_client()
+        extra_args = {}
+        security_config_name = glue_client.get_session(Id=session_id)["Session"].get("SecurityConfiguration", None)
+        if security_config_name:
+            security_config = glue_client.get_security_configuration(Name=security_config_name)
+            s3_encryption = security_config["SecurityConfiguration"]["EncryptionConfiguration"].get("S3Encryption", None)
+            if s3_encryption and len(s3_encryption) > 0:
+                s3_encryption_mode = s3_encryption[0]["S3EncryptionMode"]
+                kms_key_arn = s3_encryption[0].get("KmsKeyArn", None)
+                if s3_encryption_mode == "SSE-S3":
+                    extra_args["ServerSideEncryption"] = "AES256"
+                elif s3_encryption_mode == "SSE-KMS":
+                    extra_args["ServerSideEncryption"] = "aws:kms"
+                    extra_args["SSEKMSKeyId"] = kms_key_arn.split("/")[1]
+        _UPLOAD_EXTRA_ARGS = extra_args
+    return dict(_UPLOAD_EXTRA_ARGS)
+"""
+
+
+SQLPROXY_TEMPLATE = """
 import sys
 import json
 import base64
@@ -401,6 +463,7 @@ import urllib
 import pandas as pd
 import pyarrow.feather as feather
 import boto3
+from botocore.config import Config
 import string
 import random
 from awsglue.utils import getResolvedOptions
@@ -409,6 +472,7 @@ if '--SESSION_ID' in sys.argv:
     params.append('SESSION_ID')
 args = getResolvedOptions(sys.argv, params)
 session_id = args.get("SESSION_ID", "unknown-session")
+${BOTO_PREAMBLE}
 
 class SqlWrapper2:
     i = 0
@@ -446,9 +510,7 @@ class SqlWrapper2:
         raw_results = {"type": "results", "rowcount": rowcount, "results": results, "description": description}
 
         if use_arrow:
-            s3_client = boto3.client('s3')
-            glue_client = boto3.client('glue')
-            security_config_name = glue_client.get_session(Id=session_id)["Session"].get("SecurityConfiguration", None)
+            s3_client = _get_s3_client()
             o = urllib.parse.urlparse(location)
             result_bucket = o.netloc
             key = urllib.parse.unquote(o.path)[1:]
@@ -460,18 +522,7 @@ class SqlWrapper2:
             pdf = pd.DataFrame.from_dict(raw_results, orient="index")
             feather.write_feather(pdf.transpose(), filename, "zstd")
 
-            extra_args = {}
-            if security_config_name:
-                security_config = glue_client.get_security_configuration(Name=security_config_name)
-                s3_encryption = security_config["SecurityConfiguration"]["EncryptionConfiguration"].get("S3Encryption", None)
-                if s3_encryption and len(s3_encryption) > 0:
-                    s3_encryption_mode = s3_encryption[0]["S3EncryptionMode"]
-                    kms_key_arn = s3_encryption[0].get("KmsKeyArn", None)
-                    if s3_encryption_mode == "SSE-S3":
-                        extra_args["ServerSideEncryption"] = "AES256"
-                    elif s3_encryption_mode == "SSE-KMS":
-                        extra_args["ServerSideEncryption"] = "aws:kms"
-                        extra_args["SSEKMSKeyId"] = kms_key_arn.split("/")[1]
+            extra_args = _get_upload_extra_args()
             s3_client.upload_file(filename, result_bucket, result_key, ExtraArgs=extra_args)
             # Print and return only metadata instead of actual result data payload. The param use_arrow=True is always
             # used with output=True, and stdout is used to pass those values to Interactive Sessions API.
