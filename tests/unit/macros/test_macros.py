@@ -559,3 +559,65 @@ class TestGlueMacros(unittest.TestCase):
         self.assertIn("CompilerError:", str(context.exception))
         self.assertIn("Invalid incremental strategy provided: invalid_strategy", str(context.exception))
         self.assertIn("Expected one of: 'append', 'merge', 'insert_overwrite'", str(context.exception))
+
+    def test_is_incremental_passes_file_format_to_get_relation(self):
+        """is_incremental() must pass the model's file_format to adapter.get_relation()
+        so relations backed by a separate catalog (e.g. s3tables) can be resolved.
+        See GitHub issue #620.
+        """
+        template = self.__get_template("materializations/incremental/is_incremental.sql")
+
+        self.config["file_format"] = "s3tables"
+        self.default_context["execute"] = True
+        self.default_context["model"].config.materialized = "incremental"
+        self.default_context["should_full_refresh"] = lambda: False
+
+        relation = mock.Mock()
+        relation.type = "table"
+        get_relation_calls = []
+
+        def get_relation(database, schema, table, file_format=None):
+            get_relation_calls.append(file_format)
+            return relation
+
+        self.default_context["adapter"].get_relation = get_relation
+
+        result = self.__run_macro(template, "is_incremental")
+
+        # adapter.get_relation must be called with the model's file_format
+        self.assertEqual(get_relation_calls, ["s3tables"])
+        self.assertEqual(result.strip(), "True")
+
+    def test_is_incremental_returns_false_during_parsing(self):
+        """is_incremental() must not run introspective queries during parsing."""
+        template = self.__get_template("materializations/incremental/is_incremental.sql")
+
+        self.default_context["execute"] = False
+        get_relation_calls = []
+
+        def get_relation(database, schema, table, file_format=None):
+            get_relation_calls.append(file_format)
+            return mock.Mock()
+
+        self.default_context["adapter"].get_relation = get_relation
+
+        result = self.__run_macro(template, "is_incremental")
+
+        self.assertEqual(result.strip(), "False")
+        self.assertEqual(get_relation_calls, [])
+
+    def test_is_incremental_returns_false_when_relation_missing(self):
+        """is_incremental() returns False when adapter.get_relation() can't find the
+        relation (e.g. s3tables relation not found because file_format wasn't passed).
+        """
+        template = self.__get_template("materializations/incremental/is_incremental.sql")
+
+        self.config["file_format"] = "s3tables"
+        self.default_context["execute"] = True
+        self.default_context["model"].config.materialized = "incremental"
+        self.default_context["should_full_refresh"] = lambda: False
+        self.default_context["adapter"].get_relation = lambda database, schema, table, file_format=None: None
+
+        result = self.__run_macro(template, "is_incremental")
+
+        self.assertEqual(result.strip(), "False")
