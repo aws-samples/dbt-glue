@@ -1,4 +1,6 @@
-## v1.12.3.1
+## v1.12.4
+
+**Note:** Starting with this release, dbt-glue's version number is no longer kept in lockstep with the dbt-core version it depends on. This release does not bump the dbt-core dependency; dbt-core remains pinned to `~=1.12.3`. See `setup.py`/`dev-requirements.txt` for the supported dbt-core range.
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
 - Fixed `ThrottlingException` on the Glue `GetSession` API when `use_arrow` is enabled. The session's `SecurityConfiguration` is now resolved once per session instead of on every query, the boto3 clients created inside the session are reused, and they honour the profile's `boto_retry_mode` and `boto_retry_max_attempts` instead of botocore's legacy retry policy.
