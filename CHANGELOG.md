@@ -1,3 +1,6 @@
+## dbt next
+- Fixed a cross-process race when reusable sessions are enabled: starting two dbt runs at nearly the same time with the same `glue_session_id` could fail with a session creation error, because both processes created the same session id concurrently.
+
 ## v1.12.4
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
