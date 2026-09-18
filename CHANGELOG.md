@@ -1,3 +1,7 @@
+## dbt next
+
+- Fixed hanging Glue session after a Python model completes. The session is now closed in a `finally` block after Python model execution (success or failure), unless `glue_session_reuse: true` is set, in which case `close_session()` returns early and leaves the session running.
+
 ## v1.12.4
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
