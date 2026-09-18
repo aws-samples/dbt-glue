@@ -7,7 +7,7 @@ dbt is the T in ELT. Organize, cleanse, denormalize, filter, rename, and pre-agg
 
 # dbt-glue
 
-The `dbt-glue` package implements the [dbt adapter](https://docs.getdbt.com/docs/contributing/building-a-new-adapter) protocol for AWS Glue's Spark engine. 
+The `dbt-glue` package implements the [dbt adapter](https://docs.getdbt.com/docs/contributing/building-a-new-adapter) protocol for AWS Glue's Spark engine.
 It supports running dbt against Spark, through the new Glue Interactive Sessions API.
 
 To learn how to deploy a data pipeline in your modern data platform using the `dbt-glue` adapter, please read the following blog post: [Build your data pipeline in your AWS modern data platform using AWS Lake Formation, AWS Glue, and dbt Core](https://aws.amazon.com/blogs/big-data/build-your-data-pipeline-in-your-aws-modern-data-platform-using-aws-lake-formation-aws-glue-and-dbt-core/)
@@ -38,7 +38,7 @@ You will find bellow a least privileged policy to enjoy all features of **`dbt-g
 
 Please to update variables between **`<>`**, here are explanations of these arguments:
 
-|Args	|Description	| 
+|Args	|Description	|
 |---|---|
 |region|The region where your Glue database is stored |
 |AWS Account|The AWS account where you run your pipeline|
@@ -82,7 +82,7 @@ Please to update variables between **`<>`**, here are explanations of these argu
                 "glue:GetUserDefinedFunctions",
                 "lakeformation:ListResources",
                 "lakeformation:BatchGrantPermissions",
-                "lakeformation:ListPermissions", 
+                "lakeformation:ListPermissions",
                 "lakeformation:GetDataAccess",
                 "lakeformation:GrantPermissions",
                 "lakeformation:RevokePermissions",
@@ -242,9 +242,9 @@ The table below describes all the options.
 | seed_format	                            | By default `parquet`, can be Spark format compatible like `csv` or `json`                                                                                                                                                                                                                         | no        |
 | seed_mode	                              | By default `overwrite`, the seed data will be overwritten, you can set it to `append` if you just want to add new data in your dataset                                                                                                                                                            | no        |
 | default_arguments	                      | The map of key value pairs parameters belonging to the session. More information on [Job parameters used by AWS Glue](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html). Ex: `--enable-continuous-cloudwatch-log=true,--enable-continuous-log-filter=true` | no        |
-| glue_session_id                         | re-use a glue-session to run multiple dbt run commands. Will create a new glue-session using glue_session_id if it does not exists yet.                                                                                                                                                           | no        | 
-| glue_session_reuse                      | re-use the glue-session to run multiple dbt run commands: If set to true, the glue session will not be closed for re-use. If set to false, the session will be closed. The glue session will close after idle_timeout time is expired after idle_timeout time                                     | no        | 
-| group_session_id                      | [**Model Level Meta Setting**] Set a specific glue session suffix id to group sets of models together to a specific session id.  Good for models that have chained dependencies in a larger dag and you want to save on session startup times.                                      | no        | 
+| glue_session_id                         | re-use a glue-session to run multiple dbt run commands. Will create a new glue-session using glue_session_id if it does not exists yet.                                                                                                                                                           | no        |
+| glue_session_reuse                      | re-use the glue-session to run multiple dbt run commands: If set to true, the glue session will not be closed for re-use. If set to false, the session will be closed. The glue session will close after idle_timeout time is expired after idle_timeout time                                     | no        |
+| group_session_id                      | [**Model Level Meta Setting**] Set a specific glue session suffix id to group sets of models together to a specific session id.  Good for models that have chained dependencies in a larger dag and you want to save on session startup times.                                      | no        |
 | datalake_formats	                       | The ACID datalake format that you want to use if you are doing merge, can be `hudi`, `iceberg` or `delta`                                                                                                                                                                                         |no|
 | use_arrow	                           | (experimental) use an arrow file instead of stdout to have better scalability.                                                                                                                                                                                                                    |no|
 | enable_spark_seed_casting	              | Allows spark to cast the columns depending on the specified model column types. Default `False`.        |no|
@@ -287,7 +287,7 @@ To use S3 Tables, set `file_format='s3tables'` in your model configuration:
     file_format='s3tables'
 ) }}
 
-select 
+select
     id,
     name,
     created_at
@@ -325,7 +325,7 @@ your_profile:
     partition_by=['year', 'month']
 ) }}
 
-select 
+select
     customer_id,
     order_date,
     extract(year from order_date) as year,
@@ -382,7 +382,7 @@ Create a Python model by adding a `.py` file to your `models/` directory:
 def model(dbt, spark):
     # Configure the model
     dbt.config(materialized='python_model', file_format='iceberg')
-    
+
     # Create your DataFrame using Spark
     data = [
         (1, 'Alice', 100),
@@ -390,7 +390,7 @@ def model(dbt, spark):
         (3, 'Charlie', 300)
     ]
     columns = ['id', 'name', 'value']
-    
+
     # Return a Spark DataFrame
     return spark.createDataFrame(data, columns)
 ```
@@ -402,16 +402,16 @@ You can reference other dbt models and sources in your Python models:
 ```python
 def model(dbt, spark):
     dbt.config(materialized='python_model', file_format='iceberg')
-    
+
     # Reference another dbt model
     customers_df = dbt.ref('customers')
-    
+
     # Reference a source
     orders_df = dbt.source('raw_data', 'orders')
-    
+
     # Perform transformations
     result_df = customers_df.join(orders_df, 'customer_id')
-    
+
     return result_df
 ```
 
@@ -427,21 +427,21 @@ def model(dbt, spark):
         incremental_strategy='merge',
         unique_key='id'
     )
-    
+
     # Get source data
     source_df = dbt.ref('raw_events')
-    
+
     if dbt.is_incremental():
         # Only process new records for incremental runs
         max_date = spark.sql(f"SELECT MAX(event_date) FROM {dbt.this}").collect()[0][0]
         source_df = source_df.filter(source_df.event_date > max_date)
-    
+
     # Apply transformations
     transformed_df = source_df.groupBy('user_id').agg(
         count('*').alias('event_count'),
         max('event_date').alias('last_event_date')
     )
-    
+
     return transformed_df
 ```
 
@@ -482,24 +482,24 @@ def model(dbt, spark):
         file_format='iceberg',
         partition_by=['analysis_date']
     )
-    
+
     # Import required libraries (available in Glue environment)
     from pyspark.sql.functions import col, when, avg, stddev
     from datetime import datetime
-    
+
     # Get source data
     sales_df = dbt.ref('sales_data')
-    
+
     # Perform statistical analysis
     stats_df = sales_df.groupBy('product_category').agg(
         avg('sales_amount').alias('avg_sales'),
         stddev('sales_amount').alias('stddev_sales'),
         count('*').alias('transaction_count')
     )
-    
+
     # Add analysis metadata
     result_df = stats_df.withColumn('analysis_date', lit(datetime.now().date()))
-    
+
     return result_df
 ```
 
@@ -511,7 +511,7 @@ For that reason, the dbt-glue plugin leans heavily on the [`incremental_strategy
  - **`append`** (default): Insert new records without updating or overwriting any existing data.
  - **`insert_overwrite`**: If `partition_by` is specified, overwrite partitions in the table with new data. If no `partition_by` is specified, overwrite the entire table with new data.
  - **`merge`** (Apache Hudi and Apache Iceberg only): Match records based on a `unique_key`; update old records, insert new ones. (If no `unique_key` is specified, all new data is inserted, similar to `append`.)
- 
+
 Each of these strategies has its pros and cons, which we'll discuss below. As with any model config, `incremental_strategy` may be specified in `dbt_project.yml` or within a model file's `config()` block.
 
 **Notes:**
@@ -625,7 +625,7 @@ Specifying `insert_overwrite` as the incremental strategy is optional, since it'
 - Iceberg : OK
 - Lake Formation Governed Tables : On going
 
-NB: 
+NB:
 
 - For Glue 3: you have to setup a [Glue connectors](https://docs.aws.amazon.com/glue/latest/ug/connectors-chapter.html).
 
@@ -646,7 +646,7 @@ When using a connector be sure that your IAM role has these policies:
     "Effect": "Allow"
 }
 ```
-and that the managed policy `AmazonEC2ContainerRegistryReadOnly` is attached. 
+and that the managed policy `AmazonEC2ContainerRegistryReadOnly` is attached.
 Be sure that you follow the getting started instructions [here](https://docs.aws.amazon.com/glue/latest/ug/setting-up.html#getting-started-min-privs-connectors).
 
 
@@ -782,32 +782,32 @@ group by 1
 - To add `file_format: Iceberg` in your table configuration
 - To add a datalake_formats in your profile : `datalake_formats: iceberg`
   - Alternatively, if you use Glue 3.0 or more, to add a connections in your profile : `connections: name_of_your_iceberg_connector` (
-    - For Athena version 3: 
+    - For Athena version 3:
       - The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.14.0 (Oct 11, 2022) as Software version)
-      - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546) 
+      - the latest connector for iceberg in AWS marketplace uses Ver 0.14.0 for Glue 3.0, and Ver 1.2.1 for Glue 4.0 where Kryo serialization fails when writing iceberg, use "org.apache.spark.serializer.JavaSerializer" for spark.serializer instead, more info [here](https://github.com/apache/iceberg/pull/546)
     - For Athena version 2: The adapter is compatible with the Iceberg Connector from AWS Marketplace with Glue 3.0 as Fulfillment option and 0.12.0-2 (Feb 14, 2022) as Software version)
-- For Glue 4.0, to add the following configurations in dbt-profile:  
+- For Glue 4.0, to add the following configurations in dbt-profile:
 ```
     --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
     --conf spark.sql.catalog.glue_catalog.warehouse=s3://<PATH_TO_YOUR_WAREHOUSE>
-    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
-    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
-    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions  
+    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
 ```
-- For Glue 3.0, you need to set up more configurations : 
+- For Glue 3.0, you need to set up more configurations :
 ```
     --conf spark.serializer=org.apache.spark.serializer.KryoSerializer
     --conf spark.sql.warehouse=s3://<your-bucket-name>
-    --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog 
-    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog 
-    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO 
+    --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+    --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+    --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
     --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoDbLockManager
-    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
+    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
 ```
 
 - Also note that for Glue 4.0, you can choose between Glue Optimistic Locking (enabled by default) and DynamoDB Lock Manager for concurrent update to a table.
-    - If you want to activate DynamoDB Lock Manager set the below config in your profiles. A DynamoDB would be created on your behalf (if it does not exist). 
+    - If you want to activate DynamoDB Lock Manager set the below config in your profiles. A DynamoDB would be created on your behalf (if it does not exist).
 ```
     --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager
     --conf spark.sql.catalog.glue_catalog.lock.table=<DYNAMODB_TABLE_NAME>
@@ -838,17 +838,17 @@ group by 1
     ]
 }
 ```
-- Note that if you use Glue 3.0 DynamoDB Lock Manager is the only option available and you need to set `org.apache.iceberg.aws.glue.DynamoLockManager` instead : 
+- Note that if you use Glue 3.0 DynamoDB Lock Manager is the only option available and you need to set `org.apache.iceberg.aws.glue.DynamoLockManager` instead :
 ```
     --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoDbLockManager
-    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  
+    --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable
 ```
 
-dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/latest/spark-writes/) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. You need to provide a `unique_key` to perform merge operation otherwise it will fail. This key is to provide in a Python list format and can contains multiple column name to create a composite unique_key. 
+dbt will run an [atomic `merge` statement](https://iceberg.apache.org/docs/latest/spark-writes/) which looks nearly identical to the default merge behavior on Snowflake and BigQuery. You need to provide a `unique_key` to perform merge operation otherwise it will fail. This key is to provide in a Python list format and can contains multiple column name to create a composite unique_key.
 
 ##### Notes
 - When using a custom_location in Iceberg, avoid to use final trailing slash. Adding a final trailing slash lead to an un-proper handling of the location, and issues when reading the data from query engines like Trino. The issue should be fixed for Iceberg version > 0.13. Related Github issue can be find [here](https://github.com/apache/iceberg/issues/4582).
-- Iceberg also supports `insert_overwrite` and `append` strategies. 
+- Iceberg also supports `insert_overwrite` and `append` strategies.
 - The `warehouse` conf must be provided, but it's overwritten by the adapter `location` in your profile or `custom_location` in model configuration.
 - By default, this materialization has `iceberg_expire_snapshots` set to 'True', if you need to have historical auditable changes, set: `iceberg_expire_snapshots='False'`.
 - The `custom_iceberg_catalog_namespace` parameter configures the namespace for Apache Iceberg catalog integration. This parameter enables the use of Iceberg tables within your Spark application by setting up the necessary catalog configurations. **Default Value:** `glue_catalog`
@@ -869,7 +869,7 @@ When using the default value, the following spark configuration should be added 
 ```
 - A full reference to `table_properties` can be found [here](https://iceberg.apache.org/docs/latest/configuration/).
 - Iceberg Tables are natively supported by Athena. Therefore, you can query tables created and operated with dbt-glue adapter from Athena.
-- Incremental Materialization with Iceberg file format supports dbt snapshot. You are able to run a dbt snapshot command that queries an Iceberg Table and create a dbt fashioned snapshot of it. 
+- Incremental Materialization with Iceberg file format supports dbt snapshot. You are able to run a dbt snapshot command that queries an Iceberg Table and create a dbt fashioned snapshot of it.
 
 #### Profile config example
 ```yaml
@@ -888,7 +888,7 @@ test_project:
       session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
       datalake_formats: iceberg
-      conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions 
+      conf: --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.serializer=org.apache.spark.serializer.KryoSerializer --conf spark.sql.warehouse=s3://aws-dbt-glue-datalake-1234567890-eu-west-1/dbt_test_project --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO --conf spark.sql.catalog.glue_catalog.lock-impl=org.apache.iceberg.aws.dynamodb.DynamoDbLockManager --conf spark.sql.catalog.glue_catalog.lock.table=myGlueLockTable  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
 ```
 
 #### Source Code example
@@ -898,7 +898,7 @@ test_project:
     incremental_strategy='merge',
     unique_key=['user_id'],
     file_format='iceberg',
-    iceberg_expire_snapshots='False', 
+    iceberg_expire_snapshots='False',
     partition_by=['status']
     table_properties={'write.target-file-size-bytes': '268435456'}
 ) }}
@@ -1075,7 +1075,7 @@ test_project:
       schema: "dbt_test_project"
       session_provisioning_timeout_in_seconds: 120
       location: "s3://aws-dbt-glue-datalake-1234567890-eu-west-1/"
-      conf: "--conf hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory 
+      conf: "--conf hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory
              --conf spark.hadoop.hive.metastore.glue.catalogid=<TARGET-AWS-ACCOUNT-ID-B>"
 ```
 
@@ -1102,11 +1102,11 @@ For more information, check the dbt documentation about [custom schemas](https:/
 The adapter supports AWS Lake Formation tags management enabling you to associate existing tags defined out of dbt-glue to database objects built by dbt-glue (database, table, view, snapshot, incremental models, seeds).
 
 - You can enable or disable lf-tags management via config, at model and dbt-project level (disabled by default)
-- If enabled, lf-tags will be updated on every dbt run. There are table level lf-tags configs and column-level lf-tags configs. 
+- If enabled, lf-tags will be updated on every dbt run. There are table level lf-tags configs and column-level lf-tags configs.
 - You can specify that you want to drop existing database, table column Lake Formation tags by setting the drop_existing config field to True (False by default, meaning existing tags are kept)
 - Please note that if the tag you want to associate with the table does not exist, the dbt-glue execution will throw an error
 
-The adapter also supports AWS Lakeformation data cell filtering. 
+The adapter also supports AWS Lakeformation data cell filtering.
 - You can enable or disable data-cell filtering via config, at model and dbt-project level (disabled by default)
 - If enabled, data_cell_filters will be updated on every dbt run.
 - You can specify that you want to drop existing table data-cell filters by setting the drop_existing config field to True (False by default, meaning existing filters are kept)
@@ -1123,10 +1123,10 @@ lf_grants={
             'filters': {
                 'the_name_of_my_filter': {
                     'row_filter': 'customer_lifetime_value>15',
-                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'], 
+                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'],
                     'column_names': ['customer_id', 'first_order', 'most_recent_order', 'number_of_orders']
                 }
-            }, 
+            },
         }
     }
 ```
@@ -1140,18 +1140,18 @@ lf_grants={
             'filters': {
                 'the_name_of_my_filter': {
                     'row_filter': 'customer_lifetime_value>15',
-                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'], 
+                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'],
                     'excluded_column_names': ['first_name']
                 }
-            }, 
+            },
         }
     }
 ```
 
-See below some examples of how you can integrate LF Tags management and data cell filtering to your configurations : 
+See below some examples of how you can integrate LF Tags management and data cell filtering to your configurations :
 
 #### At model level
-This way of defining your Lakeformation rules is appropriate if you want to handle the tagging and filtering policy at object level. Remember that it overrides any configuration defined at dbt-project level. 
+This way of defining your Lakeformation rules is appropriate if you want to handle the tagging and filtering policy at object level. Remember that it overrides any configuration defined at dbt-project level.
 
 ```sql
 {{ config(
@@ -1161,14 +1161,14 @@ This way of defining your Lakeformation rules is appropriate if you want to hand
     lf_tags_config={
           'enabled': true,
           'drop_existing' : False,
-          'tags_database': 
+          'tags_database':
           {
-            'name_of_my_db_tag': 'value_of_my_db_tag'          
-            }, 
-          'tags_table': 
+            'name_of_my_db_tag': 'value_of_my_db_tag'
+            },
+          'tags_table':
           {
-            'name_of_my_table_tag': 'value_of_my_table_tag'          
-            }, 
+            'name_of_my_table_tag': 'value_of_my_table_tag'
+            },
           'tags_columns': {
             'name_of_my_lf_tag': {
               'value_of_my_tag': ['customer_id', 'customer_lifetime_value', 'dt']
@@ -1180,10 +1180,10 @@ This way of defining your Lakeformation rules is appropriate if you want to hand
             'filters': {
                 'the_name_of_my_filter': {
                     'row_filter': 'customer_lifetime_value>15',
-                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'], 
+                    'principals': ['arn:aws:iam::123456789:user/lf-data-scientist'],
                     'excluded_column_names': ['first_name']
                 }
-            }, 
+            },
         }
     }
 ) }}
@@ -1197,7 +1197,7 @@ This way of defining your Lakeformation rules is appropriate if you want to hand
         customer_orders.number_of_orders,
         customer_payments.total_amount as customer_lifetime_value,
         current_date() as dt
-        
+
     from customers
 
     left join customer_orders using (customer_id)
@@ -1214,17 +1214,17 @@ This is especially useful for seeds, for which you can't define configuration in
 seeds:
   +lf_tags_config:
     enabled: true
-    tags_table: 
-      name_of_my_table_tag: 'value_of_my_table_tag'  
-    tags_database: 
+    tags_table:
+      name_of_my_table_tag: 'value_of_my_table_tag'
+    tags_database:
       name_of_my_database_tag: 'value_of_my_database_tag'
 models:
   +lf_tags_config:
     enabled: true
     drop_existing: True
-    tags_database: 
+    tags_database:
       name_of_my_database_tag: 'value_of_my_database_tag'
-    tags_table: 
+    tags_table:
       name_of_my_table_tag: 'value_of_my_table_tag'
 ```
 
@@ -1269,7 +1269,7 @@ $ export DBT_GLUE_REGION=us-east-1
 $ export DBT_S3_LOCATION=s3://mybucket/myprefix
 $ export DBT_GLUE_ROLE_ARN=arn:aws:iam::1234567890:role/GlueInteractiveSessionRole
 ```
-Caution: Be careful not to set S3 path containing important files. 
+Caution: Be careful not to set S3 path containing important files.
 dbt-glue's test suite automatically deletes all the existing files under the S3 path specified in `DBT_S3_LOCATION`.
 
 4. Run the test
@@ -1278,7 +1278,7 @@ $ python3 -m pytest tests/functional
 ```
 or
 ```bash
-$ python3 -m pytest -s 
+$ python3 -m pytest -s
 ```
 
 ### Testing S3 Tables (Experimental)
@@ -1306,6 +1306,72 @@ The S3 tables tests help us understand:
 - Which features need adapter modifications
 
 For more information, check the dbt documentation about [testing a new adapter](https://docs.getdbt.com/docs/contributing/testing-a-new-adapter).
+
+## Source freshness
+
+`dbt source freshness` is supported in both of its forms.
+
+### Column-based freshness (recommended)
+
+Set a `loaded_at_field` (or a `loaded_at_query`) on the source and dbt queries the table
+through the Glue interactive session:
+
+```yaml
+version: 2
+
+sources:
+  - name: raw
+    schema: raw_db
+    tables:
+      - name: events
+        loaded_at_field: ingested_at
+        freshness:
+          warn_after: {count: 12, period: hour}
+          error_after: {count: 24, period: hour}
+```
+
+This reads the actual data, so it reflects when rows landed regardless of how they were ingested.
+
+### Metadata-based freshness
+
+Omit `loaded_at_field` and the adapter answers from the AWS Glue Data Catalog instead of
+running a query. Nothing is read from S3 and no Spark job runs, so it is fast and free of
+session cost! Sources in the same schema are resolved in a single paginated `GetTables` call.
+
+No single catalog field records when data last landed, because that depends on how the table
+is written, so the adapter takes the most recent of whichever of these the table has:
+
+- the table's `UpdateTime`, falling back to `CreateTime` for a table that has never been
+  altered — this is what moves for a format whose commits go through the catalog: Iceberg
+  (including S3 Tables), which swaps its `metadata_location` on every commit, and Hudi when
+  hive sync is enabled;
+- the `transient_lastDdlTime` (Hive) and `last_modified_time` (Spark) table parameters, which
+  move when a table is rewritten in place;
+- the registration time of its most recent partition, for a partitioned table — a producer
+  that loads by adding partitions leaves the table entry itself untouched, so the table
+  timestamps alone would report such a table as frozen at creation time.
+
+A source that the account's own catalog does not know about is looked up again in the S3
+Tables catalog named by `DBT_S3_TABLES_BUCKET`, when that variable is set, so S3 Tables
+sources are covered too. The second lookup only happens for sources that were not found.
+
+The Glue role needs `glue:GetTable` and `glue:GetTables` polcies on the sources being checked, plus
+`glue:GetPartitions` policy for partitioned ones.
+
+Three things to be aware of:
+
+- **The catalog records catalog writes, not data writes.** A producer that overwrites files
+  under an existing partition without telling the catalog moves none of the timestamps above.
+  A Delta table is the case to watch: its commits land in the `_delta_log` on S3, and unless
+  the writer also touches the catalog entry or registers a new partition, its catalog
+  timestamps stand still. Use `loaded_at_field` or `loaded_at_query` for those tables.
+- **Partitions are scanned, not looked up.** The catalog cannot sort or filter partitions by
+  time, so the whole list is walked. The scan gives up after `PARTITION_SCAN_MAX_PAGES` pages
+  of `PARTITION_SCAN_PAGE_SIZE` partitions and logs a warning; a table big enough to hit that
+  limit may be reported as older than it is, and is better served by a `loaded_at_field`.
+- A source that does not exist in the catalog is reported as stale rather than failing the
+  run, so a not-yet-created table does not abort `dbt source freshness` for every other
+  source.
 
 ## Caveats
 

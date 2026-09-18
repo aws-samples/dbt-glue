@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 import unittest
 from unittest import mock
@@ -103,7 +104,8 @@ class TestGlueAdapter(unittest.TestCase):
         session_mock = Mock()
         adapter.get_connection = lambda: (session_mock, "mock_client")
         test_table = agate.Table(
-            [(f"mock_value_{i}", f"other_mock_value_{i}") for i in range(2000)], column_names=["value", "other_value"]
+            [(f"mock_value_{i}", f"other_mock_value_{i}") for i in range(2000)],
+            column_names=["value", "other_value"],
         )
         adapter.create_csv_table(model, test_table)
 
@@ -120,7 +122,10 @@ class TestGlueAdapter(unittest.TestCase):
         with mock.patch("dbt.adapters.glue.connections.open"):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
-            self.assertEqual(adapter.get_location(relation), "LOCATION 'path_to_location/some_database/some_table'")
+            self.assertEqual(
+                adapter.get_location(relation),
+                "LOCATION 'path_to_location/some_database/some_table'",
+            )
 
     def _adapter_with_mock_session(self, location="path_to_location/", root_location=False):
         # Stub get_connection so get_location/_build_location read credentials
@@ -167,7 +172,12 @@ class TestGlueAdapter(unittest.TestCase):
             "s3://bucket/custom",
         )
         self.assertEqual(
-            adapter.get_location(relation, custom_location="s3://bucket/custom", as_clause=False, trailing_slash=True),
+            adapter.get_location(
+                relation,
+                custom_location="s3://bucket/custom",
+                as_clause=False,
+                trailing_slash=True,
+            ),
             "s3://bucket/custom/",
         )
         self.assertEqual(
@@ -189,7 +199,9 @@ class TestGlueAdapter(unittest.TestCase):
         # mirroring the Hudi/Delta write paths.
         adapter, session_mock = self._adapter_with_mock_session()
         self.assertEqual(
-            adapter._build_location(session_mock, "db", "tbl", custom_location="s3://b/c", trailing_slash=True),
+            adapter._build_location(
+                session_mock, "db", "tbl", custom_location="s3://b/c", trailing_slash=True
+            ),
             "s3://b/c/",
         )
 
@@ -199,7 +211,9 @@ class TestGlueAdapter(unittest.TestCase):
         with mock.patch("dbt.adapters.glue.connections.open"):
             connection = adapter.acquire_connection("dummy")
             connection.handle  # trigger lazy-load
-            self.assertEqual(adapter.get_custom_iceberg_catalog_namespace(), "custom_iceberg_catalog")
+            self.assertEqual(
+                adapter.get_custom_iceberg_catalog_namespace(), "custom_iceberg_catalog"
+            )
 
     def test_create_csv_table_provides_schema_and_casts_when_spark_seed_cast_is_enabled(self):
         config = self._get_config()
@@ -209,14 +223,19 @@ class TestGlueAdapter(unittest.TestCase):
         model = {
             "name": "mock_model",
             "schema": "mock_schema",
-            "config": {"column_types": {"test_column_double": "double", "test_column_str": "string"}},
+            "config": {
+                "column_types": {"test_column_double": "double", "test_column_str": "string"}
+            },
         }
         column_mappings = [
             ColumnCsvMappingStrategy("test_column_double", "string", "double"),
             ColumnCsvMappingStrategy("test_column_str", "string", "string"),
         ]
         code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
-        self.assertIn('spark.createDataFrame(csv, "test_column_double: string, test_column_str: string")', code[0])
+        self.assertIn(
+            'spark.createDataFrame(csv, "test_column_double: string, test_column_str: string")',
+            code[0],
+        )
         self.assertIn(
             'df = df.selectExpr("cast(test_column_double as double) as test_column_double", '
             + '"cast(test_column_str as string) as test_column_str")',
@@ -229,7 +248,9 @@ class TestGlueAdapter(unittest.TestCase):
         adapter = GlueAdapter(config, get_context("spawn"))
         csv_chunks = [{"test_column": "1.2345"}]
         model = {"name": "mock_model", "schema": "mock_schema"}
-        column_mappings = [ColumnCsvMappingStrategy("test_column", agate.data_types.Text, "double")]
+        column_mappings = [
+            ColumnCsvMappingStrategy("test_column", agate.data_types.Text, "double")
+        ]
         code = adapter._map_csv_chunks_to_code(csv_chunks, config, model, "True", column_mappings)
         self.assertIn("spark.createDataFrame(csv)", code[0])
 
@@ -237,11 +258,11 @@ class TestGlueAdapter(unittest.TestCase):
     def test_when_database_not_exists_list_relations_without_caching_returns_empty_array(self):
         config = self._get_config()
         adapter = GlueAdapter(config, get_context("spawn"))
-        adapter.get_connection = lambda : (None, boto3.client("glue", region_name="us-east-1"))
+        adapter.get_connection = lambda: (None, boto3.client("glue", region_name="us-east-1"))
         relation = Mock(SparkRelation)
-        relation.schema = 'mockdb'
+        relation.schema = "mockdb"
         actual = adapter.list_relations_without_caching(relation)
-        self.assertEqual([],actual)
+        self.assertEqual([], actual)
 
     @mock_aws
     def test_list_relations_returns_database_tables(self):
@@ -249,16 +270,16 @@ class TestGlueAdapter(unittest.TestCase):
         glue_client = boto3.client("glue", region_name="us-east-1")
 
         # Prepare database tables
-        database_name = 'mockdb'
-        table_names = ['table1', 'table2', 'table3']
-        glue_client.create_database(DatabaseInput={"Name":database_name})
+        database_name = "mockdb"
+        table_names = ["table1", "table2", "table3"]
+        glue_client.create_database(DatabaseInput={"Name": database_name})
         for table_name in table_names:
-            glue_client.create_table(DatabaseName=database_name,TableInput={"Name":table_name})
+            glue_client.create_table(DatabaseName=database_name, TableInput={"Name": table_name})
         expected = [(database_name, table_name) for table_name in table_names]
 
         # Prepare adapter for test
         adapter = GlueAdapter(config, get_context("spawn"))
-        adapter.get_connection = lambda : (None, glue_client)
+        adapter.get_connection = lambda: (None, glue_client)
         relation = Mock(SparkRelation)
         relation.schema = database_name
         relation.quote_policy = SparkRelation.get_default_quote_policy()
@@ -266,7 +287,168 @@ class TestGlueAdapter(unittest.TestCase):
         relations = adapter.list_relations_without_caching(relation)
 
         actual = [(relation.path.schema, relation.path.identifier) for relation in relations]
-        self.assertCountEqual(expected,actual)
+        self.assertCountEqual(expected, actual)
+
+    def _freshness_adapter(self, glue_client):
+        adapter = GlueAdapter(self._get_config(), get_context("spawn"))
+        session = Mock()
+        session.credentials.custom_iceberg_catalog_namespace = None
+        adapter.get_connection = lambda: (session, glue_client)
+        return adapter
+
+    @mock_aws
+    def test_table_last_modified_prefers_the_latest_partition(self):
+        database_name = "mockdb"
+        table_name = "partitioned_table"
+        mock_aws_service = MockAWSService()
+        mock_aws_service.create_database(name=database_name)
+        mock_aws_service.create_table(table_name=table_name, database_name=database_name)
+        mock_aws_service.create_partitions(
+            table_name=table_name,
+            database_name=database_name,
+            partition_values=["2024-01-01", "2024-01-02"],
+        )
+        glue_client = boto3.client("glue", region_name="us-east-1")
+        adapter = self._freshness_adapter(glue_client)
+
+        # A table loaded by adding partitions keeps the catalog entry it was
+        # created with, so its own timestamps stay behind the data.
+        glue_table = glue_client.get_table(DatabaseName=database_name, Name=table_name)["Table"]
+        glue_table["UpdateTime"] = datetime(2000, 1, 1, tzinfo=timezone.utc)
+
+        last_modified = adapter._table_last_modified(glue_client, database_name, glue_table)
+
+        partitions = glue_client.get_partitions(DatabaseName=database_name, TableName=table_name)[
+            "Partitions"
+        ]
+        self.assertEqual(last_modified, max(partition["CreationTime"] for partition in partitions))
+
+    @mock_aws
+    def test_table_last_modified_reads_hive_and_spark_table_parameters(self):
+        written_at = datetime(2024, 6, 1, 12, 0, tzinfo=timezone.utc)
+        glue_table = {
+            "Name": "unpartitioned_table",
+            "CreateTime": datetime(2000, 1, 1, tzinfo=timezone.utc),
+            "Parameters": {"transient_lastDdlTime": str(int(written_at.timestamp()))},
+        }
+        adapter = self._freshness_adapter(Mock())
+
+        last_modified = adapter._table_last_modified(Mock(), "mockdb", glue_table)
+
+        self.assertEqual(last_modified, written_at)
+
+    @mock_aws
+    def test_table_last_modified_ignores_unreadable_table_parameters(self):
+        created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        glue_table = {
+            "Name": "unpartitioned_table",
+            "CreateTime": created_at,
+            "Parameters": {"last_modified_time": "not-a-timestamp"},
+        }
+        adapter = self._freshness_adapter(Mock())
+
+        last_modified = adapter._table_last_modified(Mock(), "mockdb", glue_table)
+
+        self.assertEqual(last_modified, created_at)
+
+    def test_table_last_modified_does_not_list_partitions_of_an_unpartitioned_table(self):
+        glue_client = Mock()
+        adapter = self._freshness_adapter(glue_client)
+        glue_table = {
+            "Name": "unpartitioned_table",
+            "UpdateTime": datetime(2024, 1, 1, tzinfo=timezone.utc),
+            "PartitionKeys": [],
+        }
+
+        adapter._table_last_modified(glue_client, "mockdb", glue_table)
+
+        glue_client.get_paginator.assert_not_called()
+
+    def test_latest_partition_time_stops_scanning_an_oversized_table(self):
+        glue_client = Mock()
+        adapter = self._freshness_adapter(glue_client)
+        newest = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        page = {"Partitions": [{"CreationTime": newest}]}
+        # More pages than the scan is willing to walk.
+        extra_pages = 10
+        pages = iter([page] * (GlueAdapter.PARTITION_SCAN_MAX_PAGES + extra_pages))
+        glue_client.get_paginator.return_value.paginate.return_value = pages
+
+        latest = adapter._latest_partition_time(glue_client, "mockdb", "huge_table")
+
+        self.assertEqual(latest, newest)
+        self.assertEqual(sum(1 for _ in pages), extra_pages)
+
+    def test_get_relation_last_modified_falls_back_to_the_s3_tables_catalog(self):
+        s3_tables_catalog = "123456789101:s3tablescatalog/my-bucket"
+        written_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        glue_client = Mock()
+        glue_client.exceptions.EntityNotFoundException = type(
+            "EntityNotFoundException", (Exception,), {}
+        )
+        # S3 Tables are federated into their own catalog, so the account's own
+        # catalog does not know the table.
+        glue_client.get_table.side_effect = [
+            glue_client.exceptions.EntityNotFoundException(),
+            {"Table": {"Name": "s3_table", "UpdateTime": written_at}},
+        ]
+        adapter = self._freshness_adapter(glue_client)
+        relation = SparkRelation.create(schema="mockdb", identifier="s3_table")
+
+        with mock.patch.dict("os.environ", {"DBT_S3_TABLES_BUCKET": s3_tables_catalog}):
+            rows = adapter.get_relation_last_modified([relation])["data"]
+
+        self.assertEqual(rows[0][2], written_at)
+        self.assertNotIn("CatalogId", glue_client.get_table.call_args_list[0].kwargs)
+        self.assertEqual(
+            glue_client.get_table.call_args_list[1].kwargs["CatalogId"], s3_tables_catalog
+        )
+
+    def test_get_relation_last_modified_does_not_query_a_second_catalog_needlessly(self):
+        glue_client = Mock()
+        glue_client.get_table.return_value = {
+            "Table": {
+                "Name": "found_table",
+                "UpdateTime": datetime(2024, 1, 1, tzinfo=timezone.utc),
+            }
+        }
+        adapter = self._freshness_adapter(glue_client)
+        relation = SparkRelation.create(schema="mockdb", identifier="found_table")
+
+        with mock.patch.dict(
+            "os.environ", {"DBT_S3_TABLES_BUCKET": "123456789101:s3tablescatalog/my-bucket"}
+        ):
+            adapter.get_relation_last_modified([relation])
+
+        self.assertEqual(glue_client.get_table.call_count, 1)
+
+    @mock_aws
+    def test_get_relation_last_modified_reports_every_relation(self):
+        database_name = "mockdb"
+        table_name = "partitioned_table"
+        mock_aws_service = MockAWSService()
+        mock_aws_service.create_database(name=database_name)
+        mock_aws_service.create_table(table_name=table_name, database_name=database_name)
+        mock_aws_service.create_partitions(
+            table_name=table_name, database_name=database_name, partition_values=["2024-01-01"]
+        )
+        glue_client = boto3.client("glue", region_name="us-east-1")
+        adapter = self._freshness_adapter(glue_client)
+        relations = [
+            SparkRelation.create(schema=database_name, identifier=table_name),
+            SparkRelation.create(schema=database_name, identifier="never_created"),
+        ]
+
+        rows = adapter.get_relation_last_modified(relations)["data"]
+
+        self.assertEqual(
+            [(row[0], row[1]) for row in rows],
+            [(database_name, table_name), (database_name, "never_created")],
+        )
+        self.assertIsNotNone(rows[0][2])
+        # A source that is not in the catalog is reported as unknown rather
+        # than failing the freshness run of every other source.
+        self.assertIsNone(rows[1][2])
 
 
 class TestCsvMappingStrategy:
@@ -313,14 +495,16 @@ class TestCsvMappingStrategy:
             [(111, "str_val", "2024-01-01", "1.234")],
             column_names=expected_column_names,
             column_types=[
-            agate.data_types.Number(),
-            agate.data_types.Text(),
-            agate.data_types.Date(),
-            agate.data_types.Text(),
-        ],
+                agate.data_types.Number(),
+                agate.data_types.Text(),
+                agate.data_types.Date(),
+                agate.data_types.Text(),
+            ],
         )
         model = {"name": "mock_model", "config": {"column_types": {"col_specific": "double"}}}
         mappings = ColumnCsvMappingStrategy.from_model(model, agate_table)
         assert expected_column_names == [mapping.column_name for mapping in mappings]
-        assert expected_converted_agate_types == [mapping.converted_agate_type for mapping in mappings]
+        assert expected_converted_agate_types == [
+            mapping.converted_agate_type for mapping in mappings
+        ]
         assert expected_specified_types == [mapping.specified_type for mapping in mappings]
