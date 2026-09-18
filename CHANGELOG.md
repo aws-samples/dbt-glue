@@ -1,3 +1,7 @@
+## dbt next
+
+- Fixed error for dbt build --empty fails when refs already have aliases
+
 ## v1.12.4
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
@@ -279,4 +283,3 @@
   - Added Conf param for Glue to add custom spark configuration options.
   - Updated glue.sql.sources.partitionOverwriteMode to spark.sql.sources.partitionOverwriteMode to work partition overwrite properly.
 - Override default types for STRING from TEXT to STRING
-
