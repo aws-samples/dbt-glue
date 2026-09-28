@@ -1,3 +1,7 @@
+## dbt-glue next
+
+- Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+
 ## v1.12.4
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
