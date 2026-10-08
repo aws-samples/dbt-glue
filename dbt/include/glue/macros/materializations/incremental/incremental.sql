@@ -40,6 +40,13 @@
     {{ exceptions.raise_compiler_error("unique_key model configuration is required for HUDI incremental materializations.") }}
   {% endif %}
 
+  {# /*-- Set overwrite mode: Spark's default STATIC drops every partition missing from the new data. Before pre-hooks so they can still override it --*/ #}
+  {%- if strategy == 'insert_overwrite' and partition_by -%}
+    {%- call statement() -%}
+      set spark.sql.sources.partitionOverwriteMode = DYNAMIC
+    {%- endcall -%}
+  {%- endif -%}
+
   {# /*-- Run pre-hooks --*/ #}
   {{ run_hooks(pre_hooks) }}
 

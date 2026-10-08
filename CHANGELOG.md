@@ -1,3 +1,7 @@
+## dbt-glue next
+
+- Fixed `insert_overwrite` with `partition_by` deleting every partition missing from the new data unless `spark.sql.sources.partitionOverwriteMode=dynamic` was set in the profile (#711). For `iceberg`, which replaced the whole table in 1.8.x, partitions not in the new data are now kept.
+
 ## v1.12.4
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
