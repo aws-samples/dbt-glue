@@ -551,7 +551,15 @@ insert into table analytics.spark_incremental
 
 ### The `insert_overwrite` strategy
 
-This strategy is most effective when specified alongside a `partition_by` clause in your model config. dbt will run an [atomic `insert overwrite` statement](https://spark.apache.org/docs/latest/sql-ref-syntax-dml-insert-overwrite-table.html) that dynamically replaces all partitions included in your query. Be sure to re-select _all_ of the relevant data for a partition when using this incremental strategy.
+This strategy is most effective when specified alongside a `partition_by` clause in your model config. dbt will run an [atomic `insert overwrite` statement](https://spark.apache.org/docs/latest/sql-ref-syntax-dml-insert-overwrite-table.html) that dynamically replaces all partitions included in your query — **provided you have configured Spark's dynamic partition overwrite mode first** (see the warning below). Be sure to re-select _all_ of the relevant data for a partition when using this incremental strategy.
+
+> **⚠️ Required Spark config:** By default, Spark runs this `insert overwrite` statement in *static* partition overwrite mode, which deletes **every** partition not present in the current run's result — not just the ones you intend to update, and with no error raised. To get the dynamic, per-partition behavior described above, you must add the following to your profile's `conf`:
+>
+> ```yaml
+> conf: "<your other conf settings> --conf spark.sql.sources.partitionOverwriteMode=dynamic"
+> ```
+>
+> This applies to all file formats that use `insert_overwrite` (`parquet`, `iceberg`, `s3tables`, `delta`). See [issue #711](https://github.com/aws-samples/dbt-glue/issues/711) for details.
 
 If no `partition_by` is specified, then the `insert_overwrite` strategy will atomically replace all contents of the table, overriding all existing data with only the new records. The column schema of the table remains the same, however. This can be desirable in some limited circumstances, since it minimizes downtime while the table contents are overwritten. The operation is comparable to running `truncate` + `insert` on other databases. For atomic replacement of Delta-formatted tables, use the `table` materialization (which runs `create or replace`) instead.
 
