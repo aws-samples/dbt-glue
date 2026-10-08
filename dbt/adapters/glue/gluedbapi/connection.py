@@ -499,8 +499,9 @@ class SqlWrapper2:
             else:
                 return dumped_empty_result
         results = []
-        rowcount = df.count()
-        for record in df.rdd.collect():
+        collected = df.collect()
+        rowcount = len(collected)
+        for record in collected:
             d = {}
             for f in df.schema:
                 d[f.name] = record[f.name]
