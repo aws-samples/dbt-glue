@@ -151,6 +151,18 @@ class TestGlueMacros(unittest.TestCase):
         self.assertIn("create table", sql)
         self.assertIn("using hudi", sql)
 
+        # Test with S3 Tables format: a single atomic RTAS on the catalog-qualified name (#713)
+        self.config["file_format"] = "s3tables"
+        sql = self.__run_macro(
+            template, "glue__create_table_as", False, relation, "select 1 as id"
+        ).strip()
+        self.assertTrue(sql.startswith("create or replace table MOCK_FULL_RELATION"), sql)
+        self.assertIn("partitioned by (part_col)", sql)
+        self.assertTrue(sql.endswith("as select 1 as id"), sql)
+        self.assertNotIn("using", sql)
+        self.assertNotIn("location", sql)
+        self.assertNotIn("insert into", sql)
+
     def test_glue_create_temporary_view(self):
         """Test temporary view creation with different schema change modes"""
         template = self.__get_template("adapters.sql")
