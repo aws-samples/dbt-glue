@@ -1,3 +1,7 @@
+## Unreleased
+
+- Added a `skip_use_schema` profile option (default `false`). When set to `true`, the adapter skips the `use <schema>` statement run at session init. This is for setups where the profile-level `schema` is a placeholder resolved per-model at runtime and all model SQL is fully catalog-qualified: in that case the `use <placeholder>` statement fails with `SCHEMA_NOT_FOUND` on every session init (once per cursor, so repeatedly on reused sessions), while the session's default database is never actually consulted. Only enable it when no unqualified table reference relies on the session's current database.
+
 ## v1.12.4
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
