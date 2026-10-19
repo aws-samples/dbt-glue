@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Added a `skip_use_schema` profile option (default `false`). When set to `true`, the adapter skips the `use <schema>` statement run at session init. This is for setups where the profile-level `schema` is a placeholder resolved per-model at runtime and all model SQL is fully catalog-qualified: in that case the `use <placeholder>` statement fails with `SCHEMA_NOT_FOUND` on every session init (once per cursor, so repeatedly on reused sessions), while the session's default database is never actually consulted. Only enable it when no unqualified table reference relies on the session's current database.
 
 ## v1.12.4
 

@@ -190,3 +190,59 @@ class TestGlueConnection(unittest.TestCase):
             "ServerSideEncryption": "aws:kms",
             "SSEKMSKeyId": "abc-123",
         }
+
+    @mock.patch("dbt.adapters.glue.gluedbapi.connection.GlueStatement")
+    def test_init_session_runs_use_schema_by_default(self, mock_statement) -> None:
+        """By default the `use <schema>` statement is executed at session init."""
+        mock_statement.return_value.execute.return_value = None
+
+        connection = GlueConnection(GlueCredentials(schema="my_schema"))
+        connection._client = mock.Mock()
+        connection._session = {"Session": {"Id": "mock-session-id"}}
+
+        connection._init_session()
+
+        codes = [kwargs.get("code", "") for _, kwargs in mock_statement.call_args_list]
+        assert any("spark.sql('use my_schema')" in c for c in codes), codes
+        # Both the SQLPROXY preamble and the `use` statement run.
+        assert mock_statement.call_count == 2
+
+    @mock.patch("dbt.adapters.glue.gluedbapi.connection.GlueStatement")
+    def test_init_session_skips_use_schema_when_configured(self, mock_statement) -> None:
+        """With skip_use_schema=True the `use <schema>` statement is not executed.
+
+        The profile schema is a placeholder resolved per-model, so running
+        `use <placeholder>` would fail with SCHEMA_NOT_FOUND on every init."""
+        mock_statement.return_value.execute.return_value = None
+
+        connection = GlueConnection(
+            GlueCredentials(
+                schema="glue_database_to_be_defined_at_model_level",
+                skip_use_schema=True,
+            )
+        )
+        connection._client = mock.Mock()
+        connection._session = {"Session": {"Id": "mock-session-id"}}
+
+        connection._init_session()
+
+        codes = [kwargs.get("code", "") for _, kwargs in mock_statement.call_args_list]
+        assert not any(
+            "use glue_database_to_be_defined_at_model_level" in c for c in codes
+        ), codes
+        # The SQLPROXY preamble still runs — only the `use` statement is skipped.
+        assert mock_statement.call_count == 1
+
+    @mock.patch("dbt.adapters.glue.gluedbapi.connection.GlueStatement")
+    def test_schema_is_still_required_when_skip_use_schema(self, mock_statement) -> None:
+        """`schema` remains required even with skip_use_schema=True: the required
+        check runs before the skip gate, so a missing schema must still raise.
+        This pins the ordering so a future refactor cannot silently drop it."""
+        mock_statement.return_value.execute.return_value = None
+
+        connection = GlueConnection(GlueCredentials(schema=None, skip_use_schema=True))
+        connection._client = mock.Mock()
+        connection._session = {"Session": {"Id": "mock-session-id"}}
+
+        with self.assertRaises(ValueError):
+            connection._init_session()

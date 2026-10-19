@@ -251,6 +251,7 @@ The table below describes all the options.
 | statement_poll_interval	              | Interval in seconds between polls for statement completion. Must be >= 1. Default `1.0`.        |no|
 | boto_retry_mode	                      | The botocore retry mode used by the adapter's AWS clients and by the boto3 clients created inside the Glue session. One of `legacy`, `standard` or `adaptive`. Default `adaptive`, which adds client-side throttling and is the most resilient to `ThrottlingException`. |no|
 | boto_retry_max_attempts	              | The maximum number of attempts botocore makes per AWS API call. Must be greater than 0. Default `10`. Increase this if you still see `ThrottlingException` / `Rate exceeded` errors on Glue APIs. |no|
+| skip_use_schema	                      | Skip the `use <schema>` statement run at session init. Default `false`. Set to `true` when the profile-level `schema` is a placeholder (resolved per-model at runtime) and all model SQL is fully catalog-qualified — this avoids a `SCHEMA_NOT_FOUND` error on every session init. `schema` is still required (the placeholder value), it is just not applied via `use`. Only safe when no unqualified table references rely on the session's default database. |no|
 
 ## Configs
 
