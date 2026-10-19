@@ -3,7 +3,7 @@ import textwrap
 import json
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt import exceptions as dbterrors
-from dbt_common.exceptions import DbtDatabaseError
+from dbt_common.exceptions import DbtDatabaseError, DbtInternalError
 from dbt.adapters.glue.gluedbapi.commons import GlueStatement
 from dbt.adapters.glue.util import get_pandas_dataframe_from_result_file
 from dbt.adapters.events.logging import AdapterLogger
@@ -78,7 +78,7 @@ class GlueCursor:
         if self.closed:
             raise Exception("CursorClosed")
         if self._is_running:
-            raise dbterrors.InternalException("CursorAlreadyRunning")
+            raise DbtInternalError("CursorAlreadyRunning")
         self.sql = GlueCursor.remove_comments_header(sql)
         self.sql = GlueCursor.add_end_space_if_single_quote(sql)
 
