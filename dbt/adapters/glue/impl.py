@@ -215,6 +215,7 @@ class GlueAdapter(SQLAdapter):
         except Exception as e:
             logger.error(e)
             logger.error("rename_relation exception")
+            raise
 
     def get_relation(self, database, schema, identifier, file_format=None):
         session, client = self.get_connection()
@@ -1134,6 +1135,7 @@ custom_glue_code_for_dbt_adapter
             raise DbtDatabaseError(msg="GlueExecutePySparkFailed") from e
         except Exception as e:
             logger.error(e)
+            raise
 
     @available
     def execute_python(self, code: str, **kwargs) -> Any:
