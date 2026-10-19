@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Fixed a `file_format='s3tables'` model being left with 0 rows when its query failed at execution time (#713). The table is now built with a single `create or replace table ... as select` on the catalog-qualified name, as for `iceberg`, instead of an empty `create or replace table` followed by `insert into`, so a failed run keeps the previous data. `contract.enforced` is now checked for `s3tables` table models too.
 
 ## v1.12.4
 
