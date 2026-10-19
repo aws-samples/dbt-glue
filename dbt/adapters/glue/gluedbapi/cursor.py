@@ -101,7 +101,7 @@ class GlueCursor:
             response = self.statement.execute()
         except Exception as e:
             logger.exception(f"Error in GlueCursor (session_id={self.connection.session_id}) execute: {e}")
-            raise dbterrors.ExecutableError
+            raise DbtDatabaseError(msg=f"Error running statement: {e}") from e
 
         logger.debug(f"response: {response}")
         self.state = response.get("Statement", {}).get("State", GlueCursorState.WAITING)

@@ -12,7 +12,7 @@ import uuid
 from dbt.adapters.events.logging import AdapterLogger
 
 from dbt.adapters.exceptions.connection import FailedToConnectError
-from dbt_common.exceptions import ExecutableError
+from dbt_common.exceptions import DbtDatabaseError
 
 logger = AdapterLogger("Glue")
 
@@ -247,7 +247,7 @@ class GlueConnection:
             statement.execute()
         except Exception as e:
             logger.error(f"Error in GlueCursor (session_id={self.session_id}, SQLPROXY) execute: {e}")
-            raise ExecutableError(str(e))
+            raise DbtDatabaseError(msg=f"Error running SQLPROXY init statement: {e}") from e
 
         if not self.credentials.schema:
             raise ValueError(
@@ -265,7 +265,7 @@ class GlueConnection:
             statement.execute()
         except Exception as e:
             logger.error(f"Error in GlueCursor (session_id={self.session_id}, SQLPROXY) execute: {e}")
-            raise ExecutableError(str(e))
+            raise DbtDatabaseError(msg=f"Error running 'use {self.credentials.schema}' statement: {e}") from e
 
     @property
     def session_id(self):
