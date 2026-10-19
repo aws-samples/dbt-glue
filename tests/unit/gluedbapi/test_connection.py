@@ -3,6 +3,7 @@ from unittest import mock
 
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.glue.gluedbapi.connection import GlueConnection
+from dbt_common.exceptions import DbtDatabaseError
 from moto import mock_aws
 import boto3
 
@@ -190,3 +191,25 @@ class TestGlueConnection(unittest.TestCase):
             "ServerSideEncryption": "aws:kms",
             "SSEKMSKeyId": "abc-123",
         }
+
+    @mock.patch("dbt.adapters.glue.gluedbapi.connection.GlueStatement")
+    def test_init_session_surfaces_real_error_on_statement_failure(self, mock_statement) -> None:
+        """A statement failure (e.g. GetStatement ThrottlingException) must surface the
+        real error message, not a TypeError from constructing ExecutableError wrongly."""
+        mock_statement.return_value.execute.side_effect = Exception(
+            "An error occurred (ThrottlingException) when calling the GetStatement "
+            "operation (reached max retries: 10): Rate exceeded"
+        )
+
+        connection = GlueConnection(GlueCredentials(schema="my_schema"))
+        connection._client = mock.Mock()
+        connection._session = {"Session": {"Id": "mock-session-id"}}
+
+        with self.assertRaises(DbtDatabaseError) as ctx:
+            connection._init_session()
+
+        # The original throttling message is preserved for the operator.
+        assert "ThrottlingException" in str(ctx.exception)
+        assert "Rate exceeded" in str(ctx.exception)
+        # And the original exception is chained as the cause.
+        assert isinstance(ctx.exception.__cause__, Exception)

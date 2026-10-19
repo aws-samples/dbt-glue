@@ -1,3 +1,7 @@
+## Unreleased
+
+- Fixed statement execution errors being masked by a `TypeError`. On any statement failure (e.g. a `ThrottlingException` on the Glue `GetStatement` API), `GlueConnection._init_session` and `GlueCursor.execute` raised `dbt_common.exceptions.ExecutableError` incorrectly — passing a single string, or the class itself, when its constructor requires `(cwd, cmd, msg)`. The resulting `ExecutableError.__init__() missing 2 required positional arguments: 'cmd' and 'msg'` replaced the real error, hiding the underlying cause from operators. These now raise `DbtDatabaseError` with the original message preserved and the original exception chained as the cause.
+
 ## v1.12.4
 
 - Fixed `is_incremental()` always returning `False` for `file_format='s3tables'` models. dbt-core's built-in `is_incremental()` macro does not pass `file_format` to `adapter.get_relation()`, so relations backed by the S3 Tables catalog could never be resolved. dbt-glue now overrides `is_incremental()` to pass the model's `file_format` through (#620).
