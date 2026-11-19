@@ -44,6 +44,7 @@ class GlueCredentials(Credentials):
     statement_poll_interval: float = 1.0
     boto_retry_mode: Optional[str] = "adaptive"
     boto_retry_max_attempts: int = 10
+    root_location: bool = False
     # Python model specific fields
     packages: Optional[List[str]] = None
 

@@ -1,0 +1,92 @@
+name: Check trigger
+description: >
+  Validate a maintainer "/test glue <sha>" comment and pin the reviewed SHA.
+  Verifies the commenter has write/admin permission, that the comment pins a
+  full 40-char SHA, and that the pinned SHA still equals the PR head (blocking
+  a post-review push / TOCTOU). On success, sets a pending commit status on the
+  validated SHA and returns it as an output.
+inputs:
+  status-context:
+    description: Commit status context to report under (e.g. integration-tests).
+    required: true
+  test-name:
+    description: Human-readable test name used in comments/status (e.g. Integration tests).
+    required: true
+outputs:
+  sha:
+    description: The validated commit SHA, set only when all checks pass.
+    value: ${{ steps.validate-sha.outputs.sha }}
+runs:
+  using: composite
+  steps:
+    - id: validate-sha
+      uses: actions/github-script@v7
+      env:
+        STATUS_CONTEXT: ${{ inputs.status-context }}
+        TEST_NAME: ${{ inputs.test-name }}
+      with:
+        script: |
+          const statusContext = process.env.STATUS_CONTEXT;
+          const testName = process.env.TEST_NAME;
+
+          // 1. Commenter must have write+ permission on the repo.
+          const { data: permData } = await github.rest.repos.getCollaboratorPermissionLevel({
+            ...context.repo,
+            username: context.actor
+          });
+          if (!['admin', 'write'].includes(permData.permission)) {
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `❌ @${context.actor} does not have write permission on this repository.`
+            });
+            core.setFailed('Insufficient permissions');
+            return;
+          }
+
+          // 2. Comment must pin a full 40-char commit SHA.
+          const comment = context.payload.comment.body.trim();
+          const shaMatch = comment.match(/^\/test glue ([a-f0-9]{40})$/);
+          if (!shaMatch) {
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: '❌ Invalid format. Use: `/test glue <full-40-char-sha>`'
+            });
+            core.setFailed('Invalid SHA format');
+            return;
+          }
+          const requestedSHA = shaMatch[1];
+
+          // 3. Pinned SHA must still equal the PR head (blocks post-review push / TOCTOU).
+          const pr = (await github.rest.pulls.get({
+            ...context.repo,
+            pull_number: context.issue.number
+          })).data;
+          if (pr.head.sha !== requestedSHA) {
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `❌ SHA mismatch!\n- Provided: \`${requestedSHA}\`\n- Current PR head: \`${pr.head.sha}\`\n\nPlease re-review the latest commit and comment \`/test glue <new-sha>\`.`
+            });
+            core.setFailed('SHA mismatch - possible TOCTOU');
+            return;
+          }
+
+          core.setOutput('sha', requestedSHA);
+
+          // Mark the commit pending so the result shows up as a PR check.
+          await github.rest.repos.createCommitStatus({
+            ...context.repo,
+            sha: requestedSHA,
+            context: statusContext,
+            state: 'pending',
+            target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            description: `${testName} running`
+          });
+
+          await github.rest.issues.createComment({
+            ...context.repo,
+            issue_number: context.issue.number,
+            body: `✅ ${testName} triggered by @${context.actor} for \`${requestedSHA}\`. [View run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+          });

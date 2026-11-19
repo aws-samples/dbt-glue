@@ -25,7 +25,7 @@ from dbt.adapters.glue.lakeformation import (
     LfTagsManager,
 )
 from dbt.adapters.contracts.relation import RelationConfig
-from dbt_common.exceptions import DbtDatabaseError, CompilationError
+from dbt_common.exceptions import DbtDatabaseError, CompilationError, DbtRuntimeError
 from dbt.adapters.base.impl import catch_as_completed
 from dbt_common.utils import executor
 from dbt_common.clients import agate_helper
@@ -62,7 +62,6 @@ class ColumnCsvMappingStrategy:
             )
             for i, column in enumerate(agate_table.columns)
         ]
-    
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
@@ -157,6 +156,7 @@ class GlueAdapter(SQLAdapter):
                         schema=schema_relation.schema,
                         identifier=table.get("Name"),
                         type=self.relation_type_map.get(table.get("TableType")),
+                        quote_policy=schema_relation.quote_policy,
                     ))
             return relations
         except client.exceptions.EntityNotFoundException as e:
@@ -193,6 +193,7 @@ class GlueAdapter(SQLAdapter):
     def glue_rename_relation(self, from_relation, to_relation):
         logger.debug("rename " + from_relation.schema + " to " + to_relation.identifier)
         session, client = self.get_connection()
+        new_path = self._build_location(session, to_relation.schema, to_relation.name, trailing_slash=True)
         code = f'''
         custom_glue_code_for_dbt_adapter
         df = spark.sql("""select * from {from_relation.schema}.{from_relation.name}""")
@@ -201,7 +202,7 @@ class GlueAdapter(SQLAdapter):
         writer = (
                         df.write.mode("append")
                         .format("parquet")
-                        .option("path", "{session.credentials.location}/{to_relation.schema}/{to_relation.name}/")
+                        .option("path", "{new_path}")
                     )
         writer.saveAsTable(table_name, mode="append")
         spark.sql("""drop table {from_relation.schema}.{from_relation.name}""")
@@ -239,7 +240,8 @@ class GlueAdapter(SQLAdapter):
                         database=computed_schema,
                         schema=computed_schema,
                         identifier=identifier,
-                        type='table'
+                        type='table',
+                        quote_policy=self.config.quoting,
                     )
                 except Exception as e:
                     return None
@@ -261,7 +263,8 @@ class GlueAdapter(SQLAdapter):
                 schema=computed_schema,
                 identifier=identifier,
                 type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
-                is_delta=is_delta
+                is_delta=is_delta,
+                quote_policy=self.config.quoting,
             )
             logger.debug(f"""schema : {schema}
                              identifier : {identifier}
@@ -275,7 +278,7 @@ class GlueAdapter(SQLAdapter):
 
     def __compute_schema_based_on_type(self, schema, identifier):
         iceberg_catalog = self.get_custom_iceberg_catalog_namespace()
-        current_relation = self.Relation.create(database=schema, schema=schema, identifier=identifier)
+        current_relation = self.Relation.create(database=schema, schema=schema, identifier=identifier, quote_policy=self.config.quoting)
         existing_relation_type = self.get_table_type(current_relation)
         already_exist_iceberg = (existing_relation_type == 'iceberg_table')
         non_null_catalog = (iceberg_catalog is not None)
@@ -411,15 +414,36 @@ class GlueAdapter(SQLAdapter):
         target_query = target_query.replace(from_relation.identifier, to_relation.identifier)
         return target_query
 
+    def _build_location(self, session, schema, name, custom_location="empty", trailing_slash=False):
+        """Single source of truth for an S3 table location path.
+
+        Honors root_location and custom_location overrides, and strips trailing
+        slashes from the configured location (the old os.path.join approach
+        broke on Windows since it joins with '\\').
+        """
+        if custom_location and custom_location != "empty":
+            path = custom_location
+        else:
+            location = session.credentials.location
+            if location is None:
+                raise DbtRuntimeError("'location' must be set in profiles.yml to build a table location")
+            if location is not None:
+                location = location.rstrip("/")
+            if session.credentials.root_location:
+                path = f"{location}/{name}"
+            else:
+                path = f"{location}/{schema}/{name}"
+        if trailing_slash:
+            path += "/"
+        return path
+
     @available
-    def get_location(self, relation: BaseRelation):
+    def get_location(self, relation: BaseRelation, custom_location="empty", as_clause=True, trailing_slash=False):
         session, client = self.get_connection()
-        location = session.credentials.location
-        if location is not None:
-            # Apply the check to remove any trailing slashes from location
-            # The old get_iceberg_location don't work for Windows users since os.path.join uses '\' in windows
-            location = location.rstrip("/")
-        return f"LOCATION '{location}/{relation.schema}/{relation.name}'"
+        path = self._build_location(session, relation.schema, relation.name, custom_location, trailing_slash)
+        if as_clause:
+            return f"LOCATION '{path}'"
+        return path
 
     def drop_schema(self, relation: BaseRelation) -> None:
         session, client = self.get_connection()
@@ -629,6 +653,9 @@ class GlueAdapter(SQLAdapter):
         column_mappings: List[ColumnCsvMappingStrategy],
     ):
         statements = []
+
+        path = self._build_location(session, model["schema"], model["name"])
+
         for i, csv_chunk in enumerate(csv_chunks):
             is_first = i == 0
             is_last = i == len(csv_chunks) - 1
@@ -676,7 +703,7 @@ if (spark.sql("show tables in {model["schema"]}").where("tableName == lower('{mo
         .insertInto(table_name, overwrite={mode})
 else:
     df.write\
-        .option("path", "{session.credentials.location}/{model["schema"]}/{model["name"]}")\
+        .option("path", "{path}")\
         .format("{session.credentials.seed_format}")\
         .saveAsTable(table_name)
 SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""")
@@ -740,10 +767,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
     @available
     def delta_update_manifest(self, target_relation, custom_location, partition_by):
         session, client = self.get_connection()
-        if custom_location == "empty":
-            location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
-        else:
-            location = custom_location
+        location = self._build_location(session, target_relation.schema, target_relation.name, custom_location=custom_location)
 
         if {session.credentials.delta_athena_prefix} is not None:
             run_msck_repair = f'''
@@ -776,11 +800,8 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
         logger.debug(request)
 
         table_name = f'{target_relation.schema}.{target_relation.name}'
-        if custom_location == "empty":
-            location = f"{session.credentials.location}/{target_relation.schema}/{target_relation.name}"
-        else:
-            location = custom_location
-        
+        location = self._build_location(session, target_relation.schema, target_relation.name, custom_location=custom_location)
+
         options_string = ""
         if delta_create_table_write_options:
             for key, value in delta_create_table_write_options.items():
@@ -928,10 +949,8 @@ SqlWrapper2.execute("""select 1""")
             return None
 
     def hudi_write(self, write_mode, session, target_relation, custom_location):
-        if custom_location == "empty":
-            return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{session.credentials.location}/{target_relation.schema}/{target_relation.name}/")'''
-        else:
-            return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{custom_location}/")'''
+        location = self._build_location(session, target_relation.schema, target_relation.name, custom_location=custom_location, trailing_slash=True)
+        return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{location}")'''
 
     @available
     def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config,
