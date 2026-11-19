@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Added validation for incremental models with enforced contracts: models with `contract.enforced: true` must set `on_schema_change` to either `append_new_columns` or `fail`, not `ignore`. This aligns with dbt-core contract enforcement requirements.
 
 ## v1.12.4
 
@@ -28,7 +29,6 @@
 - Fixed a vulnerable transitive `sqlparse` dependency by upgrading dbt-core past 1.12.0, which raises the minimum required `sqlparse` version (#690). dbt-core 1.11 is skipped because its `sqlparse` constraint still permitted the vulnerable version.
 - Dropped Python 3.9 support, since dbt-core 1.12 and dbt-spark 1.11 both require Python 3.10+ (#657).
 - Upgrade dependencies: dbt-core 1.12.3, dbt-spark 1.11.0, dbt-tests-adapter 1.20.0.
-- Added validation for incremental models with enforced contracts: models with `contract.enforced: true` must set `on_schema_change` to either `append_new_columns` or `fail`, not `ignore`. This aligns with dbt-core contract enforcement requirements.
 
 ## 1.10.19
 
