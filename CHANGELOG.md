@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Fixed `glue_rename_relation` and `execute_pyspark` returning normally when the statement failed with an exception other than `DbtDatabaseError` (#721). The exception is now re-raised after it is logged, so the node fails.
 
 ## v1.12.4
 

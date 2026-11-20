@@ -268,6 +268,20 @@ class TestGlueAdapter(unittest.TestCase):
         actual = [(relation.path.schema, relation.path.identifier) for relation in relations]
         self.assertCountEqual(expected,actual)
 
+    def test_glue_rename_relation_reraises_non_database_error(self):
+        adapter, session_mock = self._adapter_with_mock_session()
+        session_mock.cursor().execute.side_effect = Exception("CursorClosed")
+        from_relation = SparkRelation.create(schema="some_database", identifier="old_table")
+        to_relation = SparkRelation.create(schema="some_database", identifier="new_table")
+        with self.assertRaisesRegex(Exception, "CursorClosed"):
+            adapter.glue_rename_relation(from_relation, to_relation)
+
+    def test_execute_pyspark_reraises_non_database_error(self):
+        adapter, session_mock = self._adapter_with_mock_session()
+        session_mock.cursor().execute.side_effect = Exception("CursorClosed")
+        with self.assertRaisesRegex(Exception, "CursorClosed"):
+            adapter.execute_pyspark("spark.udf.register('f', lambda x: x)")
+
 
 class TestCsvMappingStrategy:
     @pytest.mark.parametrize(
