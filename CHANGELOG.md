@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Fixed a failed session initialization and reuse of a running cursor raising `TypeError` / `AttributeError` instead of a dbt exception (#709).
 
 ## v1.12.4
 

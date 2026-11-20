@@ -3,6 +3,7 @@ from unittest import mock
 
 from dbt.adapters.glue.credentials import GlueCredentials
 from dbt.adapters.glue.gluedbapi.connection import GlueConnection
+from dbt_common.exceptions import DbtDatabaseError
 from moto import mock_aws
 import boto3
 
@@ -190,3 +191,31 @@ class TestGlueConnection(unittest.TestCase):
             "ServerSideEncryption": "aws:kms",
             "SSEKMSKeyId": "abc-123",
         }
+
+    def _init_session_failing_on(self, call_number: int) -> None:
+        """Run _init_session with the Glue calls mocked, failing the call_number-th statement.
+
+        _init_session runs two statements: 1 = SQLPROXY registration, 2 = `use <schema>`.
+        """
+        # schema is checked between the two statements, so it must be set to reach the second one
+        connection = GlueConnection(GlueCredentials(schema="db"))
+
+        # client and session_id would otherwise call AWS
+        with mock.patch.object(GlueConnection, "client", new_callable=mock.PropertyMock), \
+                mock.patch.object(GlueConnection, "session_id", new_callable=mock.PropertyMock, return_value="s"), \
+                mock.patch("dbt.adapters.glue.gluedbapi.connection.GlueStatement") as statement:
+            # each execute() call takes the next item: earlier calls return None, the call_number-th raises
+            statement.return_value.execute.side_effect = [None] * (call_number - 1) + [RuntimeError("Read timed out")]
+            connection._init_session()
+
+    def test_init_session_sqlproxy_failure_raises_database_error(self) -> None:
+        with self.assertRaises(DbtDatabaseError) as ctx:
+            self._init_session_failing_on(1)
+        assert "Read timed out" in str(ctx.exception)
+        assert isinstance(ctx.exception.__cause__, RuntimeError)
+
+    def test_init_session_use_schema_failure_raises_database_error(self) -> None:
+        with self.assertRaises(DbtDatabaseError) as ctx:
+            self._init_session_failing_on(2)
+        assert "Read timed out" in str(ctx.exception)
+        assert isinstance(ctx.exception.__cause__, RuntimeError)

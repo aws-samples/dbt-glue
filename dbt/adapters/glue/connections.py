@@ -6,7 +6,6 @@ from dbt.adapters.sql import SQLConnectionManager
 from dbt.adapters.contracts.connection import AdapterResponse
 from dbt.adapters.exceptions import FailedToConnectError
 from dbt_common.exceptions import DbtRuntimeError
-import dbt
 from dbt.adapters.glue.gluedbapi import GlueConnection, GlueCursor
 from dbt.adapters.events.logging import AdapterLogger
 from dbt_common.events.contextvars import get_node_info
