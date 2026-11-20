@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Fixed statement execution errors being masked by a `TypeError`. On any statement failure (e.g. a `ThrottlingException` on the Glue `GetStatement` API), `GlueConnection._init_session` and `GlueCursor.execute` raised `dbt_common.exceptions.ExecutableError` incorrectly — passing a single string, or the class itself, when its constructor requires `(cwd, cmd, msg)`. The resulting `ExecutableError.__init__() missing 2 required positional arguments: 'cmd' and 'msg'` replaced the real error, hiding the underlying cause from operators. These now raise `DbtDatabaseError` with the original message preserved and the original exception chained as the cause.
 
 ## v1.12.4
 
