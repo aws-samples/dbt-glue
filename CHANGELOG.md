@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Added validation for incremental models with enforced contracts: models with `contract.enforced: true` must set `on_schema_change` to either `append_new_columns` or `fail`, not `ignore`. This aligns with dbt-core contract enforcement requirements.
 
 ## v1.12.4
 
