@@ -3,33 +3,53 @@ import json
 import os
 import re
 import uuid
-import boto3
-from dbt.adapters.glue.util import get_columns_from_result, get_pandas_dataframe_from_result_file
-from typing import Set, Dict, List, Any, Iterable, FrozenSet, Tuple, Type
+from collections.abc import Iterable, Sequence
+from concurrent.futures import Future
+from datetime import date, datetime, timezone
+from typing import TYPE_CHECKING, Any, Optional
 
 import agate
-from concurrent.futures import Future
-
-from dbt.adapters.base import available, PythonJobHelper
+import boto3
+from dbt.adapters.base import PythonJobHelper, available
+from dbt.adapters.base.impl import FreshnessResponse, catch_as_completed
 from dbt.adapters.base.relation import BaseRelation, InformationSchema
+from dbt.adapters.capability import (
+    Capability,
+    CapabilityDict,
+    CapabilitySupport,
+    Support,
+)
+from dbt.adapters.contracts.connection import AdapterResponse
+from dbt.adapters.contracts.relation import RelationConfig
+from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.sql import SQLAdapter
+from dbt_common.exceptions import CompilationError, DbtDatabaseError, DbtRuntimeError
+from dbt_common.utils import AttrDict, executor
+
 from dbt.adapters.glue import GlueConnectionManager
 from dbt.adapters.glue.column import GlueColumn
 from dbt.adapters.glue.gluedbapi import GlueConnection
-from dbt.adapters.glue.relation import SparkRelation
-from dbt.adapters.glue.python_submissions import GluePythonJobHelper
 from dbt.adapters.glue.lakeformation import (
     LfGrantsConfig,
     LfPermissions,
     LfTagsConfig,
     LfTagsManager,
 )
-from dbt.adapters.contracts.relation import RelationConfig
-from dbt_common.exceptions import DbtDatabaseError, CompilationError, DbtRuntimeError
-from dbt.adapters.base.impl import catch_as_completed
-from dbt_common.utils import executor
-from dbt_common.clients import agate_helper
-from dbt.adapters.events.logging import AdapterLogger
+from dbt.adapters.glue.python_submissions import GluePythonJobHelper
+from dbt.adapters.glue.relation import SparkRelation
+from dbt.adapters.glue.util import (
+    get_columns_from_result,
+    get_pandas_dataframe_from_result_file,
+)
+
+# Implementing this to simply the development, currently require a documentation lookup
+if TYPE_CHECKING:
+    # boto3-stubs only, so the runtime dependency stays on boto3 alone.
+    from mypy_boto3_glue.client import GlueClient
+    from mypy_boto3_glue.type_defs import TableTypeDef
+else:
+    GlueClient = Any
+    TableTypeDef = dict[str, Any]
 
 logger = AdapterLogger("Glue")
 
@@ -47,7 +67,9 @@ class ColumnCsvMappingStrategy:
         self.specified_type = specified_type
 
     def as_schema_value(self):
-        return ColumnCsvMappingStrategy._schema_mappings.get(self.converted_agate_type, self.converted_agate_type)
+        return ColumnCsvMappingStrategy._schema_mappings.get(
+            self.converted_agate_type, self.converted_agate_type
+        )
 
     def as_cast_value(self):
         return self.specified_type if self.specified_type else self.converted_agate_type
@@ -62,30 +84,56 @@ class ColumnCsvMappingStrategy:
             )
             for i, column in enumerate(agate_table.columns)
         ]
+
+
 class GlueAdapter(SQLAdapter):
     ConnectionManager = GlueConnectionManager
     Relation = SparkRelation
     Column = GlueColumn
 
-    relation_type_map = {'EXTERNAL_TABLE': 'table',
-                         'MANAGED_TABLE': 'table',
-                         'VIRTUAL_VIEW': 'view',
-                         'table': 'table',
-                         'view': 'view',
-                         'cte': 'cte',
-                         'materializedview': 'materializedview'}
+    relation_type_map = {
+        "EXTERNAL_TABLE": "table",
+        "MANAGED_TABLE": "table",
+        "VIRTUAL_VIEW": "view",
+        "table": "table",
+        "view": "view",
+        "cte": "cte",
+        "materializedview": "materializedview",
+    }
 
     HUDI_METADATA_COLUMNS = [
-        '_hoodie_commit_time',
-        '_hoodie_commit_seqno',
-        '_hoodie_record_key',
-        '_hoodie_partition_path',
-        '_hoodie_file_name'
+        "_hoodie_commit_time",
+        "_hoodie_commit_seqno",
+        "_hoodie_record_key",
+        "_hoodie_partition_path",
+        "_hoodie_file_name",
     ]
+
+    # Table parameters holding, as epoch seconds, when a table was last written.
+    TABLE_LAST_MODIFIED_PARAMETERS = (
+        "transient_lastDdlTime",  # written by Hive
+        "last_modified_time",  # written by Spark
+    )
+
+    # The partition scan behind metadata-based freshness is bounded by these:
+    # the catalog offers no way to ask for the most recent partition, so the
+    # whole list has to be walked.
+    PARTITION_SCAN_PAGE_SIZE = 1000
+    PARTITION_SCAN_MAX_PAGES = 100
+
+    # Metadata-based source freshness is answered from the Glue Data Catalog
+    # (see get_relation_last_modified), so no Spark query is involved and the
+    # relations for a schema are resolved in a single paginated API call.
+    _capabilities = CapabilityDict(
+        {
+            Capability.TableLastModifiedMetadata: CapabilitySupport(support=Support.Full),
+            Capability.TableLastModifiedMetadataBatch: CapabilitySupport(support=Support.Full),
+        }
+    )
 
     @classmethod
     def date_function(cls) -> str:
-        return 'current_timestamp()'
+        return "current_timestamp()"
 
     @classmethod
     def convert_text_type(cls, agate_table, col_idx):
@@ -118,46 +166,50 @@ class GlueAdapter(SQLAdapter):
         glueSession: GlueConnection = connection.handle
         if glueSession.credentials.role_arn:
             if glueSession.credentials.use_interactive_session_role_for_api_calls:
-                sts_client = boto3.client('sts')
+                sts_client = boto3.client("sts")
                 assumed_role_object = sts_client.assume_role(
-                    RoleArn=glueSession.credentials.role_arn,
-                    RoleSessionName="dbt"
+                    RoleArn=glueSession.credentials.role_arn, RoleSessionName="dbt"
                 )
-                credentials = assumed_role_object['Credentials']
-                glue_client = boto3.client("glue", region_name=glueSession.credentials.region,
-                                           aws_access_key_id=credentials['AccessKeyId'],
-                                           aws_secret_access_key=credentials['SecretAccessKey'],
-                                           aws_session_token=credentials['SessionToken'])
+                credentials = assumed_role_object["Credentials"]
+                glue_client = boto3.client(
+                    "glue",
+                    region_name=glueSession.credentials.region,
+                    aws_access_key_id=credentials["AccessKeyId"],
+                    aws_secret_access_key=credentials["SecretAccessKey"],
+                    aws_session_token=credentials["SessionToken"],
+                )
                 return glueSession, glue_client
 
         glue_client = boto3.client("glue", region_name=glueSession.credentials.region)
         return glueSession, glue_client
 
-    def list_schemas(self, database: str) -> List[str]:
+    def list_schemas(self, database: str) -> list[str]:
         session, client = self.get_connection()
-        paginator = client.get_paginator('get_databases')
+        paginator = client.get_paginator("get_databases")
         schemas = []
         for page in paginator.paginate():
-            databaseList = page['DatabaseList']
+            databaseList = page["DatabaseList"]
             for databaseDict in databaseList:
-                databaseName = databaseDict['Name']
+                databaseName = databaseDict["Name"]
                 schemas.append(databaseName)
         return schemas
 
     def list_relations_without_caching(self, schema_relation: SparkRelation):
         session, client = self.get_connection()
         relations = []
-        paginator = client.get_paginator('get_tables')
+        paginator = client.get_paginator("get_tables")
         try:
             for page in paginator.paginate(DatabaseName=schema_relation.schema):
-                for table in page.get('TableList', []):
-                    relations.append(self.Relation.create(
-                        database=schema_relation.schema,
-                        schema=schema_relation.schema,
-                        identifier=table.get("Name"),
-                        type=self.relation_type_map.get(table.get("TableType")),
-                        quote_policy=schema_relation.quote_policy,
-                    ))
+                for table in page.get("TableList", []):
+                    relations.append(
+                        self.Relation.create(
+                            database=schema_relation.schema,
+                            schema=schema_relation.schema,
+                            identifier=table.get("Name"),
+                            type=self.relation_type_map.get(table.get("TableType")),
+                            quote_policy=schema_relation.quote_policy,
+                        )
+                    )
             return relations
         except client.exceptions.EntityNotFoundException as e:
             return []
@@ -178,9 +230,7 @@ class GlueAdapter(SQLAdapter):
     def check_relation_exists(self, relation: BaseRelation) -> bool:
         try:
             relation = self.get_relation(
-                database=relation.schema,
-                schema=relation.schema,
-                identifier=relation.identifier
+                database=relation.schema, schema=relation.schema, identifier=relation.identifier
             )
             if relation is None:
                 return False
@@ -193,7 +243,9 @@ class GlueAdapter(SQLAdapter):
     def glue_rename_relation(self, from_relation, to_relation):
         logger.debug("rename " + from_relation.schema + " to " + to_relation.identifier)
         session, client = self.get_connection()
-        new_path = self._build_location(session, to_relation.schema, to_relation.name, trailing_slash=True)
+        new_path = self._build_location(
+            session, to_relation.schema, to_relation.name, trailing_slash=True
+        )
         code = f'''
         custom_glue_code_for_dbt_adapter
         df = spark.sql("""select * from {from_relation.schema}.{from_relation.name}""")
@@ -219,57 +271,66 @@ class GlueAdapter(SQLAdapter):
     def get_relation(self, database, schema, identifier, file_format=None):
         session, client = self.get_connection()
         if not identifier:
-            logger.debug(f"get_relation returns None for schema : {schema} as identifier is not set")
+            logger.debug(
+                f"get_relation returns None for schema : {schema} as identifier is not set"
+            )
             return None
-        
-        if file_format == 's3tables':
+
+        if file_format == "s3tables":
             # Use S3 Tables catalog ID for get_table call
             import os
-            s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
+
+            s3_tables_bucket = os.getenv("DBT_S3_TABLES_BUCKET")
             if s3_tables_bucket:
                 schema_stripped = self._strip_catalog_from_schema(schema)
                 try:
                     response = client.get_table(
-                        CatalogId=s3_tables_bucket,
-                        DatabaseName=schema_stripped,
-                        Name=identifier
+                        CatalogId=s3_tables_bucket, DatabaseName=schema_stripped, Name=identifier
                     )
                     # Create relation for S3 Tables
-                    computed_schema = self.__compute_schema_based_on_type(schema=schema_stripped, identifier=identifier)
+                    computed_schema = self.__compute_schema_based_on_type(
+                        schema=schema_stripped, identifier=identifier
+                    )
                     return self.Relation.create(
                         database=computed_schema,
                         schema=computed_schema,
                         identifier=identifier,
-                        type='table',
+                        type="table",
                         quote_policy=self.config.quoting,
                     )
                 except Exception as e:
                     return None
-        
+
         try:
             schema = self._strip_catalog_from_schema(schema)
 
             logger.debug(f"get_relation schema: {schema}, identifier: {identifier}")
-            response = client.get_table(
-                DatabaseName=schema,
-                Name=identifier
+            response = client.get_table(DatabaseName=schema, Name=identifier)
+            is_delta = (
+                response.get("Table").get("Parameters").get("spark.sql.sources.provider")
+                == "delta"
             )
-            is_delta = response.get('Table').get("Parameters").get("spark.sql.sources.provider") == "delta"
 
             # Compute the new schema based on the iceberg requirements
-            computed_schema = self.__compute_schema_based_on_type(schema=schema, identifier=identifier)
+            computed_schema = self.__compute_schema_based_on_type(
+                schema=schema, identifier=identifier
+            )
             relation = self.Relation.create(
                 database=computed_schema,
                 schema=computed_schema,
                 identifier=identifier,
-                type=self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table")),
+                type=self.relation_type_map.get(
+                    response.get("Table", {}).get("TableType", "Table")
+                ),
                 is_delta=is_delta,
                 quote_policy=self.config.quoting,
             )
-            logger.debug(f"""schema : {schema}
+            logger.debug(
+                f"""schema : {schema}
                              identifier : {identifier}
                              type : {self.relation_type_map.get(response.get('Table', {}).get('TableType', 'Table'))}
-                        """)
+                        """
+            )
             return relation
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)
@@ -278,13 +339,15 @@ class GlueAdapter(SQLAdapter):
 
     def __compute_schema_based_on_type(self, schema, identifier):
         iceberg_catalog = self.get_custom_iceberg_catalog_namespace()
-        current_relation = self.Relation.create(database=schema, schema=schema, identifier=identifier, quote_policy=self.config.quoting)
+        current_relation = self.Relation.create(
+            database=schema, schema=schema, identifier=identifier, quote_policy=self.config.quoting
+        )
         existing_relation_type = self.get_table_type(current_relation)
-        already_exist_iceberg = (existing_relation_type == 'iceberg_table')
-        non_null_catalog = (iceberg_catalog is not None)
+        already_exist_iceberg = existing_relation_type == "iceberg_table"
+        non_null_catalog = iceberg_catalog is not None
         if non_null_catalog and already_exist_iceberg:
             # We add the iceberg catalog is the following cases
-            return iceberg_catalog + '.' + schema
+            return iceberg_catalog + "." + schema
         else:
             # Otherwise we keep the relation as it is
             return schema
@@ -295,7 +358,9 @@ class GlueAdapter(SQLAdapter):
 
         schema = self._strip_catalog_from_schema(relation.schema)
 
-        computed_schema = self.__compute_schema_based_on_type(schema=schema, identifier=relation.identifier)
+        computed_schema = self.__compute_schema_based_on_type(
+            schema=schema, identifier=relation.identifier
+        )
 
         records = []
         columns = []
@@ -363,7 +428,7 @@ class GlueAdapter(SQLAdapter):
             result_bucket = response.get("result_bucket")
             result_key = response.get("result_key")
             pdf = get_pandas_dataframe_from_result_file(result_bucket, result_key)
-            results = pdf.to_dict('records')[0]
+            results = pdf.to_dict("records")[0]
             items = results.get("results", [])
             columns = get_columns_from_result(results)
         else:
@@ -384,23 +449,26 @@ class GlueAdapter(SQLAdapter):
         return "`{}`".format(identifier)
 
     def set_table_properties(self, table_properties):
-        if table_properties == 'empty':
+        if table_properties == "empty":
             return ""
         else:
             table_properties_formatted = []
             for key in table_properties:
                 table_properties_formatted.append("'" + key + "'='" + table_properties[key] + "'")
             if len(table_properties_formatted) > 0:
-                table_properties_csv = ','.join(table_properties_formatted)
+                table_properties_csv = ",".join(table_properties_formatted)
                 return "TBLPROPERTIES (" + table_properties_csv + ")"
             else:
                 return ""
 
-
     @available
-    def duplicate_view(self, from_relation: BaseRelation, to_relation: BaseRelation, ):
+    def duplicate_view(
+        self,
+        from_relation: BaseRelation,
+        to_relation: BaseRelation,
+    ):
         session, client = self.get_connection()
-        code = f'''SHOW CREATE TABLE {from_relation.schema}.{from_relation.identifier}'''
+        code = f"""SHOW CREATE TABLE {from_relation.schema}.{from_relation.identifier}"""
         try:
             response = session.cursor().execute(code)
             records = self.fetch_all_response(response)
@@ -414,7 +482,9 @@ class GlueAdapter(SQLAdapter):
         target_query = target_query.replace(from_relation.identifier, to_relation.identifier)
         return target_query
 
-    def _build_location(self, session, schema, name, custom_location="empty", trailing_slash=False):
+    def _build_location(
+        self, session, schema, name, custom_location="empty", trailing_slash=False
+    ):
         """Single source of truth for an S3 table location path.
 
         Honors root_location and custom_location overrides, and strips trailing
@@ -426,7 +496,9 @@ class GlueAdapter(SQLAdapter):
         else:
             location = session.credentials.location
             if location is None:
-                raise DbtRuntimeError("'location' must be set in profiles.yml to build a table location")
+                raise DbtRuntimeError(
+                    "'location' must be set in profiles.yml to build a table location"
+                )
             if location is not None:
                 location = location.rstrip("/")
             if session.credentials.root_location:
@@ -438,9 +510,13 @@ class GlueAdapter(SQLAdapter):
         return path
 
     @available
-    def get_location(self, relation: BaseRelation, custom_location="empty", as_clause=True, trailing_slash=False):
+    def get_location(
+        self, relation: BaseRelation, custom_location="empty", as_clause=True, trailing_slash=False
+    ):
         session, client = self.get_connection()
-        path = self._build_location(session, relation.schema, relation.name, custom_location, trailing_slash)
+        path = self._build_location(
+            session, relation.schema, relation.name, custom_location, trailing_slash
+        )
         if as_clause:
             return f"LOCATION '{path}'"
         return path
@@ -473,8 +549,8 @@ class GlueAdapter(SQLAdapter):
                 client.create_database(
                     DatabaseInput={
                         "Name": relation.schema,
-                        'Description': 'test dbt database',
-                        'LocationUri': f"{session.credentials.location}/{relation.schema}/",
+                        "Description": "test dbt database",
+                        "LocationUri": f"{session.credentials.location}/{relation.schema}/",
                     }
                 )
                 Entries = []
@@ -511,7 +587,7 @@ class GlueAdapter(SQLAdapter):
                                 "Table": {
                                     "DatabaseName": relation.schema,
                                     "TableWildcard": {},
-                                    "CatalogId": account
+                                    "CatalogId": account,
                                 }
                             },
                             "Permissions": [
@@ -540,12 +616,12 @@ class GlueAdapter(SQLAdapter):
     def get_catalog(
         self,
         relation_configs: Iterable[RelationConfig],
-        used_schemas: FrozenSet[Tuple[str, str]],
-    ) -> Tuple[agate.Table, List[Exception]]:
+        used_schemas: frozenset[tuple[str, str]],
+    ) -> tuple[agate.Table, list[Exception]]:
         schema_map = self._get_catalog_schemas(relation_configs)
 
         with executor(self.config) as tpe:
-            futures: List[Future[agate.Table]] = []
+            futures: list[Future[agate.Table]] = []
             for info, schemas in schema_map.items():
                 if len(schemas) == 0:
                     continue
@@ -561,18 +637,15 @@ class GlueAdapter(SQLAdapter):
     def _get_one_catalog(
         self,
         information_schema: InformationSchema,
-        schemas: Set[str],
-        used_schemas: FrozenSet[Tuple[str, str]],
+        schemas: set[str],
+        used_schemas: frozenset[tuple[str, str]],
     ) -> agate.Table:
         if len(schemas) != 1:
             raise CompilationError(
-                f'Expected only one schema in glue _get_one_catalog, found '
-                f'{schemas}'
+                f"Expected only one schema in glue _get_one_catalog, found " f"{schemas}"
             )
 
-        schema_base_relation = BaseRelation.create(
-            schema=list(schemas)[0]
-        )
+        schema_base_relation = BaseRelation.create(schema=list(schemas)[0])
 
         results = self.list_relations_without_caching(schema_base_relation)
         rows = []
@@ -584,30 +657,32 @@ class GlueAdapter(SQLAdapter):
             table_info = self.get_columns_in_relation(relation_row)
 
             for table_row in table_info:
-                rows.append([
-                    schema_base_relation.schema,
-                    schema_base_relation.schema,
-                    name,
-                    relation_type,
-                    '',
-                    '',
-                    table_row.column,
-                    '0',
-                    table_row.dtype,
-                    ''
-                ])
+                rows.append(
+                    [
+                        schema_base_relation.schema,
+                        schema_base_relation.schema,
+                        name,
+                        relation_type,
+                        "",
+                        "",
+                        table_row.column,
+                        "0",
+                        table_row.dtype,
+                        "",
+                    ]
+                )
 
         column_names = [
-            'table_database',
-            'table_schema',
-            'table_name',
-            'table_type',
-            'table_comment',
-            'table_owner',
-            'column_name',
-            'column_index',
-            'column_type',
-            'column_comment'
+            "table_database",
+            "table_schema",
+            "table_name",
+            "table_type",
+            "table_comment",
+            "table_owner",
+            "column_name",
+            "column_index",
+            "column_type",
+            "column_comment",
         ]
         table = agate.Table(rows, column_names)
 
@@ -617,14 +692,15 @@ class GlueAdapter(SQLAdapter):
     def get_custom_iceberg_catalog_namespace(self):
         session, _ = self.get_connection()
         catalog_namespace = session.credentials.custom_iceberg_catalog_namespace
-        if catalog_namespace is None or catalog_namespace == '':
+        if catalog_namespace is None or catalog_namespace == "":
             return None
         else:
             return catalog_namespace
-    
+
     @available
     def create_csv_table(self, model, agate_table):
-        session, client = self.get_connection()
+        # client is not required
+        session, _ = self.get_connection()
         logger.debug(model)
         f = io.StringIO("")
         agate_table.to_json(f)
@@ -634,7 +710,13 @@ class GlueAdapter(SQLAdapter):
             mode = "False"
 
         csv_chunks = self._split_csv_records_into_chunks(json.loads(f.getvalue()))
-        statements = self._map_csv_chunks_to_code(csv_chunks, session, model, mode, ColumnCsvMappingStrategy.from_model(model, agate_table))
+        statements = self._map_csv_chunks_to_code(
+            csv_chunks,
+            session,
+            model,
+            mode,
+            ColumnCsvMappingStrategy.from_model(model, agate_table),
+        )
         try:
             cursor = session.cursor()
             for statement in statements:
@@ -646,11 +728,11 @@ class GlueAdapter(SQLAdapter):
 
     def _map_csv_chunks_to_code(
         self,
-        csv_chunks: List[List[dict]],
+        csv_chunks: list[list[dict]],
         session: GlueConnection,
         model,
         mode,
-        column_mappings: List[ColumnCsvMappingStrategy],
+        column_mappings: list[ColumnCsvMappingStrategy],
     ):
         statements = []
 
@@ -666,7 +748,7 @@ csv = {csv_chunk}
 """
             else:
                 code += f"""
-csv.extend({csv_chunk})        
+csv.extend({csv_chunk})
 """
             if not is_last:
                 code += f'''
@@ -675,7 +757,10 @@ SqlWrapper2.execute("""select 1""")
             else:
                 if session.credentials.enable_spark_seed_casting:
                     csv_schema = ", ".join(
-                        [f"{mapping.column_name}: {mapping.as_schema_value()}" for mapping in column_mappings]
+                        [
+                            f"{mapping.column_name}: {mapping.as_schema_value()}"
+                            for mapping in column_mappings
+                        ]
                     )
 
                     cast_columns = ", ".join(
@@ -711,7 +796,7 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             statements.append(code)
         return statements
 
-    def _split_csv_records_into_chunks(self, records: List[dict], target_size=60000):
+    def _split_csv_records_into_chunks(self, records: list[dict], target_size=60000):
         chunks = [[]]
         for record in records:
             if len(str([*chunks[-1], record])) > target_size:
@@ -724,7 +809,9 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
         session, client = self.get_connection()
         table_input = {}
         try:
-            logger.debug(f"_update_additional_location schema: {target_relation.schema}, name: {session.credentials.delta_athena_prefix}_{target_relation.name}")
+            logger.debug(
+                f"_update_additional_location schema: {target_relation.schema}, name: {session.credentials.delta_athena_prefix}_{target_relation.name}"
+            )
             table_input = client.get_table(
                 DatabaseName=f"{target_relation.schema}",
                 Name=f"{session.credentials.delta_athena_prefix}_{target_relation.name}",
@@ -737,26 +824,26 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
 
         try:
             # removing redundant keys from table_input
-            del table_input['DatabaseName'], \
-                table_input['CreateTime'], \
-                table_input['UpdateTime'], \
-                table_input['CreatedBy'], \
-                table_input['IsRegisteredWithLakeFormation'], \
-                table_input['CatalogId'], \
-                table_input['VersionId']
+            del (
+                table_input["DatabaseName"],
+                table_input["CreateTime"],
+                table_input["UpdateTime"],
+                table_input["CreatedBy"],
+                table_input["IsRegisteredWithLakeFormation"],
+                table_input["CatalogId"],
+                table_input["VersionId"],
+            )
 
-            if 'AdditionalLocations' not in table_input['StorageDescriptor']:
-                table_input['StorageDescriptor']['AdditionalLocations'] = [location]
-            elif location not in table_input['StorageDescriptor']['AdditionalLocations']:
-                table_input['StorageDescriptor']['AdditionalLocations'].append(location)
+            if "AdditionalLocations" not in table_input["StorageDescriptor"]:
+                table_input["StorageDescriptor"]["AdditionalLocations"] = [location]
+            elif location not in table_input["StorageDescriptor"]["AdditionalLocations"]:
+                table_input["StorageDescriptor"]["AdditionalLocations"].append(location)
         except KeyError as e:
             logger.debug(e)
             pass
         try:
             client.update_table(
-                DatabaseName=f'{target_relation.schema}',
-                TableInput=table_input,
-                SkipArchive=True
+                DatabaseName=f"{target_relation.schema}", TableInput=table_input, SkipArchive=True
             )
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)
@@ -767,27 +854,36 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
     @available
     def delta_update_manifest(self, target_relation, custom_location, partition_by):
         session, client = self.get_connection()
-        location = self._build_location(session, target_relation.schema, target_relation.name, custom_location=custom_location)
+        location = self._build_location(
+            session, target_relation.schema, target_relation.name, custom_location=custom_location
+        )
 
         if {session.credentials.delta_athena_prefix} is not None:
             run_msck_repair = f'''
             spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}")
             SqlWrapper2.execute("""select 1""")
             '''
-            generate_symlink = f'''
+            generate_symlink = f"""
             custom_glue_code_for_dbt_adapter
             from delta.tables import DeltaTable
             deltaTable = DeltaTable.forPath(spark, "{location}")
             deltaTable.generate("symlink_format_manifest")
 
-            '''
+            """
             if partition_by is not None:
                 update_manifest_code = generate_symlink + run_msck_repair
             else:
-                update_manifest_code = generate_symlink + f'''SqlWrapper2.execute("""select 1""")'''
+                update_manifest_code = (
+                    generate_symlink + f'''SqlWrapper2.execute("""select 1""")'''
+                )
             try:
                 session.cursor().execute(
-                    re.sub("headertoberepalced", session.credentials.delta_athena_prefix, update_manifest_code))
+                    re.sub(
+                        "headertoberepalced",
+                        session.credentials.delta_athena_prefix,
+                        update_manifest_code,
+                    )
+                )
             except DbtDatabaseError as e:
                 raise DbtDatabaseError(msg="GlueDeltaUpdateManifestFailed") from e
             except Exception as e:
@@ -795,12 +891,22 @@ SqlWrapper2.execute("""select * from {model["schema"]}.{model["name"]} limit 1""
             self._update_additional_location(target_relation, location)
 
     @available
-    def delta_create_table(self, target_relation, request, primary_key, partition_key, custom_location, delta_create_table_write_options=None):
+    def delta_create_table(
+        self,
+        target_relation,
+        request,
+        primary_key,
+        partition_key,
+        custom_location,
+        delta_create_table_write_options=None,
+    ):
         session, client = self.get_connection()
         logger.debug(request)
 
-        table_name = f'{target_relation.schema}.{target_relation.name}'
-        location = self._build_location(session, target_relation.schema, target_relation.name, custom_location=custom_location)
+        table_name = f"{target_relation.schema}.{target_relation.name}"
+        location = self._build_location(
+            session, target_relation.schema, target_relation.name, custom_location=custom_location
+        )
 
         options_string = ""
         if delta_create_table_write_options:
@@ -841,20 +947,31 @@ LOCATION '{location}/_symlink_format_manifest/'"""
 spark.sql(ddl)
 '''
         if partition_key is not None:
-            part_list = (', '.join(['`"{}"`'.format(field) for field in partition_key])).replace('`', '')
-            write_data_partition = f'''.partitionBy({part_list})'''
-            create_athena_table_partition = f'''
+            part_list = (", ".join(['`"{}"`'.format(field) for field in partition_key])).replace(
+                "`", ""
+            )
+            write_data_partition = f""".partitionBy({part_list})"""
+            create_athena_table_partition = f"""
 PARTITIONED BY ({part_list})
-            '''
+            """
             run_msck_repair = f'''
 spark.sql("MSCK REPAIR TABLE {target_relation.schema}.headertoberepalced_{target_relation.name}")
 SqlWrapper2.execute("""select 1""")
             '''
             write_data_code = write_data_header + write_data_partition + write_data_footer
-            create_athena_table = create_athena_table_header + create_athena_table_partition + create_athena_table_footer + run_msck_repair
+            create_athena_table = (
+                create_athena_table_header
+                + create_athena_table_partition
+                + create_athena_table_footer
+                + run_msck_repair
+            )
         else:
             write_data_code = write_data_header + write_data_footer
-            create_athena_table = create_athena_table_header + create_athena_table_footer + f'''SqlWrapper2.execute("""select 1""")'''
+            create_athena_table = (
+                create_athena_table_header
+                + create_athena_table_footer
+                + f'''SqlWrapper2.execute("""select 1""")'''
+            )
 
         try:
             session.cursor().execute(write_data_code)
@@ -873,14 +990,19 @@ SqlWrapper2.execute("""select 1""")
         if {session.credentials.delta_athena_prefix} is not None:
             try:
                 session.cursor().execute(
-                    re.sub("headertoberepalced", session.credentials.delta_athena_prefix, create_athena_table))
+                    re.sub(
+                        "headertoberepalced",
+                        session.credentials.delta_athena_prefix,
+                        create_athena_table,
+                    )
+                )
             except DbtDatabaseError as e:
                 raise DbtDatabaseError(msg="GlueDeltaCreateTableFailed") from e
             except Exception as e:
                 logger.error(e)
             self._update_additional_location(target_relation, location)
 
-    def _strip_catalog_from_schema(self, schema):
+    def _strip_catalog_from_schema(self, schema: str) -> str:
         """
         Utility function to remove the iceberg catalog name from schema if present.
 
@@ -890,6 +1012,10 @@ SqlWrapper2.execute("""select 1""")
         Returns:
             str: The schema name without catalog prefix
         """
+        # spark_catalog is Spark's builtin catalog, never a Glue database name.
+        if schema.startswith("spark_catalog."):
+            return schema[len("spark_catalog.") :]
+
         iceberg_catalog = self.get_custom_iceberg_catalog_namespace()
 
         # If no custom catalog is configured, return schema as is
@@ -898,28 +1024,309 @@ SqlWrapper2.execute("""select 1""")
 
         # If schema starts with catalog name followed by a dot, remove it
         if schema.startswith(f"{iceberg_catalog}."):
-            return schema[len(iceberg_catalog) + 1:]
+            return schema[len(iceberg_catalog) + 1 :]
 
         return schema
+
+    @staticmethod
+    def _catalog_argument(catalog_id: Optional[str]) -> dict:
+        """Address a non-default Glue catalog, or the account's own when None."""
+        return {"CatalogId": catalog_id} if catalog_id else {}
+
+    @classmethod
+    def _catalog_ids(cls) -> list[Optional[str]]:
+        """The catalogs a relation may live in, most likely first.
+
+        Tables are normally in the account's own catalog, but S3 Tables are
+        federated into a catalog of their own, which has to be named explicitly.
+        """
+        catalog_ids: list[Optional[str]] = [None]
+        s3_tables_bucket = os.getenv("DBT_S3_TABLES_BUCKET")
+        if s3_tables_bucket:
+            catalog_ids.append(s3_tables_bucket)
+        return catalog_ids
+
+    def _list_glue_tables(
+        self, client: "GlueClient", schema: str, catalog_id: Optional[str] = None
+    ) -> list["TableTypeDef"]:
+        """List every table of a Glue database, or an empty list if it is absent."""
+        tables: list[TableTypeDef] = []
+        paginator = client.get_paginator("get_tables")
+        try:
+            for page in paginator.paginate(
+                DatabaseName=schema, **self._catalog_argument(catalog_id)
+            ):
+                tables.extend(page.get("TableList", []))
+        except client.exceptions.EntityNotFoundException as e:
+            logger.debug(e)
+        return tables
+
+    def _get_glue_tables(
+        self,
+        client: "GlueClient",
+        schema: str,
+        identifiers: set[str],
+        catalog_id: Optional[str] = None,
+    ) -> list["TableTypeDef"]:
+        """Fetch the Glue Data Catalog entries for the given table names.
+
+        A single table is fetched directly; several are resolved from one
+        paginated get_tables call rather than one API call per table.
+        """
+        if len(identifiers) == 1:
+            identifier = next(iter(identifiers))
+            try:
+                return [
+                    client.get_table(
+                        DatabaseName=schema, Name=identifier, **self._catalog_argument(catalog_id)
+                    ).get("Table", {})
+                ]
+            except client.exceptions.EntityNotFoundException as e:
+                logger.debug(e)
+                return []
+        return self._list_glue_tables(client, schema, catalog_id)
+
+    @classmethod
+    def _table_parameter_timestamps(cls, glue_table: "TableTypeDef") -> Iterable[datetime]:
+        """Yield the write timestamps a table carries in its Glue parameters.
+
+        Hive and Spark record when a table was last written as epoch seconds in
+        table parameters. They cost nothing to read, since the table entry has
+        already been fetched, and they move for in-place rewrites of an
+        unpartitioned table, which the catalog does not otherwise report.
+        """
+        parameters = glue_table.get("Parameters") or {}
+        for parameter in cls.TABLE_LAST_MODIFIED_PARAMETERS:
+            raw = parameters.get(parameter)
+            if raw is None:
+                continue
+            try:
+                yield datetime.fromtimestamp(int(raw), tz=timezone.utc)
+            except (TypeError, ValueError):
+                logger.debug(
+                    f"Ignoring table parameter {parameter}='{raw}', "
+                    f"it is not an epoch timestamp."
+                )
+
+    def _latest_partition_time(
+        self,
+        client: "GlueClient",
+        schema: str,
+        identifier: str,
+        catalog_id: Optional[str] = None,
+    ) -> Optional[datetime]:
+        """Return the most recent partition registration time, or None.
+
+        A table that is loaded by adding partitions keeps the same catalog
+        entry, so its own UpdateTime never moves and would report the table as
+        frozen at creation time. The partitions carry the write times instead.
+
+        The catalog cannot sort or filter partitions by time, so this walks all
+        of them; the scan is bounded to keep a table with a very large number of
+        partitions from stalling the freshness run.
+        """
+        latest: Optional[datetime] = None
+        paginator = client.get_paginator("get_partitions")
+        try:
+            pages = paginator.paginate(
+                DatabaseName=schema,
+                TableName=identifier,
+                # Only the timestamps are of interest, and every partition
+                # otherwise repeats the full column schema of the table.
+                ExcludeColumnSchema=True,
+                PaginationConfig={"PageSize": self.PARTITION_SCAN_PAGE_SIZE},
+                **self._catalog_argument(catalog_id),
+            )
+            for page_number, page in enumerate(pages, start=1):
+                for partition in page.get("Partitions", []):
+                    created = partition.get("CreationTime")
+                    if created is not None and (latest is None or created > latest):
+                        latest = created
+                if page_number >= self.PARTITION_SCAN_MAX_PAGES:
+                    logger.warning(
+                        f"Stopped scanning the partitions of {schema}.{identifier} after "
+                        f"{page_number * self.PARTITION_SCAN_PAGE_SIZE} of them. Its freshness "
+                        f"may be reported as older than it is; set a loaded_at_field or a "
+                        f"loaded_at_query on this source to read the load time from the data."
+                    )
+                    break
+        except client.exceptions.EntityNotFoundException as e:
+            logger.debug(e)
+        return latest
+
+    def _table_last_modified(
+        self,
+        client: "GlueClient",
+        schema: str,
+        glue_table: "TableTypeDef",
+        catalog_id: Optional[str] = None,
+    ) -> Optional[datetime]:
+        """Return the most recent write the Glue Data Catalog knows about.
+
+        No single catalog field covers every table layout: a format that
+        commits through the catalog (Iceberg, Delta, Hudi) moves UpdateTime, a
+        partitioned table moves its partitions, and an in-place rewrite moves
+        the Hive table parameters. The latest of whichever of those the table
+        exposes is the closest the catalog gets to when data last landed.
+        """
+        candidates: list[Optional[datetime]] = []
+
+        # UpdateTime is absent until the entry is first altered; CreateTime is
+        # the lower bound for a table that has never been touched since.
+        candidates.append(glue_table.get("UpdateTime") or glue_table.get("CreateTime"))
+
+        candidates.extend(self._table_parameter_timestamps(glue_table))
+
+        if glue_table.get("PartitionKeys"):
+            identifier = glue_table.get("Name", "")
+            candidates.append(self._latest_partition_time(client, schema, identifier, catalog_id))
+
+        # The catalog returns aware timestamps, but a comparison against a naive
+        # one raises rather than sorting, so never let one through.
+        return max(
+            (
+                candidate if candidate.tzinfo else candidate.replace(tzinfo=timezone.utc)
+                for candidate in candidates
+                if candidate is not None
+            ),
+            default=None,
+        )
+
+    @available
+    def get_relation_last_modified(
+        self,
+        relations: Sequence[BaseRelation],
+    ) -> AttrDict:
+        """Return the Glue Data Catalog modification time of each relation.
+
+        Backs metadata-based source freshness. The result mimics what
+        load_result would hand back for a SQL-based implementation, so
+        BaseAdapter.calculate_freshness_from_metadata_batch can consume it.
+        """
+        _, client = self.get_connection()
+        snapshotted_at = datetime.now(timezone.utc)
+
+        # A source is always fully qualified by the time it reaches here; drop
+        # anything that is not, rather than crash the whole freshness run.
+        resolved: list[tuple[BaseRelation, str, str]] = []
+        for relation in relations:
+            if relation.schema is None or relation.identifier is None:
+                logger.warning(
+                    f"Relation {relation} has no schema or identifier, "
+                    f"its freshness cannot be determined."
+                )
+                continue
+            # The iceberg catalog prefix is not part of the Glue database name.
+            resolved.append(
+                (relation, self._strip_catalog_from_schema(relation.schema), relation.identifier)
+            )
+
+        identifiers_by_schema: dict[str, set[str]] = {}
+        for _, schema, identifier in resolved:
+            identifiers_by_schema.setdefault(schema, set()).add(identifier)
+
+        last_modified: dict[tuple[str, str], datetime | None] = {}
+        for schema, identifiers in identifiers_by_schema.items():
+            missing = {identifier.lower() for identifier in identifiers}
+            # A later catalog is only paid for while relations remain unfound.
+            for catalog_id in self._catalog_ids():
+                if not missing:
+                    break
+                for glue_table in self._get_glue_tables(client, schema, identifiers, catalog_id):
+                    name: str = glue_table.get("Name", "")
+                    if name.lower() not in missing:
+                        continue
+                    missing.discard(name.lower())
+                    last_modified[(schema.lower(), name.lower())] = self._table_last_modified(
+                        client, schema, glue_table, catalog_id
+                    )
+
+        rows: list[list[Any]] = []
+        for relation, schema, identifier in resolved:
+            key: tuple[str, str] = (schema.lower(), identifier.lower())
+            if key not in last_modified:
+                logger.warning(
+                    f"Table {schema}.{identifier} was not found in the Glue Data Catalog, "
+                    f"its freshness cannot be determined."
+                )
+            # Emit the relation's own schema, not the catalog-stripped one: dbt
+            # matches these rows back to sources by (schema, identifier).
+            rows.append(
+                [
+                    relation.schema,
+                    identifier,
+                    last_modified.get(key),
+                    snapshotted_at,
+                ]
+            )
+
+        table: agate.Table = agate.Table(
+            rows,
+            column_names=["schema", "identifier", "last_modified", "snapshotted_at"],
+            column_types=[agate.Text(), agate.Text(), agate.DateTime(), agate.DateTime()],
+        )
+        response: AdapterResponse = AdapterResponse(_message="SUCCESS", rows_affected=len(rows))
+        return AttrDict({"response": response, "data": rows, "table": table})
+
+    def _create_freshness_response(
+        self, last_modified: Any, snapshotted_at: Any
+    ) -> FreshnessResponse:
+        # Results come back from the Glue interactive session as JSON, so a
+        # timestamp selected by collect_freshness arrives as a string and agate
+        # keeps it as text. Coerce before the base class demands a datetime.
+        return super()._create_freshness_response(
+            self._as_datetime(last_modified, "last_modified"),
+            self._as_datetime(snapshotted_at, "snapshotted_at"),
+        )
+
+    @classmethod
+    def _as_datetime(cls, value: Any, field_name: str) -> datetime | None:
+        if value is None or isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            # A date-typed loaded_at_field is read as midnight on that day.
+            return datetime(value.year, value.month, value.day)  # noqa: DTZ001
+        if isinstance(value, str):
+            text: str = value.strip()
+            if text == "" or text.lower() in ("null", "none"):
+                return None
+            # Spark renders a timestamp as its isoformat, optionally with a
+            # trailing Z that isoformat parsing only accepts from python 3.11.
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            try:
+                return datetime.fromisoformat(text)
+            except ValueError:
+                pass
+            for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(text, fmt)  # noqa: DTZ007
+                except ValueError:
+                    continue
+            raise DbtRuntimeError(
+                f"Could not read {field_name} value '{value}' as a timestamp "
+                f"while computing source freshness."
+            )
+        # Anything else is left alone so the base class reports it.
+        return value
 
     @available
     def get_table_type(self, relation, file_format=None):
         session, client = self.get_connection()
-        
-        if file_format == 's3tables':
+
+        if file_format == "s3tables":
             # S3 Tables are stored in a separate catalog, so we need to check that catalog specifically
             import os
-            s3_tables_bucket = os.getenv('DBT_S3_TABLES_BUCKET')
+
+            s3_tables_bucket = os.getenv("DBT_S3_TABLES_BUCKET")
             if s3_tables_bucket:
                 schema = self._strip_catalog_from_schema(relation.schema)
                 try:
                     response = client.get_table(
-                        CatalogId=s3_tables_bucket,
-                        DatabaseName=schema,
-                        Name=relation.name
+                        CatalogId=s3_tables_bucket, DatabaseName=schema, Name=relation.name
                     )
                     # S3 Tables are built on Iceberg format, so return iceberg_table type
-                    return 'iceberg_table'
+                    return "iceberg_table"
                 except Exception as e:
                     # S3 Table not found in catalog
                     return None  # Table doesn't exist yet
@@ -928,19 +1335,16 @@ SqlWrapper2.execute("""select 1""")
 
         logger.debug(f"get_table_type schema: {schema}, name: {relation.name}")
         try:
-            response = client.get_table(
-                DatabaseName=schema,
-                Name=relation.name
-            )
+            response = client.get_table(DatabaseName=schema, Name=relation.name)
         except client.exceptions.EntityNotFoundException as e:
             logger.debug(e)
             pass
         try:
             _type = self.relation_type_map.get(response.get("Table", {}).get("TableType", "Table"))
-            _specific_type = response.get("Table", {}).get('Parameters', {}).get('table_type', '')
+            _specific_type = response.get("Table", {}).get("Parameters", {}).get("table_type", "")
 
-            if _specific_type.lower() == 'iceberg':
-                _type = 'iceberg_table'
+            if _specific_type.lower() == "iceberg":
+                _type = "iceberg_table"
 
             logger.debug("table_name : " + relation.name)
             logger.debug("table type : " + _type)
@@ -949,12 +1353,26 @@ SqlWrapper2.execute("""select 1""")
             return None
 
     def hudi_write(self, write_mode, session, target_relation, custom_location):
-        location = self._build_location(session, target_relation.schema, target_relation.name, custom_location=custom_location, trailing_slash=True)
-        return f'''outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{location}")'''
+        location = self._build_location(
+            session,
+            target_relation.schema,
+            target_relation.name,
+            custom_location=custom_location,
+            trailing_slash=True,
+        )
+        return f"""outputDf.write.format('org.apache.hudi').options(**combinedConf).mode('{write_mode}').save("{location}")"""
 
     @available
-    def hudi_merge_table(self, target_relation, request, primary_key, partition_key, custom_location, hudi_config,
-                         substitute_variables):
+    def hudi_merge_table(
+        self,
+        target_relation,
+        request,
+        primary_key,
+        partition_key,
+        custom_location,
+        hudi_config,
+        substitute_variables,
+    ):
         session, client = self.get_connection()
         isTableExists = False
         if self.check_relation_exists(target_relation):
@@ -967,48 +1385,53 @@ SqlWrapper2.execute("""select 1""")
             hudi_config = {}
 
         base_config = {
-            'className': 'org.apache.hudi',
-            'hoodie.datasource.hive_sync.use_jdbc': 'false',
-            'hoodie.datasource.write.precombine.field': 'update_hudi_ts',
-            'hoodie.datasource.write.recordkey.field': primary_key,
-            'hoodie.table.name': target_relation.name,
-            'hoodie.datasource.hive_sync.database': target_relation.schema,
-            'hoodie.datasource.hive_sync.table': target_relation.name,
-            'hoodie.datasource.hive_sync.enable': 'true',
-            'hoodie.datasource.write.hive_style_partitioning': 'true',
+            "className": "org.apache.hudi",
+            "hoodie.datasource.hive_sync.use_jdbc": "false",
+            "hoodie.datasource.write.precombine.field": "update_hudi_ts",
+            "hoodie.datasource.write.recordkey.field": primary_key,
+            "hoodie.table.name": target_relation.name,
+            "hoodie.datasource.hive_sync.database": target_relation.schema,
+            "hoodie.datasource.hive_sync.table": target_relation.name,
+            "hoodie.datasource.hive_sync.enable": "true",
+            "hoodie.datasource.write.hive_style_partitioning": "true",
         }
 
         if partition_key:
-            partition_list = ','.join(partition_key)
+            partition_list = ",".join(partition_key)
             partition_config = {
-                'hoodie.datasource.write.partitionpath.field': f'{partition_list}',
-                'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.MultiPartKeysValueExtractor',
-                'hoodie.datasource.hive_sync.partition_fields': f'{partition_list}',
-                'hoodie.index.type': 'GLOBAL_BLOOM',
-                'hoodie.bloom.index.update.partition.path': 'true',
+                "hoodie.datasource.write.partitionpath.field": f"{partition_list}",
+                "hoodie.datasource.hive_sync.partition_extractor_class": "org.apache.hudi.hive.MultiPartKeysValueExtractor",
+                "hoodie.datasource.hive_sync.partition_fields": f"{partition_list}",
+                "hoodie.index.type": "GLOBAL_BLOOM",
+                "hoodie.bloom.index.update.partition.path": "true",
             }
         else:
             partition_config = {
-                'hoodie.datasource.hive_sync.partition_extractor_class': 'org.apache.hudi.hive.NonPartitionedExtractor',
-                'hoodie.datasource.write.keygenerator.class': 'org.apache.hudi.keygen.NonpartitionedKeyGenerator',
-                'hoodie.index.type': 'GLOBAL_BLOOM',
-                'hoodie.bloom.index.update.partition.path': 'true',
+                "hoodie.datasource.hive_sync.partition_extractor_class": "org.apache.hudi.hive.NonPartitionedExtractor",
+                "hoodie.datasource.write.keygenerator.class": "org.apache.hudi.keygen.NonpartitionedKeyGenerator",
+                "hoodie.index.type": "GLOBAL_BLOOM",
+                "hoodie.bloom.index.update.partition.path": "true",
             }
 
         if isTableExists:
-            write_mode = 'Append'
+            write_mode = "Append"
             write_operation_config = {
-                'hoodie.datasource.write.operation': 'upsert',
-                'hoodie.cleaner.policy': 'KEEP_LATEST_COMMITS',
-                'hoodie.cleaner.commits.retained': 10,
+                "hoodie.datasource.write.operation": "upsert",
+                "hoodie.cleaner.policy": "KEEP_LATEST_COMMITS",
+                "hoodie.cleaner.commits.retained": 10,
             }
         else:
-            write_mode = 'Overwrite'
+            write_mode = "Overwrite"
             write_operation_config = {
-                'hoodie.datasource.write.operation': 'bulk_insert',
+                "hoodie.datasource.write.operation": "bulk_insert",
             }
 
-        combined_config = {**base_config, **partition_config, **write_operation_config, **hudi_config}
+        combined_config = {
+            **base_config,
+            **partition_config,
+            **write_operation_config,
+            **hudi_config,
+        }
 
         code = f'''
 custom_glue_code_for_dbt_adapter
@@ -1041,9 +1464,11 @@ spark.sql("""REFRESH TABLE {target_relation.schema}.{target_relation.name}""")
 SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.name} LIMIT 1""")
         '''
 
-        logger.debug(f"""hudi code :
+        logger.debug(
+            f"""hudi code :
         {code}
-        """)
+        """
+        )
 
         try:
             session.cursor().execute(code)
@@ -1060,12 +1485,12 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         If the table has only one snapshot it is retained.
         """
         session, client = self.get_connection()
-        logger.debug(f'expiring snapshots for table {str(relation)}')
-    
+        logger.debug(f"expiring snapshots for table {str(relation)}")
+
         catalog_extension = self.get_custom_iceberg_catalog_namespace()
         if catalog_extension is not None:
             expire_sql = f"CALL {catalog_extension}.system.expire_snapshots('{str(relation)}', timestamp 'to_replace')"
-        else :
+        else:
             expire_sql = f"CALL system.expire_snapshots('{str(relation)}', timestamp 'to_replace')"
 
         code = f'''
@@ -1076,9 +1501,11 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         result_df = spark.sql(expire_sql_procedure)
         SqlWrapper2.execute("""SELECT 1""")
         '''
-        logger.debug(f"""expire procedure code:
+        logger.debug(
+            f"""expire procedure code:
             {code}
-            """)
+            """
+        )
         try:
             session.cursor().execute(code)
         except DbtDatabaseError as e:
@@ -1087,7 +1514,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
             logger.error(e)
 
     @available
-    def add_lf_tags(self, relation: SparkRelation, lf_tags_config: Dict[str, Any]) -> None:
+    def add_lf_tags(self, relation: SparkRelation, lf_tags_config: dict[str, Any]) -> None:
         config = LfTagsConfig(**lf_tags_config)
         if config.enabled:
             conn = self.connections.get_thread_connection()
@@ -1102,7 +1529,7 @@ SqlWrapper2.execute("""SELECT * FROM {target_relation.schema}.{target_relation.n
         logger.debug(f"Lakeformation is disabled for {relation}")
 
     @available
-    def apply_lf_grants(self, relation: SparkRelation, lf_grants_config: Dict[str, Any]) -> None:
+    def apply_lf_grants(self, relation: SparkRelation, lf_grants_config: dict[str, Any]) -> None:
         lf_config = LfGrantsConfig(**lf_grants_config)
         if lf_config.data_cell_filters.enabled:
             conn = self.connections.get_thread_connection()
@@ -1124,9 +1551,11 @@ custom_glue_code_for_dbt_adapter
 {codeblock}
         """
 
-        logger.debug(f"""pyspark code :
+        logger.debug(
+            f"""pyspark code :
         {code}
-        """)
+        """
+        )
 
         try:
             session.cursor().execute(code)
@@ -1138,29 +1567,25 @@ custom_glue_code_for_dbt_adapter
     @available
     def execute_python(self, code: str, **kwargs) -> Any:
         """Execute Python code in Glue Interactive Session.
-        
+
         Args:
             code: The Python code to execute
             **kwargs: Additional execution options
-            
+
         Returns:
             The result of code execution
         """
         conn = self.connections.get_thread_connection()
         credentials = conn.credentials
-        
+
         # Create a Python job helper
-        model_name = kwargs.get('model_name', 'python_model')
-        schema = kwargs.get('schema', credentials.schema)
-        
-        parsed_model = {
-            "alias": model_name,
-            "schema": schema,
-            "config": kwargs.get('config', {})
-        }
-        
+        model_name = kwargs.get("model_name", "python_model")
+        schema = kwargs.get("schema", credentials.schema)
+
+        parsed_model = {"alias": model_name, "schema": schema, "config": kwargs.get("config", {})}
+
         python_job_helper = GluePythonJobHelper(parsed_model, credentials)
-        
+
         # Build the complete Python code similar to dbt-databricks approach
         full_code = """
 # User's model code
@@ -1173,10 +1598,10 @@ from pyspark.sql.functions import *
 # Get or create SparkSession
 spark = SparkSession.builder.getOrCreate()
 
-# Set up the schema
+# set up the schema
 schema = "{schema}"
 model_name = "{model_name}"
-print("DEBUG: Setting up model in schema: " + schema)
+print("DEBUG: setting up model in schema: " + schema)
 
 class dbtObj:
     def __init__(self, table_function, schema, model_name):
@@ -1184,18 +1609,18 @@ class dbtObj:
         self.schema = schema
         self.model_name = model_name
         self.this = schema + "." + model_name
-        
+
     def config(self, **config_args):
         # This is a placeholder for dbt config in Python models
         print("DEBUG: dbt.config called with:", config_args)
         pass
-        
+
     def ref(self, name):
         return self.table_function(name)
-        
+
     def source(self, source_name, table_name):
         return self.table_function(source_name + "." + table_name)
-        
+
     def is_incremental(self):
         # Check if the target table exists by trying to query it
         try:
@@ -1276,19 +1701,21 @@ print("DEBUG: Python model execution completed successfully")
             user_code=code,
             schema=schema,
             model_name=model_name,
-            config_dict=repr(parsed_model.get('config', {}))
+            config_dict=repr(parsed_model.get("config", {})),
         )
-        
-        logger.debug(f"""python code:
+
+        logger.debug(
+            f"""python code:
         {full_code}
-        """)
-        
+        """
+        )
+
         # Submit the Python code for execution
         python_job_helper.submit(full_code)
-        
+
         # Return an empty dict - the dbt-core code has been patched to handle this
         return {}
-            
+
     def generate_python_submission_response(self, submission_result: Any) -> Any:
         """Generate a response object after Python model submission"""
         return self.connections.get_response(None)
@@ -1299,7 +1726,7 @@ print("DEBUG: Python model execution completed successfully")
         return "glue_session"
 
     @property
-    def python_submission_helpers(self) -> Dict[str, Type[PythonJobHelper]]:
+    def python_submission_helpers(self) -> dict[str, type[PythonJobHelper]]:
         """Define the available Python submission helpers"""
         return {
             "glue_session": GluePythonJobHelper,
