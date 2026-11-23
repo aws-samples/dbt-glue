@@ -1,6 +1,7 @@
 ## dbt-glue next
 
 - Fixed AWS Glue 5.0 Lake Formation Fine-Grained Access Control (FGAC) compatibility by replacing unsupported RDD-based result collection with the DataFrame API (#687).
+- Fixed `insert_overwrite` with `partition_by` deleting every partition missing from the new data unless `spark.sql.sources.partitionOverwriteMode=dynamic` was set in the profile (#711). For `iceberg`, which replaced the whole table in 1.8.x, partitions not in the new data are now kept.
 
 ## v1.12.4
 

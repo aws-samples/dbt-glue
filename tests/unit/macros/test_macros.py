@@ -495,6 +495,16 @@ class TestGlueMacros(unittest.TestCase):
         self.assertIn("insert overwrite table", sql)
         self.assertIn("set hive.exec.dynamic.partition.mode=nonstrict", sql)
 
+    def test_incremental_sets_partition_overwrite_mode_before_pre_hooks(self):
+        # materialization block can't be rendered here (see test_macros_load), so check the source
+        with open("dbt/include/glue/macros/materializations/incremental/incremental.sql") as f:
+            source = f.read()
+        condition = source.find("{%- if strategy == 'insert_overwrite' and partition_by -%}")
+        set_mode = source.find("set spark.sql.sources.partitionOverwriteMode = DYNAMIC")
+        self.assertNotEqual(condition, -1)
+        self.assertLess(condition, set_mode)
+        self.assertLess(set_mode, source.find("run_hooks(pre_hooks)"))
+
     def test_glue_validate_file_format(self):
         """Test file format validation"""
         template = self.__get_template("materializations/incremental/validate.sql")
