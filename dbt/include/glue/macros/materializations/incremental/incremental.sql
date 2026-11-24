@@ -4,7 +4,7 @@
   {%- set raw_strategy = config.get('incremental_strategy', default='insert_overwrite') -%}
   {%- set file_format = dbt_glue_validate_get_file_format(raw_file_format) -%}
   {%- set strategy = dbt_glue_validate_get_incremental_strategy(raw_strategy, file_format) -%}
-  
+
   {# /*-- Set vars --*/ #}
   {%- set language = model['language'] -%}
   {%- set existing_relation_type = adapter.get_table_type(this, file_format) -%}
@@ -16,7 +16,7 @@
   {% endif %}
   {%- set custom_temp_suffix = config.get('custom_temp_suffix', default='tmp') -%}
   {%- set tmp_relation = make_temp_relation(this, '_' ~ custom_temp_suffix) -%}
-  {%- set is_tmp_relation_created = 'False' -%} 
+  {%- set is_tmp_relation_created = 'False' -%}
   {%- set unique_key = config.get('unique_key', none) -%}
   {%- set partition_by = config.get('partition_by', none) -%}
   {%- set incremental_predicates = config.get('predicates', none) or config.get('incremental_predicates', none) -%}
@@ -74,16 +74,17 @@
               {{ create_temporary_view(tmp_relation, add_iceberg_timestamp_column(sql)) }}
             {%- endcall -%}
             {%- set is_tmp_relation_created = 'True' -%}
-            {%- do process_schema_changes(on_schema_change, tmp_relation, target_relation) -%}
+            {#-- process_schema_changes returns the source (model) columns; target-only columns are NULL-filled --#}
+            {%- set source_columns = process_schema_changes(on_schema_change, tmp_relation, target_relation) or none -%}
             {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-            {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates, dest_columns) %}
+            {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates, dest_columns, source_columns) %}
           {%- endif -%}
         {% else %}
           {%- if language != 'python' -%}
             {%- call statement('create_tmp_relation') -%}
               {{ create_temporary_view(tmp_relation, sql) }}
             {%- endcall -%}
-            {%- set is_tmp_relation_created = 'True' -%} 
+            {%- set is_tmp_relation_created = 'True' -%}
             {% set build_sql = dbt_glue_get_incremental_sql(strategy, tmp_relation, target_relation, unique_key, incremental_predicates) %}
           {%- endif -%}
         {% endif %}

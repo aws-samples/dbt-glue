@@ -1,7 +1,10 @@
 from time import sleep
 from typing import List
 import pytest
-from dbt.tests.adapter.basic.files import (base_table_sql, base_view_sql,)
+from dbt.tests.adapter.basic.files import (
+    base_table_sql,
+    base_view_sql,
+)
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
 from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
@@ -11,8 +14,16 @@ from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
 from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTestsEphemeral
 from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterialization
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
-from dbt.tests.util import (check_result_nodes_by_name,check_relation_types, check_relations_equal_with_relations, TestProcessingException,
-                            run_dbt, check_relations_equal, relation_from_name, write_file)
+from dbt.tests.util import (
+    check_result_nodes_by_name,
+    check_relation_types,
+    check_relations_equal_with_relations,
+    TestProcessingException,
+    run_dbt,
+    check_relations_equal,
+    relation_from_name,
+    write_file,
+)
 from tests.util import get_s3_location
 
 
@@ -80,7 +91,7 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
             "name": "base",
             "models": {
                 "+incremental_strategy": "append",
-            }
+            },
         }
 
     @pytest.fixture(scope="class")
@@ -192,7 +203,7 @@ class TestIncrementalGlue(BaseIncremental):
 
         # base table rowcount
         relation = relation_from_name(project.adapter, "base")
-        
+
         project.run_sql(f"refresh table {relation}")
         # run refresh table to disable the previous parquet file paths
         result = project.run_sql(f"select count(*) as num_rows from {relation}", fetch="one")
@@ -232,15 +243,10 @@ class TestIncrementalGlue(BaseIncremental):
 class TestIncrementalGlueWithCustomLocation(TestIncrementalGlue):
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        default_location=get_s3_location()
+        default_location = get_s3_location()
         custom_prefix = "{{target.schema}}/custom/incremental"
-        custom_location = default_location+custom_prefix
-        return {
-            "name": "incremental",
-            "models": {
-                "+custom_location": custom_location
-            }
-        }
+        custom_location = default_location + custom_prefix
+        return {"name": "incremental", "models": {"+custom_location": custom_location}}
 
 
 class TestGenericTestsGlue(BaseGenericTests):
@@ -284,29 +290,25 @@ class TestSchemaChangeGlue:
         """Configure project to use Iceberg format for tables"""
         return {
             "name": "schema_change_test",
-            "models": {
-                "+file_format": "iceberg",
-                "+on_schema_change": "sync_all_columns"
-            }
+            "models": {"+file_format": "iceberg", "+on_schema_change": "sync_all_columns"},
         }
 
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "base_model.sql": """
-select 
-    1 as id, 
-    'John' as first_name, 
-    'Doe' as last_name, 
+select
+    1 as id,
+    'John' as first_name,
+    'Doe' as last_name,
     'john.doe@example.com' as email
 union all
-select 
-    2 as id, 
-    'Jane' as first_name, 
-    'Smith' as last_name, 
+select
+    2 as id,
+    'Jane' as first_name,
+    'Smith' as last_name,
     'jane.smith@example.com' as email
             """,
-
             # Incremental model with hard-coded configs
             "incremental_model.sql": """
 {{
@@ -322,7 +324,7 @@ select
 {{ log("DEBUG - Model config - on_schema_change: " ~ config.get('on_schema_change'), info=true) }}
 
 select * from glue_catalog.{{ ref('base_model') }}
-            """
+            """,
         }
 
     def test_schema_change_detection(self, project):
@@ -339,7 +341,8 @@ select * from glue_catalog.{{ ref('base_model') }}
 
         # Update the base model to add a new column
         with open(f"{project.project_root}/models/base_model.sql", "w") as f:
-            f.write("""
+            f.write(
+                """
     select
         1 as id,
         'John' as first_name,
@@ -353,7 +356,8 @@ select * from glue_catalog.{{ ref('base_model') }}
         'Smith' as last_name,
         'jane.smith@example.com' as email,
         '555-5678' as phone
-            """)
+            """
+            )
 
         results = run_dbt(["run", "--select", "base_model incremental_model", "--full-refresh"])
         assert len(results) == 2, "Full refresh with schema changes should succeed"
@@ -375,8 +379,8 @@ class TestIcebergTimestampColumnEnabled:
             "name": "iceberg_timestamp_test_enabled",
             "models": {
                 "+file_format": "iceberg",  # Set default file format to Iceberg
-                "+add_iceberg_timestamp": True  # Enable timestamp column addition
-            }
+                "+add_iceberg_timestamp": True,  # Enable timestamp column addition
+            },
         }
 
     @pytest.fixture(scope="class")
@@ -385,17 +389,16 @@ class TestIcebergTimestampColumnEnabled:
         return {
             # Base model
             "base_model.sql": """
-select 
-    1 as id, 
-    'John' as first_name, 
+select
+    1 as id,
+    'John' as first_name,
     'Doe' as last_name
 union all
-select 
-    2 as id, 
-    'Jane' as first_name, 
+select
+    2 as id,
+    'Jane' as first_name,
     'Smith' as last_name
             """,
-
             # Incremental model that references base_model
             "incremental_model.sql": """
 {{
@@ -407,7 +410,7 @@ select
 }}
 
 select * from glue_catalog.{{ ref('base_model') }}
-            """
+            """,
         }
 
     def test_iceberg_timestamp_column_added(self, project):
@@ -418,8 +421,12 @@ select * from glue_catalog.{{ ref('base_model') }}
 
         # Check base model columns
         base_relation = relation_from_name(project.adapter, "base_model")
-        base_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(base_relation)]
-        assert "update_iceberg_ts" in base_columns, "Base model should have update_iceberg_ts column when enabled"
+        base_columns = [
+            c.name.lower() for c in project.adapter.get_columns_in_relation(base_relation)
+        ]
+        assert (
+            "update_iceberg_ts" in base_columns
+        ), "Base model should have update_iceberg_ts column when enabled"
 
         # Run the incremental model
         results = run_dbt(["run", "--select", "incremental_model"])
@@ -427,9 +434,15 @@ select * from glue_catalog.{{ ref('base_model') }}
 
         # Check incremental model columns
         incremental_relation = relation_from_name(project.adapter, "incremental_model")
-        incremental_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(incremental_relation)]
-        assert "update_iceberg_ts" in incremental_columns, "Incremental model should have update_iceberg_ts column when enabled"
-        assert len([c for c in incremental_columns if c == "update_iceberg_ts"]) == 1, "Should not have duplicate update_iceberg_ts columns"
+        incremental_columns = [
+            c.name.lower() for c in project.adapter.get_columns_in_relation(incremental_relation)
+        ]
+        assert (
+            "update_iceberg_ts" in incremental_columns
+        ), "Incremental model should have update_iceberg_ts column when enabled"
+        assert (
+            len([c for c in incremental_columns if c == "update_iceberg_ts"]) == 1
+        ), "Should not have duplicate update_iceberg_ts columns"
 
 
 class TestIcebergTimestampColumnDisabled:
@@ -442,8 +455,8 @@ class TestIcebergTimestampColumnDisabled:
             "name": "iceberg_timestamp_test_disabled",
             "models": {
                 "+file_format": "iceberg",  # Set default file format to Iceberg
-                "+add_iceberg_timestamp": False  # Disable timestamp column addition
-            }
+                "+add_iceberg_timestamp": False,  # Disable timestamp column addition
+            },
         }
 
     @pytest.fixture(scope="class")
@@ -452,17 +465,16 @@ class TestIcebergTimestampColumnDisabled:
         return {
             # Base model
             "base_model.sql": """
-select 
-    1 as id, 
-    'John' as first_name, 
+select
+    1 as id,
+    'John' as first_name,
     'Doe' as last_name
 union all
-select 
-    2 as id, 
-    'Jane' as first_name, 
+select
+    2 as id,
+    'Jane' as first_name,
     'Smith' as last_name
             """,
-
             # Incremental model that references base_model
             "incremental_model.sql": """
 {{
@@ -474,7 +486,7 @@ select
 }}
 
 select * from glue_catalog.{{ ref('base_model') }}
-            """
+            """,
         }
 
     def test_iceberg_timestamp_column_not_added(self, project):
@@ -485,8 +497,12 @@ select * from glue_catalog.{{ ref('base_model') }}
 
         # Check base model columns
         base_relation = relation_from_name(project.adapter, "base_model")
-        base_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(base_relation)]
-        assert "update_iceberg_ts" not in base_columns, "Base model should NOT have update_iceberg_ts column when disabled"
+        base_columns = [
+            c.name.lower() for c in project.adapter.get_columns_in_relation(base_relation)
+        ]
+        assert (
+            "update_iceberg_ts" not in base_columns
+        ), "Base model should NOT have update_iceberg_ts column when disabled"
 
         # Run the incremental model
         results = run_dbt(["run", "--select", "incremental_model"])
@@ -494,8 +510,12 @@ select * from glue_catalog.{{ ref('base_model') }}
 
         # Check incremental model columns
         incremental_relation = relation_from_name(project.adapter, "incremental_model")
-        incremental_columns = [c.name.lower() for c in project.adapter.get_columns_in_relation(incremental_relation)]
-        assert "update_iceberg_ts" not in incremental_columns, "Incremental model should NOT have update_iceberg_ts column when disabled"
+        incremental_columns = [
+            c.name.lower() for c in project.adapter.get_columns_in_relation(incremental_relation)
+        ]
+        assert (
+            "update_iceberg_ts" not in incremental_columns
+        ), "Incremental model should NOT have update_iceberg_ts column when disabled"
 
 
 class TestIcebergMultipleRuns:
@@ -537,7 +557,7 @@ class TestIcebergMultipleRuns:
 28,Mark,Sullivan,msullivanr@state.tx.us,Male,166.220.5.88
 29,Dennis,Garza,dgarzas@webnode.com,Male,153.40.18.228
 30,Kathleen,Nichols,knicholst@mozilla.com,Female,161.88.82.200
-"""
+""",
         }
 
     @pytest.fixture(scope="class")
@@ -545,10 +565,7 @@ class TestIcebergMultipleRuns:
         """Configure project to use Iceberg format for tables"""
         return {
             "name": "iceberg_multiple_runs_test",
-            "models": {
-                "+file_format": "iceberg",
-                "+on_schema_change": "append_new_columns"
-            }
+            "models": {"+file_format": "iceberg", "+on_schema_change": "append_new_columns"},
         }
 
     @pytest.fixture(scope="class")
@@ -579,10 +596,15 @@ class TestIcebergMultipleRuns:
         # Verify the incremental model has the expected data (base + added)
         relation = relation_from_name(project.adapter, "incremental")
         project.run_sql(f"refresh table glue_catalog.{relation.schema}.{relation.identifier}")
-        result = project.run_sql(f"select count(*) as num_rows from glue_catalog.{relation.schema}.{relation.identifier}", fetch="one")
+        result = project.run_sql(
+            f"select count(*) as num_rows from glue_catalog.{relation.schema}.{relation.identifier}",
+            fetch="one",
+        )
 
         # Assuming no duplicates between base and added
-        assert result[0] == 30, "Incremental model should have combined records from both runs (10 + 20 = 30)"
+        assert (
+            result[0] == 30
+        ), "Incremental model should have combined records from both runs (10 + 20 = 30)"
 
 
 class TestIcebergMergeWithSchemaChange:
@@ -590,12 +612,7 @@ class TestIcebergMergeWithSchemaChange:
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {
-            "name": "iceberg_merge_schema_test",
-            "models": {
-                "+file_format": "iceberg"
-            }
-        }
+        return {"name": "iceberg_merge_schema_test", "models": {"+file_format": "iceberg"}}
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -629,7 +646,9 @@ select 3 as id, 'Bob' as name, 300 as value
 
         # Verify initial data
         schema_name = project.test_schema
-        result = project.run_sql(f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one")
+        result = project.run_sql(
+            f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one"
+        )
         assert result[0] == 2
 
         # Update model to add new column and trigger schema change
@@ -652,21 +671,100 @@ union all
 select 3 as id, 'Bob' as name, 300 as value, 'C' as category
 {% endif %}
         """
-        
+
         write_file(updated_model, project.project_root, "models", "incremental_merge_model.sql")
-        
+
         # Second run with schema change and new data
         results = run_dbt(["run"])
         assert len(results) == 1
 
         # Verify merge worked correctly - should have 3 rows total
-        result = project.run_sql(f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one")
+        result = project.run_sql(
+            f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one"
+        )
         assert result[0] == 3
 
         # Verify new column exists
-        columns = project.run_sql(f"describe glue_catalog.{schema_name}.incremental_merge_model", fetch="all")
+        columns = project.run_sql(
+            f"describe glue_catalog.{schema_name}.incremental_merge_model", fetch="all"
+        )
         column_names = [col[0] for col in columns]
-        assert 'category' in column_names
+        assert "category" in column_names
+
+
+class BaseIcebergDroppedColumnAppendNewColumns:
+    """A column the model stops producing must be NULL-filled, not fail the run,
+    under on_schema_change='append_new_columns' (dbt-core semantics)."""
+
+    strategy = None
+    model_name = "dropped_column_model"
+
+    def _model(self, select_sql):
+        return f"""
+{{{{ config(
+    materialized='incremental',
+    incremental_strategy='{self.strategy}',
+    unique_key='id',
+    file_format='iceberg',
+    on_schema_change='append_new_columns'
+) }}}}
+{select_sql}
+"""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"name": f"iceberg_dropped_column_{self.strategy}"}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            f"{self.model_name}.sql": self._model(
+                "select 1 as id, 'John' as name, 100 as value union all select 2 as id, 'Jane' as name, 200 as value"
+            )
+        }
+
+    def test_dropped_column_is_null_filled(self, project):
+        run_dbt(["run"])
+
+        # Drop `value`, add `category`
+        write_file(
+            self._model(
+                "select 1 as id, 'Johnny' as name, 'A' as category union all select 3 as id, 'Bob' as name, 'C' as category"
+            ),
+            project.project_root,
+            "models",
+            f"{self.model_name}.sql",
+        )
+        results = run_dbt(["run"])
+        assert len(results) == 1
+
+        table = f"glue_catalog.{project.test_schema}.{self.model_name}"
+        project.run_sql(f"refresh table {table}")
+        new_row = project.run_sql(f"select value, category from {table} where id = 3", fetch="one")
+        assert new_row[0] is None, "column dropped from the model should be NULL for new rows"
+        assert new_row[1] == "C"
+        self.check_existing_row(project, table)
+
+    def check_existing_row(self, project, table):
+        pass
+
+
+class TestIcebergDroppedColumnInsertOverwrite(BaseIcebergDroppedColumnAppendNewColumns):
+    strategy = "insert_overwrite"
+
+
+class TestIcebergDroppedColumnAppend(BaseIcebergDroppedColumnAppendNewColumns):
+    strategy = "append"
+
+
+class TestIcebergDroppedColumnMerge(BaseIcebergDroppedColumnAppendNewColumns):
+    strategy = "merge"
+
+    def check_existing_row(self, project, table):
+        # Matched rows update source columns but keep target-only columns
+        row = project.run_sql(f"select name, value from {table} where id = 1", fetch="one")
+        assert row[0] == "Johnny"
+        assert row[1] == 100
 
 
 class TestIcebergTableRefresh:
@@ -675,12 +773,7 @@ class TestIcebergTableRefresh:
     @pytest.fixture(scope="class")
     def project_config_update(self):
         """Configure project to use Iceberg format for tables"""
-        return {
-            "name": "iceberg_refresh_test",
-            "models": {
-                "+file_format": "iceberg"
-            }
-        }
+        return {"name": "iceberg_refresh_test", "models": {"+file_format": "iceberg"}}
 
     @pytest.fixture(scope="class")
     def models(self):
