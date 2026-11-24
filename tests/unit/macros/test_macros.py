@@ -1,6 +1,7 @@
+import re
 import unittest
 from unittest import mock
-import re
+
 from jinja2 import Environment, FileSystemLoader
 
 
@@ -26,31 +27,35 @@ class TestGlueMacros(unittest.TestCase):
             "this": mock.Mock(),
             "add_iceberg_timestamp_column": lambda sql: sql,
             "make_temp_relation": mock.Mock(),
-            "set_table_properties": lambda props: f"TBLPROPERTIES ({props})"
-            if props != {}
-            else "",
+            "set_table_properties": lambda props: (
+                f"TBLPROPERTIES ({props})" if props != {} else ""
+            ),
             "comment_clause": lambda: "",
             "partition_cols": lambda label: f"{label} (part_col)" if label else "",
             "clustered_cols": lambda label: "",
             "get_assert_columns_equivalent": lambda sql: "",
             "sql_header": None,
-            "get_merge_update_columns": lambda update_cols, exclude_cols, dest_cols: update_cols
-            if update_cols
-            else ["col1", "col2"],
-            "incremental_validate_on_schema_change": lambda on_schema_change, default: default,
-            "process_schema_changes": lambda on_schema_change, tmp_relation, target_relation: None,
+            "get_merge_update_columns": lambda update_cols, exclude_cols, dest_cols: (
+                update_cols if update_cols else ["col1", "col2"]
+            ),
+            "incremental_validate_on_schema_change": lambda on_schema_change, default: (default),
+            "process_schema_changes": lambda on_schema_change, tmp_relation, target_relation: (
+                None
+            ),
             "run_hooks": lambda hooks: None,
             "should_full_refresh": lambda: False,
-            "dbt_glue_validate_get_file_format": lambda raw_file_format: raw_file_format,
-            "dbt_glue_validate_get_incremental_strategy": lambda raw_strategy, file_format: raw_strategy,
+            "dbt_glue_validate_get_file_format": lambda raw_file_format: (raw_file_format),
+            "dbt_glue_validate_get_incremental_strategy": lambda raw_strategy, file_format: (
+                raw_strategy
+            ),
             "log": lambda msg, info=False: print(f"LOG: {msg}"),
         }
 
         # Configure mocks
-        self.default_context["config"].get = lambda key, default=None, **kwargs: self.config.get(
-            key, default
+        self.default_context["config"].get = lambda key, default=None, **kwargs: (
+            self.config.get(key, default)
         )
-        self.default_context["adapter"].get_location = lambda rel: "location '/path/to/data'"
+        self.default_context["adapter"].get_location = lambda rel: ("location '/path/to/data'")
         self.default_context["adapter"].get_columns_in_relation = lambda rel: [
             mock.Mock(name="id"),
             mock.Mock(name="name"),
@@ -59,17 +64,17 @@ class TestGlueMacros(unittest.TestCase):
         # Ensure target doesn't have endpoint to avoid insert_overwrite validation issues
         self.default_context["target"].endpoint = None
         self.default_context["make_temp_relation"] = lambda base, suffix: mock.Mock(
-            include=lambda schema: f"temp_relation_{suffix}"
-            if not schema
-            else f"schema.temp_relation_{suffix}"
+            include=lambda schema: (
+                f"temp_relation_{suffix}" if not schema else f"schema.temp_relation_{suffix}"
+            )
         )
 
         # For drop_relation
         self.default_context["this"].type = "table"
 
         # For incremental testing
-        self.default_context["this"].include = (
-            lambda schema: "test_table" if not schema else "test_schema.test_table"
+        self.default_context["this"].include = lambda schema: (
+            "test_table" if not schema else "test_schema.test_table"
         )
 
         # Mock exceptions.raise_compiler_error to raise an actual exception
@@ -177,12 +182,10 @@ class TestGlueMacros(unittest.TestCase):
         relation.identifier = "my_view"
         relation.type = "view"
         relation.__str__ = relation_to_str
-        relation.include = (
-            lambda schema: f"{relation.identifier}"
-            if not schema
-            else f"{relation.schema}.{relation.identifier}"
+        relation.include = lambda schema: (
+            f"{relation.identifier}" if not schema else f"{relation.schema}.{relation.identifier}"
         )
-        relation.is_view = lambda self: (self.type == "view")
+        relation.is_view = lambda self: self.type == "view"
 
         self.default_context[
             "glue__make_target_relation"
@@ -221,12 +224,10 @@ class TestGlueMacros(unittest.TestCase):
         relation.identifier = "relation_entity"
         relation.type = "default"
         relation.__str__ = relation_to_str
-        relation.include = (
-            lambda schema: f"{relation.identifier}"
-            if not schema
-            else f"{relation.schema}.{relation.identifier}"
+        relation.include = lambda schema: (
+            f"{relation.identifier}" if not schema else f"{relation.schema}.{relation.identifier}"
         )
-        relation.is_view = lambda self: (self.type == "view")
+        relation.is_view = lambda self: self.type == "view"
 
         # Enhanced incorporate to return a new mock with updated schema/identifier
         def incorporate_side_effect(*, path=None, type=None, **kwargs):
@@ -237,7 +238,7 @@ class TestGlueMacros(unittest.TestCase):
             )
             new_relation.type = type if type else relation.type
             new_relation.__str__ = relation_to_str
-            new_relation.is_view = lambda self: (self.type == "view")
+            new_relation.is_view = lambda self: self.type == "view"
 
             new_include_relation = mock.Mock()
             new_include_relation.schema = ""
@@ -248,10 +249,10 @@ class TestGlueMacros(unittest.TestCase):
             )
             new_include_relation.type = new_relation.type
             new_include_relation.__str__ = relation_to_str
-            new_include_relation.is_view = lambda self: (self.type == "view")
+            new_include_relation.is_view = lambda self: self.type == "view"
 
-            new_relation.include = (
-                lambda schema: new_include_relation if not schema else new_relation
+            new_relation.include = lambda schema: (
+                new_include_relation if not schema else new_relation
             )
 
             return new_relation
@@ -278,7 +279,10 @@ class TestGlueMacros(unittest.TestCase):
         # ---------------------------------------------
         def make_target_relation(relation, file_format):
             target_relation = self.__run_macro(
-                target_relation_template, "glue__make_target_relation", relation, file_format
+                target_relation_template,
+                "glue__make_target_relation",
+                relation,
+                file_format,
             )
             return target_relation
 
@@ -393,7 +397,7 @@ class TestGlueMacros(unittest.TestCase):
             )
             new_relation.type = type if type else relation.type
             new_relation.__str__ = relation_to_str
-            new_relation.is_view = lambda self: (relation.type == "view")
+            new_relation.is_view = lambda self: relation.type == "view"
 
             new_include_relation = mock.Mock()
             new_include_relation.schema = ""
@@ -404,10 +408,10 @@ class TestGlueMacros(unittest.TestCase):
             )
             new_include_relation.type = new_relation.type
             new_include_relation.__str__ = relation_to_str
-            new_include_relation.is_view = lambda self: (self.type == "view")
+            new_include_relation.is_view = lambda self: self.type == "view"
 
-            new_relation.include = (
-                lambda schema: new_include_relation if not schema else new_relation
+            new_relation.include = lambda schema: (
+                new_include_relation if not schema else new_relation
             )
 
             return new_relation
@@ -418,12 +422,10 @@ class TestGlueMacros(unittest.TestCase):
         relation.identifier = "test_table"
         relation.type = "default"
         relation.__str__ = relation_to_str
-        relation.include = (
-            lambda schema: f"{relation.identifier}"
-            if not schema
-            else f"{relation.schema}.{relation.identifier}"
+        relation.include = lambda schema: (
+            f"{relation.identifier}" if not schema else f"{relation.schema}.{relation.identifier}"
         )
-        relation.is_view = lambda self: (self.type == "view")
+        relation.is_view = lambda self: self.type == "view"
 
         # Setup for Iceberg with custom catalog
         self.default_context["adapter"].get_custom_iceberg_catalog_namespace = mock.Mock(
@@ -491,8 +493,8 @@ class TestGlueMacros(unittest.TestCase):
             )
             new_include_relation.type = type if type else "default"
 
-            new_relation.include = (
-                lambda schema: new_include_relation if not new_relation.schema else new_relation
+            new_relation.include = lambda schema: (
+                new_include_relation if not new_relation.schema else new_relation
             )
 
             return new_relation
@@ -540,9 +542,9 @@ class TestGlueMacros(unittest.TestCase):
         """Test the simple insert strategies separately"""
         template = self.__get_template("materializations/incremental/strategies.sql")
         source = mock.Mock()
-        source.include = lambda schema: "source_view" if not schema else "schema.source_view"
+        source.include = lambda schema: ("source_view" if not schema else "schema.source_view")
         target = mock.Mock()
-        target.include = lambda schema: "target_table" if not schema else "schema.target_table"
+        target.include = lambda schema: ("target_table" if not schema else "schema.target_table")
 
         # Test append strategy directly
         sql = self.__run_macro(template, "get_insert_into_sql", source, target).strip()
@@ -568,7 +570,7 @@ class TestGlueMacros(unittest.TestCase):
             column("new_col", "string"),
         ]
         source_columns = [column("ID", "int"), column("new_col", "string")]
-        self.default_context["adapter"].get_columns_in_relation = lambda rel: target_columns
+        self.default_context["adapter"].get_columns_in_relation = lambda rel: (target_columns)
         source = mock.Mock(include=lambda schema: "source_view")
         source.__str__ = lambda self: "source_view"
         target = mock.Mock()
@@ -606,7 +608,14 @@ class TestGlueMacros(unittest.TestCase):
         ] = lambda update_cols, exclude_cols, dest_cols: [c.quoted for c in dest_cols]
 
         sql = self.__run_macro(
-            template, "get_merge_sql", target, source, "id", target_columns, None, source_columns
+            template,
+            "get_merge_sql",
+            target,
+            source,
+            "id",
+            target_columns,
+            None,
+            source_columns,
         )
 
         update_clause = sql.split("when matched then update set")[1].split("when not matched")[0]
@@ -666,10 +675,15 @@ class TestGlueMacros(unittest.TestCase):
         merge_compatible_formats = ["delta", "iceberg", "hudi", "s3tables"]
         for file_format in merge_compatible_formats:
             result = self.__run_macro(
-                template, "dbt_glue_validate_get_incremental_strategy", "merge", file_format
+                template,
+                "dbt_glue_validate_get_incremental_strategy",
+                "merge",
+                file_format,
             )
             self.assertEqual(
-                result.strip(), "merge", f"Merge strategy should be allowed for {file_format}"
+                result.strip(),
+                "merge",
+                f"Merge strategy should be allowed for {file_format}",
             )
 
     def test_glue_validate_merge_error_includes_s3tables(self):
@@ -679,7 +693,10 @@ class TestGlueMacros(unittest.TestCase):
         # Test that merge strategy is rejected for parquet format
         with self.assertRaises(Exception) as context:
             self.__run_macro(
-                template, "dbt_glue_validate_get_incremental_strategy", "merge", "parquet"
+                template,
+                "dbt_glue_validate_get_incremental_strategy",
+                "merge",
+                "parquet",
             )
         self.assertIn("CompilerError:", str(context.exception))
         self.assertIn(
@@ -695,7 +712,10 @@ class TestGlueMacros(unittest.TestCase):
         valid_strategies = ["append", "insert_overwrite"]
         for strategy in valid_strategies:
             result = self.__run_macro(
-                template, "dbt_glue_validate_get_incremental_strategy", strategy, "parquet"
+                template,
+                "dbt_glue_validate_get_incremental_strategy",
+                strategy,
+                "parquet",
             )
             self.assertEqual(result.strip(), strategy)
 
@@ -713,10 +733,12 @@ class TestGlueMacros(unittest.TestCase):
             )
         self.assertIn("CompilerError:", str(context.exception))
         self.assertIn(
-            "Invalid incremental strategy provided: invalid_strategy", str(context.exception)
+            "Invalid incremental strategy provided: invalid_strategy",
+            str(context.exception),
         )
         self.assertIn(
-            "Expected one of: 'append', 'merge', 'insert_overwrite'", str(context.exception)
+            "Expected one of: 'append', 'merge', 'insert_overwrite'",
+            str(context.exception),
         )
 
     def test_is_incremental_passes_file_format_to_get_relation(self):

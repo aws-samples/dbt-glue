@@ -1,5 +1,3 @@
-from time import sleep
-from typing import List
 import pytest
 from dbt.tests.adapter.basic.files import (
     base_table_sql,
@@ -7,25 +5,25 @@ from dbt.tests.adapter.basic.files import (
 )
 from dbt.tests.adapter.basic.test_base import BaseSimpleMaterializations
 from dbt.tests.adapter.basic.test_empty import BaseEmpty
-from dbt.tests.adapter.basic.test_ephemeral import BaseEphemeral
 from dbt.tests.adapter.basic.test_generic_tests import BaseGenericTests
 from dbt.tests.adapter.basic.test_incremental import BaseIncremental
 from dbt.tests.adapter.basic.test_singular_tests import BaseSingularTests
-from dbt.tests.adapter.basic.test_singular_tests_ephemeral import BaseSingularTestsEphemeral
+from dbt.tests.adapter.basic.test_singular_tests_ephemeral import (
+    BaseSingularTestsEphemeral,
+)
 from dbt.tests.adapter.basic.test_table_materialization import BaseTableMaterialization
 from dbt.tests.adapter.basic.test_validate_connection import BaseValidateConnection
 from dbt.tests.util import (
-    check_result_nodes_by_name,
+    TestProcessingException,
     check_relation_types,
     check_relations_equal_with_relations,
-    TestProcessingException,
-    run_dbt,
-    check_relations_equal,
+    check_result_nodes_by_name,
     relation_from_name,
+    run_dbt,
     write_file,
 )
-from tests.util import get_s3_location
 
+from tests.util import get_s3_location
 
 # override schema_base_yml to set missing database
 schema_base_yml = """
@@ -73,7 +71,7 @@ def get_relation(adapter, name: str):
     return relation
 
 
-def check_relations_equal(adapter, relation_names: List, compare_snapshot_cols=False):
+def check_relations_equal(adapter, relation_names: list, compare_snapshot_cols=False):
     if len(relation_names) < 2:
         raise TestProcessingException(
             "Not enough relations to compare",
@@ -142,7 +140,14 @@ class TestSimpleMaterializationsGlue(BaseSimpleMaterializations):
         # run_dbt changing materialized_var to view
         if project.test_config.get("require_full_refresh", False):  # required for BigQuery
             results = run_dbt(
-                ["run", "--full-refresh", "-m", "swappable", "--vars", "materialized_var: view"]
+                [
+                    "run",
+                    "--full-refresh",
+                    "-m",
+                    "swappable",
+                    "--vars",
+                    "materialized_var: view",
+                ]
             )
         else:
             results = run_dbt(["run", "-m", "swappable", "--vars", "materialized_var: view"])
@@ -237,8 +242,6 @@ class TestIncrementalGlue(BaseIncremental):
         assert len(catalog.nodes) == 3
         assert len(catalog.sources) == 1
 
-    pass
-
 
 class TestIncrementalGlueWithCustomLocation(TestIncrementalGlue):
     @pytest.fixture(scope="class")
@@ -271,8 +274,6 @@ class TestGenericTestsGlue(BaseGenericTests):
         results = run_dbt(["test"])
         assert len(results) == 3
 
-    pass
-
 
 class TestTableMatGlue(BaseTableMaterialization):
     pass
@@ -290,7 +291,10 @@ class TestSchemaChangeGlue:
         """Configure project to use Iceberg format for tables"""
         return {
             "name": "schema_change_test",
-            "models": {"+file_format": "iceberg", "+on_schema_change": "sync_all_columns"},
+            "models": {
+                "+file_format": "iceberg",
+                "+on_schema_change": "sync_all_columns",
+            },
         }
 
     @pytest.fixture(scope="class")
@@ -565,7 +569,10 @@ class TestIcebergMultipleRuns:
         """Configure project to use Iceberg format for tables"""
         return {
             "name": "iceberg_multiple_runs_test",
-            "models": {"+file_format": "iceberg", "+on_schema_change": "append_new_columns"},
+            "models": {
+                "+file_format": "iceberg",
+                "+on_schema_change": "append_new_columns",
+            },
         }
 
     @pytest.fixture(scope="class")
@@ -612,7 +619,10 @@ class TestIcebergMergeWithSchemaChange:
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
-        return {"name": "iceberg_merge_schema_test", "models": {"+file_format": "iceberg"}}
+        return {
+            "name": "iceberg_merge_schema_test",
+            "models": {"+file_format": "iceberg"},
+        }
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -647,7 +657,8 @@ select 3 as id, 'Bob' as name, 300 as value
         # Verify initial data
         schema_name = project.test_schema
         result = project.run_sql(
-            f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one"
+            f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model",
+            fetch="one",
         )
         assert result[0] == 2
 
@@ -680,7 +691,8 @@ select 3 as id, 'Bob' as name, 300 as value, 'C' as category
 
         # Verify merge worked correctly - should have 3 rows total
         result = project.run_sql(
-            f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model", fetch="one"
+            f"select count(*) from glue_catalog.{schema_name}.incremental_merge_model",
+            fetch="one",
         )
         assert result[0] == 3
 
