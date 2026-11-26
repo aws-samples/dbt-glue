@@ -254,6 +254,13 @@ class GlueConnection:
                 "'schema' is required in profiles.yml but was not provided"
             )
 
+        if self.credentials.skip_use_schema:
+            logger.debug(
+                "skip_use_schema is set; skipping 'use "
+                f"{self.credentials.schema}' statement for session {self.session_id}"
+            )
+            return
+
         statement = GlueStatement(
             client=self.client,
             session_id=self.session_id,

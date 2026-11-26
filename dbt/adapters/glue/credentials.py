@@ -45,6 +45,7 @@ class GlueCredentials(Credentials):
     boto_retry_mode: Optional[str] = "adaptive"
     boto_retry_max_attempts: int = 10
     root_location: bool = False
+    skip_use_schema: bool = False
     # Python model specific fields
     packages: Optional[List[str]] = None
 
@@ -118,5 +119,6 @@ class GlueCredentials(Credentials):
             'statement_poll_interval',
             'boto_retry_mode',
             'boto_retry_max_attempts',
+            'skip_use_schema',
             'packages',
         ]
