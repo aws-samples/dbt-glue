@@ -139,7 +139,7 @@ def test_glue_python_job_helper_with_packages(mock_glue_connection_class, mock_c
     assert "import numpy as np; print('Hello with packages!')" in run_statement_args['Code']
     
     # Verify packages were extracted correctly
-    assert helper.packages == ["numpy", "pandas", "scikit-learn"]
+    assert helper.credentials.packages == ["numpy", "pandas", "scikit-learn"]
 
 def test_glue_python_job_helper_packages_extraction(mock_credentials):
     """Test that packages are properly extracted from model config"""
@@ -153,14 +153,15 @@ def test_glue_python_job_helper_packages_extraction(mock_credentials):
     }
     
     helper = GluePythonJobHelper(parsed_model_with_packages, mock_credentials)
-    assert helper.packages == ["numpy", "pandas"]
+    assert helper.credentials.packages == ["numpy", "pandas"]
     
+def test_glue_python_job_helper_packages_extraction(mock_credentials):
+    """Test that packages are properly extracted from model config"""
     # Test without packages
     parsed_model_without_packages = {
         "alias": "test_model",
         "schema": "test_schema",
         "config": {}
     }
-    
     helper = GluePythonJobHelper(parsed_model_without_packages, mock_credentials)
-    assert helper.packages == []
+    assert helper.credentials.packages == None

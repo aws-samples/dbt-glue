@@ -1,7 +1,5 @@
 import time
-import time
-import uuid
-from typing import Any, Dict
+from typing import Dict
 
 from dbt.adapters.base import PythonJobHelper
 from dbt_common.exceptions import DbtRuntimeError
@@ -10,13 +8,19 @@ from dbt.adapters.glue import GlueCredentials
 
 class GluePythonJobHelper(PythonJobHelper):
     def __init__(self, parsed_model: Dict, credentials: GlueCredentials) -> None:
-        self.credentials = credentials
         self.identifier = parsed_model["alias"]
         self.schema = parsed_model["schema"]
         self.parsed_model = parsed_model
-        
-        # Extract packages from model config (dbt Core standard)
-        self.packages = parsed_model.get("config", {}).get("packages", [])
+
+        # Extracting additional args that were provided in `dbt.config()` 
+        # it will overwrite all previously set args in GlueCredentials, making
+        # `dbt.config` have the same structure as sql model {{ config }}
+        config = parsed_model.get("config", {})
+        if config:
+            for k, v in config.items():
+                setattr(credentials, k, v)
+
+        self.credentials = credentials
         
         self.timeout = self.parsed_model["config"].get("timeout", 60 * 60)  # Default 1 hour
         self.polling_interval = 10
