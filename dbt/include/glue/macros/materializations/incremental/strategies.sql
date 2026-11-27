@@ -1,6 +1,25 @@
-{% macro get_insert_overwrite_sql(source_relation, target_relation) %}
+{#-- Render the column list used to write the source relation into the target.
+     Columns follow the target's order. When source_columns is given, target
+     columns the source does not produce (left behind by
+     on_schema_change='append_new_columns' after the model stopped emitting
+     them) are filled with a typed NULL instead of being selected from the
+     source, matching dbt-core. Names are matched case-insensitively. --#}
+{% macro dbt_glue_source_column_list(dest_columns, source_columns=none, prefix='', alias=true) -%}
+  {%- set source_names = none if source_columns is none else source_columns | map(attribute='name') | map('lower') | list -%}
+  {%- for col in dest_columns -%}
+    {%- if source_names is none or col.name | lower in source_names -%}
+      {{ prefix }}{{ col.name }}
+    {%- else -%}
+      cast(null as {{ col.dtype }}){% if alias %} as {{ col.name }}{% endif %}
+    {%- endif -%}
+    {%- if not loop.last %}, {% endif -%}
+  {%- endfor -%}
+{%- endmacro %}
+
+
+{% macro get_insert_overwrite_sql(source_relation, target_relation, source_columns=none) %}
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-    {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
+    {%- set dest_cols_csv = dbt_glue_source_column_list(dest_columns, source_columns) -%}
     {%- set file_format = config.get('file_format', default='parquet') -%}
     {%- set full_target_relation = target_relation -%}
     {%- set full_source_relation = source_relation -%}
@@ -15,13 +34,13 @@
     dbt_next_query
     insert overwrite table {{ full_target_relation }}
     {{ partition_cols(label="partition") }}
-    select {{dest_cols_csv}} from {{ full_source_relation }} 
+    select {{dest_cols_csv}} from {{ full_source_relation }}
 {% endmacro %}
 
 
-{% macro get_insert_into_sql(source_relation, target_relation) %}
+{% macro get_insert_into_sql(source_relation, target_relation, source_columns=none) %}
     {%- set dest_columns = adapter.get_columns_in_relation(target_relation) -%}
-    {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
+    {%- set dest_cols_csv = dbt_glue_source_column_list(dest_columns, source_columns) -%}
     {%- set schema_change_mode = config.get('on_schema_change', default='ignore') -%}
     {%- set file_format = config.get('file_format', default='parquet') -%}
     {%- set full_target_relation = target_relation -%}
@@ -39,15 +58,24 @@
 {% endmacro %}
 
 
-{% macro get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) %}
+{% macro get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates, source_columns=none) %}
   {# /* need dest_columns for merge_exclude_columns, default to use "*" */ #}
   {%- set predicates = [] if incremental_predicates is none else [] + incremental_predicates -%}
   {%- if dest_columns is none -%}
     {%- set dest_columns = adapter.get_columns_in_relation(target) -%}
   {%- endif -%}
+  {#-- Matched rows only update columns the source produces; target-only columns keep their value --#}
+  {%- set updatable_columns = dest_columns -%}
+  {%- if source_columns is not none -%}
+    {%- set source_names = source_columns | map(attribute='name') | map('lower') | list -%}
+    {%- set updatable_columns = [] -%}
+    {%- for col in dest_columns if col.name | lower in source_names -%}
+      {%- do updatable_columns.append(col) -%}
+    {%- endfor -%}
+  {%- endif -%}
   {%- set merge_update_columns = config.get('merge_update_columns') -%}
   {%- set merge_exclude_columns = config.get('merge_exclude_columns') -%}
-  {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, dest_columns) -%}
+  {%- set update_columns = get_merge_update_columns(merge_update_columns, merge_exclude_columns, updatable_columns) -%}
   {%- set dest_cols_csv = dest_columns | map(attribute='name') | join(', ') -%}
   {%- set file_format = config.get('file_format', default='parquet') -%}
   {%- set full_target = target -%}
@@ -89,19 +117,19 @@
         {%- endfor %}
         {%- else %} * {% endif %}
 
-      when not matched then insert ({{ dest_cols_csv }}) values ({% for col in dest_columns %}DBT_INTERNAL_SOURCE.{{ col.name }}{% if not loop.last %}, {% endif %}{% endfor %})
+      when not matched then insert ({{ dest_cols_csv }}) values ({{ dbt_glue_source_column_list(dest_columns, source_columns, prefix='DBT_INTERNAL_SOURCE.', alias=false) }})
 {% endmacro %}
 
 
-{% macro dbt_glue_get_incremental_sql(strategy, source, target, unique_key, incremental_predicates, dest_columns=none) %}
+{% macro dbt_glue_get_incremental_sql(strategy, source, target, unique_key, incremental_predicates, dest_columns=none, source_columns=none) %}
   {%- if strategy == 'append' -%}
     {#-- insert new records into existing table, without updating or overwriting #}
-    {{ get_insert_into_sql(source, target) }}
+    {{ get_insert_into_sql(source, target, source_columns) }}
   {%- elif strategy == 'insert_overwrite' -%}
     {#-- insert statements don't like CTEs, so support them via a temp view #}
-    {{ get_insert_overwrite_sql(source, target) }}
+    {{ get_insert_overwrite_sql(source, target, source_columns) }}
   {%- elif strategy == 'merge' -%}
-    {{ get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates) }}
+    {{ get_merge_sql(target, source, unique_key, dest_columns, incremental_predicates, source_columns) }}
   {%- else -%}
     {% set no_sql_for_strategy_msg -%}
       No known SQL for the incremental strategy provided: {{ strategy }}
